@@ -1,0 +1,42 @@
+# Local dev dependencies only — run `pnpm dev` on the host against these.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-abms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-abms}
+    ports:
+      - "55432:5432"
+    volumes:
+      - abms_postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-abms}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-abms-storage}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - abms_minio_dev_data:/data
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "1025:1025" # SMTP — point SMTP_HOST/PORT here for local dev
+      - "8025:8025" # Web UI — view invite/reset emails at http://localhost:8025
+
+volumes:
+  abms_postgres_dev_data:
+  abms_minio_dev_data:

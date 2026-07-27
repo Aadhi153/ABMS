@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * ABMS design tokens — "Charcoal & Amber".
+ * Values are HSL triplets (no hsl() wrapper) so tailwind-preset.js can compose
+ * them as hsl(var(--x) / <alpha-value>). Keep in sync with docs/build-prompt.md
+ * section 6 if the palette changes.
+ */
+@layer base {
+  :root {
+    --background: 60 9% 98%;
+    --foreground: 24 10% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 24 10% 10%;
+
+    --border: 20 6% 90%;
+    --input: 20 6% 90%;
+    --ring: 26 90% 37%;
+
+    --primary: 26 90% 37%;
+    --primary-foreground: 0 0% 100%;
+
+    --muted: 60 5% 96%;
+    --muted-foreground: 25 5% 45%;
+
+    --success: 161 94% 30%;
+    --success-bg: 149 80% 90%;
+    --warning: 32 95% 44%;
+    --warning-bg: 48 96% 89%;
+    --danger: 0 72% 51%;
+    --danger-bg: 0 93% 94%;
+    --info: 221 83% 53%;
+    --info-bg: 214 95% 93%;
+
+    /*
+     * Sidebar + top bar — fixed navy brand chrome, identical in light/dark
+     * mode (this app's chrome doesn't theme-swap, only the main content
+     * area does). Plain hex, not HSL triplets, to keep exact fidelity with
+     * the design spec — these aren't composed with Tailwind's alpha-modifier
+     * syntax the way the theme-adaptive tokens above are.
+     */
+    --sidebar-from: #1B3654;
+    --sidebar-to: #3E6B96;
+    --sidebar-logo: #F0F6FB;
+    --sidebar-inactive: #D3E1EE;
+    --topbar: #1E3A5F;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 24 10% 8%;
+    --foreground: 60 9% 96%;
+
+    --card: 24 9% 12%;
+    --card-foreground: 60 9% 96%;
+
+    --border: 24 6% 20%;
+    --input: 24 6% 20%;
+    --ring: 32 95% 50%;
+
+    --primary: 32 95% 50%;
+    --primary-foreground: 24 10% 8%;
+
+    --muted: 12 6% 15%;
+    --muted-foreground: 24 5% 64%;
+
+    --success: 161 70% 45%;
+    --success-bg: 161 45% 15%;
+    --warning: 32 90% 55%;
+    --warning-bg: 32 55% 16%;
+    --danger: 0 75% 65%;
+    --danger-bg: 0 50% 18%;
+    --info: 221 80% 68%;
+    --info-bg: 221 50% 18%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}

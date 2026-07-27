@@ -1,0 +1,21 @@
+{
+  "name": "@abms/config",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "./tailwind-preset": "./tailwind-preset.js",
+    "./eslint-base": "./eslint/base.js",
+    "./eslint-react": "./eslint/react.js",
+    "./tsconfig/*": "./typescript/*.json"
+  },
+  "dependencies": {
+    "tailwindcss-animate": "^1.0.7"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-hooks": "^5.0.0"
+  }
+}

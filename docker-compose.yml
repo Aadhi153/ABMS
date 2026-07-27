@@ -1,0 +1,68 @@
+# Full self-hosted stack — postgres + minio + api + web behind their own ports.
+# See docs/deployment-runbook.md for VPS setup (reverse proxy + TLS are external to this file).
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-abms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-abms}
+    volumes:
+      - abms_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-abms}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-abms-storage}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me}
+    volumes:
+      - abms_minio_data:/data
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api.prod
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-abms}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-abms}?schema=public
+      API_PORT: 4000
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-to-a-long-random-string}
+      SESSION_TIMEOUT_MINS: ${SESSION_TIMEOUT_MINS:-120}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-abms-storage}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me}
+      MINIO_BUCKET: ${MINIO_BUCKET:-abms-files}
+      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+    ports:
+      - "4000:4000"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web.prod
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:4000/graphql}
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  abms_postgres_data:
+  abms_minio_data:

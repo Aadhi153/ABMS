@@ -1,0 +1,41 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build outputs
+dist/
+build/
+.next/
+.turbo/
+
+# env
+.env
+.env.local
+.env.*.local
+
+# prisma
+packages/database/generated/
+
+# auto-generated graphql schema
+apps/api/src/schema.gql
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# os
+.DS_Store
+Thumbs.db
+
+# misc
+coverage/
+*.tsbuildinfo
+
+# uploads (local file storage dev fallback)
+apps/api/uploads/
