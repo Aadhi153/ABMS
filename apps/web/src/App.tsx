@@ -14,6 +14,7 @@ import ForgotPasswordPage from "./pages/forgot-password";
 import ResetPasswordPage from "./pages/reset-password";
 import DashboardPage from "./pages/dashboard";
 import CrmPage from "./pages/crm";
+import CrmNewPage from "./pages/crm/new";
 import InventoryPage from "./pages/inventory";
 import SalesPage from "./pages/sales";
 import PurchasePage from "./pages/purchase";
@@ -44,6 +45,14 @@ export function App() {
                 }
               >
                 <Route path="/" element={<DashboardPage />} />
+                <Route
+                  path="/crm/new"
+                  element={
+                    <ModuleRoute module="crm">
+                      <CrmNewPage />
+                    </ModuleRoute>
+                  }
+                />
                 <Route
                   path="/crm/*"
                   element={

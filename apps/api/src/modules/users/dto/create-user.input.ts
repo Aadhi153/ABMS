@@ -1,10 +1,12 @@
 import { Field, InputType } from "@nestjs/graphql";
+import { Transform } from "class-transformer";
 import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, MinLength } from "class-validator";
 import { Role } from "@abms/shared";
 
 @InputType()
 export class CreateUserInput {
   @Field(() => String)
+  @Transform(({ value }) => (typeof value === "string" ? value.trim().toLowerCase() : value))
   @IsEmail()
   email!: string;
 

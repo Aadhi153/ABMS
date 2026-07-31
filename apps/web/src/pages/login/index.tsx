@@ -1,9 +1,24 @@
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
+import { ApolloError } from "@apollo/client";
 import { Button, Card, CardDescription, CardTitle, Input, Label } from "@abms/ui";
 import { useAuth } from "../../providers/auth-provider";
 import { AuthLogo } from "../../components/auth/auth-logo";
 import { isValidEmail } from "../../lib/auth-validation";
+
+function describeLoginError(err: unknown): string {
+  if (err instanceof ApolloError) {
+    if (err.graphQLErrors.length > 0) {
+      // Server rejected the request with a specific reason (e.g. bad credentials,
+      // inactive account) — show it verbatim instead of a generic guess.
+      return err.graphQLErrors[0].message;
+    }
+    if (err.networkError) {
+      return "Can't reach the server. Check your connection and try again.";
+    }
+  }
+  return "Something went wrong. Please try again.";
+}
 
 const FOCUS_RING = "focus-visible:outline-none focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/10";
 
@@ -29,8 +44,8 @@ export default function LoginPage() {
     try {
       await login(email, password);
       navigate("/", { replace: true });
-    } catch {
-      setError("Incorrect email or password");
+    } catch (err) {
+      setError(describeLoginError(err));
     } finally {
       setSubmitting(false);
     }

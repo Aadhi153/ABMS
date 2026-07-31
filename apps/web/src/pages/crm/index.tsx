@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { Building2, CheckSquare, Kanban, Plus, Trash2, Users as UsersIcon } from "lucide-react";
 import {
@@ -35,7 +36,9 @@ const TABS = [
 type TabKey = (typeof TABS)[number]["key"];
 
 export default function CrmPage() {
-  const [tab, setTab] = useState<TabKey>("contacts");
+  const [searchParams] = useSearchParams();
+  const initialTab = TABS.find((t) => t.key === searchParams.get("tab"))?.key ?? "contacts";
+  const [tab, setTab] = useState<TabKey>(initialTab);
 
   return (
     <div className="space-y-6">
@@ -113,14 +116,6 @@ const CONTACTS_QUERY = gql`
   }
 `;
 
-const CREATE_CONTACT_MUTATION = gql`
-  mutation CreateContact($input: CreateContactInput!) {
-    createContact(input: $input) {
-      id
-    }
-  }
-`;
-
 const UPDATE_CONTACT_MUTATION = gql`
   mutation UpdateContact($id: String!, $input: UpdateContactInput!) {
     updateContact(id: $id, input: $input) {
@@ -137,7 +132,6 @@ const DELETE_CONTACT_MUTATION = gql`
 
 function ContactsTab() {
   const { data, loading, refetch } = useQuery<{ contacts: Contact[]; companies: { id: string; name: string }[] }>(CONTACTS_QUERY);
-  const [createContact] = useMutation(CREATE_CONTACT_MUTATION);
   const [updateContact] = useMutation(UPDATE_CONTACT_MUTATION);
   const [deleteContact] = useMutation(DELETE_CONTACT_MUTATION);
 
@@ -149,12 +143,6 @@ function ContactsTab() {
   const [submitting, setSubmitting] = useState(false);
 
   const companies = data?.companies ?? [];
-
-  function openCreate() {
-    setEditing(null);
-    setForm({ name: "", email: "", phone: "", tags: "", source: "", companyId: "" });
-    setFormOpen(true);
-  }
 
   function openEdit(c: Contact) {
     setEditing(c);
@@ -174,13 +162,8 @@ function ContactsTab() {
       companyId: form.companyId || undefined,
     };
     try {
-      if (editing) {
-        await updateContact({ variables: { id: editing.id, input } });
-        toast.success(`${form.name} updated`);
-      } else {
-        await createContact({ variables: { input } });
-        toast.success(`${form.name} added`);
-      }
+      await updateContact({ variables: { id: editing!.id, input } });
+      toast.success(`${form.name} updated`);
       setFormOpen(false);
       await refetch();
     } catch (err) {
@@ -211,16 +194,18 @@ function ContactsTab() {
           <CardTitle>Contacts</CardTitle>
           <CardDescription>Click a row to view details.</CardDescription>
         </div>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="h-4 w-4" />
-          New Contact
+        <Button size="sm" asChild>
+          <Link to="/crm/new?type=contact">
+            <Plus className="h-4 w-4" />
+            New Contact
+          </Link>
         </Button>
       </CardHeader>
       <CardContent>
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : data?.contacts.length === 0 ? (
-          <EmptyState label="contact" onAdd={openCreate} icon={UsersIcon} />
+          <EmptyState label="contact" href="/crm/new?type=contact" icon={UsersIcon} />
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -258,7 +243,7 @@ function ContactsTab() {
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit contact" : "New contact"}</DialogTitle>
+            <DialogTitle>Edit contact</DialogTitle>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-1.5">
@@ -301,7 +286,7 @@ function ContactsTab() {
             </div>
             <DialogFooter>
               <Button type="submit" disabled={submitting}>
-                {submitting ? "Saving…" : editing ? "Save changes" : "Create contact"}
+                {submitting ? "Saving…" : "Save changes"}
               </Button>
             </DialogFooter>
           </form>
@@ -416,14 +401,6 @@ const COMPANY_CONTACTS_QUERY = gql`
   }
 `;
 
-const CREATE_COMPANY_MUTATION = gql`
-  mutation CreateCompany($input: CreateCompanyInput!) {
-    createCompany(input: $input) {
-      id
-    }
-  }
-`;
-
 const UPDATE_COMPANY_MUTATION = gql`
   mutation UpdateCompany($id: String!, $input: UpdateCompanyInput!) {
     updateCompany(id: $id, input: $input) {
@@ -440,7 +417,6 @@ const DELETE_COMPANY_MUTATION = gql`
 
 function CompaniesTab() {
   const { data, loading, refetch } = useQuery<{ companies: Company[] }>(COMPANIES_QUERY);
-  const [createCompany] = useMutation(CREATE_COMPANY_MUTATION);
   const [updateCompany] = useMutation(UPDATE_COMPANY_MUTATION);
   const [deleteCompany] = useMutation(DELETE_COMPANY_MUTATION);
 
@@ -450,12 +426,6 @@ function CompaniesTab() {
   const [deleting, setDeleting] = useState<Company | null>(null);
   const [form, setForm] = useState({ name: "", industry: "", website: "" });
   const [submitting, setSubmitting] = useState(false);
-
-  function openCreate() {
-    setEditing(null);
-    setForm({ name: "", industry: "", website: "" });
-    setFormOpen(true);
-  }
 
   function openEdit(c: Company) {
     setEditing(c);
@@ -468,13 +438,8 @@ function CompaniesTab() {
     setSubmitting(true);
     const input = { name: form.name, industry: form.industry || undefined, website: form.website || undefined };
     try {
-      if (editing) {
-        await updateCompany({ variables: { id: editing.id, input } });
-        toast.success(`${form.name} updated`);
-      } else {
-        await createCompany({ variables: { input } });
-        toast.success(`${form.name} added`);
-      }
+      await updateCompany({ variables: { id: editing!.id, input } });
+      toast.success(`${form.name} updated`);
       setFormOpen(false);
       await refetch();
     } catch (err) {
@@ -505,16 +470,18 @@ function CompaniesTab() {
           <CardTitle>Companies</CardTitle>
           <CardDescription>Click a row to view linked contacts.</CardDescription>
         </div>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="h-4 w-4" />
-          New Company
+        <Button size="sm" asChild>
+          <Link to="/crm/new?type=company">
+            <Plus className="h-4 w-4" />
+            New Company
+          </Link>
         </Button>
       </CardHeader>
       <CardContent>
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : data?.companies.length === 0 ? (
-          <EmptyState label="company" onAdd={openCreate} icon={Building2} />
+          <EmptyState label="company" href="/crm/new?type=company" icon={Building2} />
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -544,7 +511,7 @@ function CompaniesTab() {
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit company" : "New company"}</DialogTitle>
+            <DialogTitle>Edit company</DialogTitle>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-1.5">
@@ -561,7 +528,7 @@ function CompaniesTab() {
             </div>
             <DialogFooter>
               <Button type="submit" disabled={submitting}>
-                {submitting ? "Saving…" : editing ? "Save changes" : "Create company"}
+                {submitting ? "Saving…" : "Save changes"}
               </Button>
             </DialogFooter>
           </form>
@@ -689,14 +656,6 @@ const DEALS_QUERY = gql`
   }
 `;
 
-const CREATE_DEAL_MUTATION = gql`
-  mutation CreateDeal($input: CreateDealInput!) {
-    createDeal(input: $input) {
-      id
-    }
-  }
-`;
-
 const UPDATE_DEAL_MUTATION = gql`
   mutation UpdateDeal($id: String!, $input: UpdateDealInput!) {
     updateDeal(id: $id, input: $input) {
@@ -727,7 +686,6 @@ function DealsTab() {
     contacts: { id: string; name: string }[];
     companies: { id: string; name: string }[];
   }>(DEALS_QUERY);
-  const [createDeal] = useMutation(CREATE_DEAL_MUTATION);
   const [updateDeal] = useMutation(UPDATE_DEAL_MUTATION);
   const [deleteDeal] = useMutation(DELETE_DEAL_MUTATION);
 
@@ -746,12 +704,6 @@ function DealsTab() {
     for (const d of data?.deals ?? []) map[d.stage].push(d);
     return map;
   }, [data]);
-
-  function openCreate() {
-    setEditing(null);
-    setForm({ title: "", value: "", stage: DealStage.LEAD, probability: "10", contactId: "", companyId: "" });
-    setFormOpen(true);
-  }
 
   function openEdit(d: Deal) {
     setEditing(d);
@@ -778,13 +730,8 @@ function DealsTab() {
       companyId: form.companyId || undefined,
     };
     try {
-      if (editing) {
-        await updateDeal({ variables: { id: editing.id, input } });
-        toast.success(`${form.title} updated`);
-      } else {
-        await createDeal({ variables: { input } });
-        toast.success(`${form.title} added`);
-      }
+      await updateDeal({ variables: { id: editing!.id, input } });
+      toast.success(`${form.title} updated`);
       setFormOpen(false);
       await refetch();
     } catch (err) {
@@ -828,16 +775,18 @@ function DealsTab() {
           <CardTitle>Deal pipeline</CardTitle>
           <CardDescription>Drag a card to change its stage.</CardDescription>
         </div>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="h-4 w-4" />
-          New Deal
+        <Button size="sm" asChild>
+          <Link to="/crm/new?type=deal">
+            <Plus className="h-4 w-4" />
+            New Deal
+          </Link>
         </Button>
       </CardHeader>
       <CardContent>
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : data?.deals.length === 0 ? (
-          <EmptyState label="deal" onAdd={openCreate} icon={Kanban} />
+          <EmptyState label="deal" href="/crm/new?type=deal" icon={Kanban} />
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
             {STAGES.map((stage) => (
@@ -872,7 +821,7 @@ function DealsTab() {
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit deal" : "New deal"}</DialogTitle>
+            <DialogTitle>Edit deal</DialogTitle>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-1.5">
@@ -937,14 +886,12 @@ function DealsTab() {
               </Select>
             </div>
             <DialogFooter className="justify-between">
-              {editing && (
-                <Button type="button" variant="destructive" onClick={() => { setDeleting(editing); setFormOpen(false); }}>
-                  <Trash2 className="h-4 w-4" />
-                  Delete
-                </Button>
-              )}
+              <Button type="button" variant="destructive" onClick={() => { setDeleting(editing); setFormOpen(false); }}>
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </Button>
               <Button type="submit" disabled={submitting} className="ml-auto">
-                {submitting ? "Saving…" : editing ? "Save changes" : "Create deal"}
+                {submitting ? "Saving…" : "Save changes"}
               </Button>
             </DialogFooter>
           </form>
@@ -1005,22 +952,6 @@ const TASKS_QUERY = gql`
       dealId
       dealTitle
     }
-    contacts {
-      id
-      name
-    }
-    deals {
-      id
-      title
-    }
-  }
-`;
-
-const CREATE_TASK_MUTATION = gql`
-  mutation CreateTask($input: CreateTaskInput!) {
-    createTask(input: $input) {
-      id
-    }
   }
 `;
 
@@ -1039,51 +970,11 @@ const DELETE_TASK_MUTATION = gql`
 `;
 
 function TasksTab() {
-  const { data, loading, refetch } = useQuery<{
-    crmTasks: CrmTask[];
-    contacts: { id: string; name: string }[];
-    deals: { id: string; title: string }[];
-  }>(TASKS_QUERY);
-  const [createTask] = useMutation(CREATE_TASK_MUTATION);
+  const { data, loading, refetch } = useQuery<{ crmTasks: CrmTask[] }>(TASKS_QUERY);
   const [updateTask] = useMutation(UPDATE_TASK_MUTATION);
   const [deleteTask] = useMutation(DELETE_TASK_MUTATION);
 
-  const [formOpen, setFormOpen] = useState(false);
   const [deleting, setDeleting] = useState<CrmTask | null>(null);
-  const [form, setForm] = useState({ title: "", dueDate: "", contactId: "", dealId: "" });
-  const [submitting, setSubmitting] = useState(false);
-
-  const contacts = data?.contacts ?? [];
-  const deals = data?.deals ?? [];
-
-  function openCreate() {
-    setForm({ title: "", dueDate: "", contactId: "", dealId: "" });
-    setFormOpen(true);
-  }
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      await createTask({
-        variables: {
-          input: {
-            title: form.title,
-            dueDate: form.dueDate || undefined,
-            contactId: form.contactId || undefined,
-            dealId: form.dealId || undefined,
-          },
-        },
-      });
-      toast.success(`${form.title} added`);
-      setFormOpen(false);
-      await refetch();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create task");
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   async function handleToggleStatus(t: CrmTask) {
     try {
@@ -1114,16 +1005,18 @@ function TasksTab() {
           <CardTitle>Tasks</CardTitle>
           <CardDescription>Follow-ups linked to contacts or deals.</CardDescription>
         </div>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="h-4 w-4" />
-          New Task
+        <Button size="sm" asChild>
+          <Link to="/crm/new?type=task">
+            <Plus className="h-4 w-4" />
+            New Task
+          </Link>
         </Button>
       </CardHeader>
       <CardContent>
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : data?.crmTasks.length === 0 ? (
-          <EmptyState label="task" onAdd={openCreate} icon={CheckSquare} />
+          <EmptyState label="task" href="/crm/new?type=task" icon={CheckSquare} />
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -1161,61 +1054,6 @@ function TasksTab() {
         )}
       </CardContent>
 
-      <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>New task</DialogTitle>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="space-y-1.5">
-              <Label htmlFor="t-title">Title</Label>
-              <Input id="t-title" required value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="t-due">Due date</Label>
-              <Input id="t-due" type="date" value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Linked contact</Label>
-              <Select value={form.contactId || "none"} onValueChange={(v) => setForm((f) => ({ ...f, contactId: v === "none" ? "" : v, dealId: v === "none" ? f.dealId : "" }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="None" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {contacts.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Linked deal</Label>
-              <Select value={form.dealId || "none"} onValueChange={(v) => setForm((f) => ({ ...f, dealId: v === "none" ? "" : v, contactId: v === "none" ? f.contactId : "" }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="None" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {deals.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={submitting}>
-                {submitting ? "Saving…" : "Create task"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <DialogContent>
           <DialogHeader>
@@ -1242,7 +1080,7 @@ function TasksTab() {
 // Shared empty state
 // ---------------------------------------------------------------------------
 
-function EmptyState({ label, onAdd, icon: Icon }: { label: string; onAdd: () => void; icon: typeof UsersIcon }) {
+function EmptyState({ label, href, icon: Icon }: { label: string; href: string; icon: typeof UsersIcon }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
@@ -1252,9 +1090,11 @@ function EmptyState({ label, onAdd, icon: Icon }: { label: string; onAdd: () => 
         <p className="text-sm font-medium">No {label}s yet</p>
         <p className="text-sm text-muted-foreground">Get started by adding your first {label}.</p>
       </div>
-      <Button size="sm" onClick={onAdd}>
-        <Plus className="h-4 w-4" />
-        Add your first {label}
+      <Button size="sm" asChild>
+        <Link to={href}>
+          <Plus className="h-4 w-4" />
+          Add your first {label}
+        </Link>
       </Button>
     </div>
   );
