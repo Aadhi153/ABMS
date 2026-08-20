@@ -8,9 +8,9 @@ export function AppShell() {
   if (!user) return null;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen items-stretch">
       <Sidebar role={user.role} />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden bg-background">
         <Topbar />
         <main className="flex-1 overflow-y-auto p-6">
           <Outlet />

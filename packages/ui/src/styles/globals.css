@@ -22,6 +22,7 @@
 
     --primary: 26 90% 37%;
     --primary-foreground: 0 0% 100%;
+    --primary-bg: 36 93% 94%;
 
     --muted: 60 5% 96%;
     --muted-foreground: 25 5% 45%;
@@ -36,17 +37,19 @@
     --info-bg: 214 95% 93%;
 
     /*
-     * Sidebar + top bar — fixed navy brand chrome, identical in light/dark
-     * mode (this app's chrome doesn't theme-swap, only the main content
-     * area does). Plain hex, not HSL triplets, to keep exact fidelity with
-     * the design spec — these aren't composed with Tailwind's alpha-modifier
-     * syntax the way the theme-adaptive tokens above are.
+     * Sidebar — fixed navy brand chrome, identical in light/dark mode (this
+     * app's chrome doesn't theme-swap, only the main content area does).
+     * Plain hex, not HSL triplets, to keep exact fidelity with the design
+     * spec — these aren't composed with Tailwind's alpha-modifier syntax
+     * the way the theme-adaptive tokens above are.
      */
     --sidebar-from: #1B3654;
     --sidebar-to: #3E6B96;
     --sidebar-logo: #F0F6FB;
     --sidebar-inactive: #D3E1EE;
-    --topbar: #1E3A5F;
+    /* Same navy, kept as a standalone accent token — used for the
+       receivables stat-badge icon, not for a full surface anymore. */
+    --navy: #1E3A5F;
 
     --radius: 0.5rem;
   }
@@ -64,6 +67,7 @@
 
     --primary: 32 95% 50%;
     --primary-foreground: 24 10% 8%;
+    --primary-bg: 26 55% 16%;
 
     --muted: 12 6% 15%;
     --muted-foreground: 24 5% 64%;

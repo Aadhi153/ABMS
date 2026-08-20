@@ -20,10 +20,11 @@ module.exports = {
         },
         "sidebar-logo": "var(--sidebar-logo)",
         "sidebar-inactive": "var(--sidebar-inactive)",
-        topbar: "var(--topbar)",
+        navy: "var(--navy)",
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          bg: "hsl(var(--primary-bg))",
         },
         muted: {
           DEFAULT: "hsl(var(--muted))",

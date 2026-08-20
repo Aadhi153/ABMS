@@ -1,4 +1,5 @@
-import { Bell, LogOut, Moon, Search, Sun } from "lucide-react";
+import { Bell, LogOut, Moon, Sun } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import {
   Avatar,
   AvatarFallback,
@@ -9,9 +10,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Input,
 } from "@abms/ui";
-import { ROLE_LABELS } from "@abms/shared";
+import { NAV_MODULES, ROLE_LABELS } from "@abms/shared";
 import { useAuth } from "../../providers/auth-provider";
 import { useTheme } from "../../providers/theme-provider";
 
@@ -24,40 +24,44 @@ function initials(name: string) {
     .toUpperCase();
 }
 
+function pageTitle(pathname: string) {
+  const match = [...NAV_MODULES]
+    .filter((m) => (m.path === "/" ? pathname === "/" : pathname.startsWith(m.path)))
+    .sort((a, b) => b.path.length - a.path.length)[0];
+  return match?.label ?? "ABMS";
+}
+
+const ICON_BUTTON = "h-9 w-9 rounded-lg bg-stone-100 text-stone-600 hover:bg-stone-200 hover:text-stone-700";
+
 export function Topbar() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { pathname } = useLocation();
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between gap-4 bg-topbar px-6">
-      <div className="relative w-full max-w-md">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input placeholder="Search contacts, products, orders, invoices…" className="pl-9" />
-      </div>
+    <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-border bg-card px-6">
+      <h1 className="text-lg font-semibold text-foreground">{pageTitle(pathname)}</h1>
       <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Toggle theme"
-          onClick={toggleTheme}
-          className="text-sidebar-inactive hover:bg-white/10 hover:text-white"
-        >
+        <Button variant="ghost" size="icon" aria-label="Toggle theme" onClick={toggleTheme} className={ICON_BUTTON}>
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Notifications"
-          className="text-sidebar-inactive hover:bg-white/10 hover:text-white"
-        >
+        <Button variant="ghost" size="icon" aria-label="Notifications" className={ICON_BUTTON}>
           <Bell className="h-4 w-4" />
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-topbar">
-              <Avatar>
-                <AvatarFallback>{user ? initials(user.name) : "?"}</AvatarFallback>
+            <button className="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card">
+              <Avatar className="bg-primary text-primary-foreground">
+                <AvatarFallback className="bg-primary text-primary-foreground">
+                  {user ? initials(user.name) : "?"}
+                </AvatarFallback>
               </Avatar>
+              <div className="hidden flex-col items-start sm:flex">
+                <span className="text-sm font-bold leading-tight text-foreground">{user?.name}</span>
+                <span className="text-xs leading-tight text-muted-foreground">
+                  {user ? ROLE_LABELS[user.role] : ""}
+                </span>
+              </div>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">

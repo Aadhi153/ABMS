@@ -1,8 +1,6 @@
 import { gql, useQuery } from "@apollo/client";
-import { Boxes, Landmark, ShoppingCart, Users } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@abms/ui";
-import { ROLE_LABELS } from "@abms/shared";
-import { useAuth } from "../../providers/auth-provider";
+import { AlertTriangle, Landmark, RefreshCw, TrendingUp, Users } from "lucide-react";
+import { Button, Card, CardContent } from "@abms/ui";
 
 const QUERY = gql`
   query DashboardSummary {
@@ -23,17 +21,36 @@ const QUERY = gql`
     payables {
       totalOwed
     }
+    ledgerEntries {
+      id
+      type
+      amount
+      postedAt
+    }
   }
 `;
 
+const COLORS = {
+  amber: { badge: "bg-primary-bg text-primary", footer: "text-muted-foreground" },
+  red: { badge: "bg-danger-bg text-danger", footer: "text-danger" },
+  green: { badge: "bg-success-bg text-success", footer: "text-success" },
+  blue: { badge: "bg-info-bg text-navy", footer: "text-muted-foreground" },
+} as const;
+
+function isToday(date: string) {
+  const d = new Date(date);
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+}
+
 export default function DashboardPage() {
-  const { user } = useAuth();
-  const { data, loading } = useQuery<{
+  const { data, loading, refetch } = useQuery<{
     deals: Array<{ id: string; stage: string }>;
     lowStockProducts: Array<{ id: string }>;
     salesOrders: Array<{ id: string; status: string }>;
     receivables: Array<{ totalOwed: number }>;
     payables: Array<{ totalOwed: number }>;
+    ledgerEntries: Array<{ id: string; type: string; amount: number; postedAt: string }>;
   }>(QUERY);
 
   const openDeals = data?.deals.filter((d) => d.stage !== "WON" && d.stage !== "LOST").length ?? 0;
@@ -41,42 +58,77 @@ export default function DashboardPage() {
   const openOrders = data?.salesOrders.filter((o) => o.status !== "CANCELLED" && o.status !== "DELIVERED").length ?? 0;
   const receivablesTotal = data?.receivables.reduce((s, r) => s + r.totalOwed, 0) ?? 0;
   const payablesTotal = data?.payables.reduce((s, p) => s + p.totalOwed, 0) ?? 0;
+  const revenueToday =
+    data?.ledgerEntries
+      .filter((e) => e.type === "RECEIVABLE" && isToday(e.postedAt))
+      .reduce((s, e) => s + e.amount, 0) ?? 0;
 
   const WIDGETS = [
-    { label: "Open Deals", value: loading ? "—" : String(openDeals), icon: Users },
-    { label: "Low Stock Items", value: loading ? "—" : String(lowStock), icon: Boxes },
-    { label: "Open Sales Orders", value: loading ? "—" : String(openOrders), icon: ShoppingCart },
-    { label: "Receivables Outstanding", value: loading ? "—" : `$${receivablesTotal.toFixed(2)}`, icon: Landmark },
+    {
+      label: "Open Deals",
+      value: loading ? "—" : String(openDeals),
+      icon: Users,
+      color: COLORS.amber,
+      footer: "All-time",
+    },
+    {
+      label: "Low Stock Items",
+      value: loading ? "—" : String(lowStock),
+      icon: AlertTriangle,
+      color: COLORS.red,
+      footer: "⚠ Needs attention",
+    },
+    {
+      label: "Revenue Today",
+      value: loading ? "—" : `$${revenueToday.toFixed(2)}`,
+      icon: TrendingUp,
+      color: COLORS.green,
+      footer: "● Live",
+    },
+    {
+      label: "Receivables",
+      value: loading ? "—" : `$${receivablesTotal.toFixed(2)}`,
+      icon: Landmark,
+      color: COLORS.blue,
+      footer: "Outstanding",
+    },
   ];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Welcome back, {user?.name}</h1>
-        <p className="text-sm text-muted-foreground">{user ? ROLE_LABELS[user.role] : ""} dashboard</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">Live data from your ABMS database.</p>
+        </div>
+        <Button size="sm" disabled={loading} onClick={() => void refetch()} className="rounded-full">
+
+          <RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+          Refresh
+        </Button>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {WIDGETS.map((w) => (
           <Card key={w.label}>
-            <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription>{w.label}</CardDescription>
-              <w.icon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <CardTitle className="text-2xl">{w.value}</CardTitle>
+            <CardContent className="space-y-3 p-4">
+              <div className="flex items-start justify-between">
+                <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{w.label}</span>
+                <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${w.color.badge}`}>
+                  <w.icon className="h-4 w-4" />
+                </span>
+              </div>
+              <div className="text-3xl font-extrabold text-foreground">{w.value}</div>
+              <div className={`text-xs ${w.color.footer}`}>{w.footer}</div>
             </CardContent>
           </Card>
         ))}
       </div>
       <Card>
-        <CardHeader>
-          <CardTitle>Cross-module summary</CardTitle>
-          <CardDescription>
-            {loading
-              ? "Loading…"
-              : `${openDeals} open deal${openDeals === 1 ? "" : "s"}, ${lowStock} product${lowStock === 1 ? "" : "s"} below reorder threshold, ${openOrders} order${openOrders === 1 ? "" : "s"} awaiting fulfillment or invoicing, $${payablesTotal.toFixed(2)} owed to suppliers.`}
-          </CardDescription>
-        </CardHeader>
+        <CardContent className="p-4 text-sm text-muted-foreground">
+          {loading
+            ? "Loading…"
+            : `${openDeals} open deal${openDeals === 1 ? "" : "s"}, ${lowStock} product${lowStock === 1 ? "" : "s"} below reorder threshold, ${openOrders} order${openOrders === 1 ? "" : "s"} awaiting fulfillment or invoicing, $${payablesTotal.toFixed(2)} owed to suppliers.`}
+        </CardContent>
       </Card>
     </div>
   );
