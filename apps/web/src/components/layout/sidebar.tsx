@@ -76,7 +76,7 @@ export function Sidebar({ role }: { role: Role }) {
         </span>
         {!collapsed && <span className="text-[16px] font-bold text-sidebar-logo">ABMS</span>}
       </div>
-      <nav className="flex-1 space-y-0.5 overflow-y-auto">
+      <nav className="scrollbar-hide flex-1 space-y-0.5 overflow-y-auto">
         {items.map((item) => {
           const Icon = ICONS[item.icon];
           const hasChildren = !!item.children?.length && !collapsed;
