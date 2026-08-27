@@ -1,5 +1,5 @@
 import { gql, useQuery } from "@apollo/client";
-import { AlertTriangle, Landmark, RefreshCw, TrendingUp, Users } from "lucide-react";
+import { AlertTriangle, Landmark, RefreshCw, Sparkles, TrendingUp, Users } from "lucide-react";
 import { Button, Card, CardContent } from "@abms/ui";
 
 const QUERY = gql`
@@ -96,13 +96,12 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
           <p className="text-sm text-muted-foreground">Live data from your ABMS database.</p>
         </div>
         <Button size="sm" disabled={loading} onClick={() => void refetch()} className="rounded-full">
-
           <RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
           Refresh
         </Button>
@@ -123,11 +122,16 @@ export default function DashboardPage() {
           </Card>
         ))}
       </div>
-      <Card>
-        <CardContent className="p-4 text-sm text-muted-foreground">
-          {loading
-            ? "Loading…"
-            : `${openDeals} open deal${openDeals === 1 ? "" : "s"}, ${lowStock} product${lowStock === 1 ? "" : "s"} below reorder threshold, ${openOrders} order${openOrders === 1 ? "" : "s"} awaiting fulfillment or invoicing, $${payablesTotal.toFixed(2)} owed to suppliers.`}
+      <Card className="border-l-4 border-l-info">
+        <CardContent className="flex items-start gap-3 p-4">
+          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-info-bg text-info">
+            <Sparkles className="h-4 w-4" />
+          </span>
+          <p className="text-sm text-muted-foreground">
+            {loading
+              ? "Loading…"
+              : `${openDeals} open deal${openDeals === 1 ? "" : "s"}, ${lowStock} product${lowStock === 1 ? "" : "s"} below reorder threshold, ${openOrders} order${openOrders === 1 ? "" : "s"} awaiting fulfillment or invoicing, $${payablesTotal.toFixed(2)} owed to suppliers.`}
+          </p>
         </CardContent>
       </Card>
     </div>

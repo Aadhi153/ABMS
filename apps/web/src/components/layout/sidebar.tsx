@@ -12,6 +12,8 @@ import {
   BarChart3,
   Settings,
   ChevronDown,
+  ChevronsLeft,
+  ChevronsRight,
   type LucideIcon,
 } from "lucide-react";
 import { NAV_MODULES, hasModuleAccess, type ModuleKey, type Role } from "@abms/shared";
@@ -30,17 +32,20 @@ const ICONS: Record<string, LucideIcon> = {
   Settings,
 };
 
+const COLLAPSED_KEY = "abms-sidebar-collapsed";
+
 const HEADER_CLASS =
-  "flex w-full items-center gap-3 rounded-lg px-3 py-[9px] text-sm font-normal text-sidebar-inactive transition-colors hover:bg-white/10 hover:text-white";
+  "flex w-full items-center gap-3 rounded-lg border-l-[3px] border-transparent px-3 py-[9px] text-sm font-normal text-sidebar-inactive transition-colors hover:bg-white/10 hover:text-white";
 const LEAF_CLASS =
-  "flex items-center gap-3 rounded-lg px-3 py-[9px] text-sm font-normal text-sidebar-inactive transition-colors hover:bg-white/10 hover:text-white";
-const ACTIVE_CLASS = "bg-white/[0.22] font-semibold text-white";
+  "flex items-center gap-3 rounded-lg border-l-[3px] border-transparent px-3 py-[9px] text-sm font-normal text-sidebar-inactive transition-colors hover:bg-white/10 hover:text-white";
+const ACTIVE_CLASS = "border-l-amber-400 bg-white/[0.22] font-semibold text-white";
 const SUBITEM_ACTIVE_CLASS = "bg-white/[0.12] font-medium text-white";
 
 export function Sidebar({ role }: { role: Role }) {
   const { pathname } = useLocation();
   const items = NAV_MODULES.filter((m) => hasModuleAccess(role, m.id as ModuleKey));
 
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === "true");
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(
       items.filter((m) => m.children?.length).map((m) => [m.id, pathname.startsWith(m.path)]),
@@ -51,15 +56,30 @@ export function Sidebar({ role }: { role: Role }) {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
   }
 
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      localStorage.setItem(COLLAPSED_KEY, String(!prev));
+      return !prev;
+    });
+  }
+
   return (
-    <aside className="flex h-screen w-60 shrink-0 flex-col bg-sidebar-gradient px-[0.9rem] py-[1.2rem]">
-      <div className="mb-6 flex items-center gap-2">
-        <span className="text-[16px] font-bold text-sidebar-logo">ABMS</span>
+    <aside
+      className={cn(
+        "flex h-screen shrink-0 flex-col bg-sidebar-gradient py-[1.2rem] transition-[width] duration-200",
+        collapsed ? "w-[68px] px-2" : "w-60 px-[0.9rem]",
+      )}
+    >
+      <div className={cn("mb-6 flex items-center gap-2", collapsed && "justify-center")}>
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/10 text-[13px] font-bold text-sidebar-logo">
+          A
+        </span>
+        {!collapsed && <span className="text-[16px] font-bold text-sidebar-logo">ABMS</span>}
       </div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto">
         {items.map((item) => {
           const Icon = ICONS[item.icon];
-          const hasChildren = !!item.children?.length;
+          const hasChildren = !!item.children?.length && !collapsed;
 
           if (!hasChildren) {
             return (
@@ -67,10 +87,11 @@ export function Sidebar({ role }: { role: Role }) {
                 key={item.id}
                 to={item.path}
                 end={item.path === "/"}
-                className={({ isActive }) => cn(LEAF_CLASS, isActive && ACTIVE_CLASS)}
+                title={collapsed ? item.label : undefined}
+                className={({ isActive }) => cn(LEAF_CLASS, collapsed && "justify-center px-0", isActive && ACTIVE_CLASS)}
               >
-                {Icon && <Icon className="h-[17px] w-[17px]" />}
-                {item.label}
+                {Icon && <Icon className="h-[17px] w-[17px] shrink-0" />}
+                {!collapsed && item.label}
               </NavLink>
             );
           }
@@ -86,7 +107,7 @@ export function Sidebar({ role }: { role: Role }) {
                 aria-expanded={isOpen}
                 className={cn(HEADER_CLASS, isActiveSection && !isOpen && ACTIVE_CLASS)}
               >
-                {Icon && <Icon className="h-[17px] w-[17px]" />}
+                {Icon && <Icon className="h-[17px] w-[17px] shrink-0" />}
                 <span className="flex-1 text-left">{item.label}</span>
                 <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", isOpen && "rotate-180")} />
               </button>
@@ -112,6 +133,18 @@ export function Sidebar({ role }: { role: Role }) {
           );
         })}
       </nav>
+      <button
+        type="button"
+        onClick={toggleCollapsed}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        className={cn(
+          "mt-2 flex items-center gap-3 rounded-lg border-t border-white/10 px-3 pt-3 text-xs font-medium text-sidebar-inactive transition-colors hover:text-white",
+          collapsed && "justify-center px-0",
+        )}
+      >
+        {collapsed ? <ChevronsRight className="h-4 w-4 shrink-0" /> : <ChevronsLeft className="h-4 w-4 shrink-0" />}
+        {!collapsed && "Collapse"}
+      </button>
     </aside>
   );
 }
