@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { ArrowLeft, ArrowRight, FileText, Plus, Printer, ShoppingCart, Trash2 } from "lucide-react";
 import {
@@ -23,13 +24,12 @@ import {
   StatusBadge,
   toast,
 } from "@abms/ui";
+import { ModulePlaceholder } from "../../components/module-placeholder";
 
 const TABS = [
   { key: "orders", label: "Sales Orders", icon: ShoppingCart },
   { key: "invoices", label: "Invoices", icon: FileText },
 ] as const;
-type TabKey = (typeof TABS)[number]["key"];
-
 interface Customer {
   id: string;
   name: string;
@@ -193,8 +193,24 @@ const RECORD_PAYMENT = gql`
 
 type WizardItem = { productId: string; quantity: number; unitPrice: number };
 
+const DEFERRED_SEGMENTS: Record<string, string> = {
+  quotes: "Quotes",
+  returns: "Returns / Credit Notes",
+};
+
 export default function SalesPage() {
-  const [tab, setTab] = useState<TabKey>("orders");
+  const location = useLocation();
+  const navigate = useNavigate();
+  const segment = location.pathname.split("/")[2];
+  const deferredTitle = DEFERRED_SEGMENTS[segment];
+  const tab = TABS.find((t) => t.key === segment)?.key ?? "orders";
+
+  useEffect(() => {
+    if (!deferredTitle && !TABS.some((t) => t.key === segment)) {
+      navigate(`/sales/${tab}`, { replace: true });
+    }
+  }, [segment, tab, navigate, deferredTitle]);
+
   const { data, loading, refetch } = useQuery<{
     salesOrders: SalesOrder[];
     invoices: Invoice[];
@@ -270,6 +286,18 @@ export default function SalesPage() {
     }
   }
 
+  if (deferredTitle) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Sales</h1>
+          <p className="text-sm text-muted-foreground">Sales orders, stock-confirmed fulfillment, and invoicing.</p>
+        </div>
+        <ModulePlaceholder title={deferredTitle} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -289,7 +317,7 @@ export default function SalesPage() {
         {TABS.map((t) => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => navigate(`/sales/${t.key}`)}
             className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               tab === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
             }`}

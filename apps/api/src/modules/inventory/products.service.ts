@@ -41,6 +41,16 @@ export class ProductsService {
     return rows.map((r) => ({ ...r, createdByName: r.createdBy.name }));
   }
 
+  async recentAdjustments() {
+    const rows = await this.prisma.stockLedgerEntry.findMany({
+      where: { type: StockMovementType.ADJUSTMENT },
+      include: { warehouse: true, createdBy: true, product: true },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
+    return rows.map((r) => ({ ...r, createdByName: r.createdBy.name, productName: r.product.name }));
+  }
+
   async create(input: CreateProductInput, organizationId: string) {
     const existing = await this.prisma.product.findFirst({ where: { sku: input.sku } });
     if (existing) throw new ConflictException("A product with this SKU already exists");

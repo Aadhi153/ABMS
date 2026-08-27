@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import {
   Ban,
@@ -35,6 +36,7 @@ import {
   toast,
 } from "@abms/ui";
 import { ALL_ROLES, NAV_MODULES, ROLE_LABELS, ROLE_MODULE_ACCESS, Role } from "@abms/shared";
+import { ModulePlaceholder } from "../../components/module-placeholder";
 
 const TABS = [
   { key: "org", label: "Organization", icon: Building2 },
@@ -44,10 +46,24 @@ const TABS = [
   { key: "tax", label: "Tax Configuration", icon: Landmark },
 ] as const;
 
-type TabKey = (typeof TABS)[number]["key"];
+const DEFERRED_SEGMENTS: Record<string, string> = {
+  bankaccounts: "Bank Accounts",
+  notifications: "Notifications",
+  security: "Security",
+};
 
 export default function SettingsPage() {
-  const [tab, setTab] = useState<TabKey>("org");
+  const location = useLocation();
+  const navigate = useNavigate();
+  const segment = location.pathname.split("/")[2];
+  const deferredTitle = DEFERRED_SEGMENTS[segment];
+  const tab = TABS.find((t) => t.key === segment)?.key ?? "org";
+
+  useEffect(() => {
+    if (!deferredTitle && !TABS.some((t) => t.key === segment)) {
+      navigate(`/settings/${tab}`, { replace: true });
+    }
+  }, [segment, tab, navigate, deferredTitle]);
 
   return (
     <div className="space-y-6">
@@ -55,25 +71,31 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="text-sm text-muted-foreground">Organization configuration, access control, and master data.</p>
       </div>
-      <div className="flex flex-wrap gap-2 border-b border-border pb-2">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              tab === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            <t.icon className="h-4 w-4" />
-            {t.label}
-          </button>
-        ))}
-      </div>
-      {tab === "org" && <OrgProfileTab />}
-      {tab === "users" && <UsersTab />}
-      {tab === "permissions" && <PermissionsTab />}
-      {tab === "warehouses" && <WarehousesTab />}
-      {tab === "tax" && <TaxRatesTab />}
+      {deferredTitle ? (
+        <ModulePlaceholder title={deferredTitle} />
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-2 border-b border-border pb-2">
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => navigate(`/settings/${t.key}`)}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  tab === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <t.icon className="h-4 w-4" />
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {tab === "org" && <OrgProfileTab />}
+          {tab === "users" && <UsersTab />}
+          {tab === "permissions" && <PermissionsTab />}
+          {tab === "warehouses" && <WarehousesTab />}
+          {tab === "tax" && <TaxRatesTab />}
+        </>
+      )}
     </div>
   );
 }

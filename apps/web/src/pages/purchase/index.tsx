@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { ClipboardList, FileText, PackageCheck, Plus, Send, Trash2, Truck } from "lucide-react";
 import {
@@ -23,14 +24,13 @@ import {
   StatusBadge,
   toast,
 } from "@abms/ui";
+import { ModulePlaceholder } from "../../components/module-placeholder";
 
 const TABS = [
   { key: "orders", label: "Purchase Orders", icon: Truck },
   { key: "receipts", label: "Goods Received", icon: PackageCheck },
   { key: "bills", label: "Supplier Bills", icon: FileText },
 ] as const;
-type TabKey = (typeof TABS)[number]["key"];
-
 interface Supplier {
   id: string;
   name: string;
@@ -203,8 +203,24 @@ const UPDATE_BILL_STATUS = gql`
 
 type WizardItem = { productId: string; quantity: number; unitCost: number };
 
+const DEFERRED_SEGMENTS: Record<string, string> = {
+  requisitions: "Purchase Requisitions",
+  debitnotes: "Debit Notes",
+};
+
 export default function PurchasePage() {
-  const [tab, setTab] = useState<TabKey>("orders");
+  const location = useLocation();
+  const navigate = useNavigate();
+  const segment = location.pathname.split("/")[2];
+  const deferredTitle = DEFERRED_SEGMENTS[segment];
+  const tab = TABS.find((t) => t.key === segment)?.key ?? "orders";
+
+  useEffect(() => {
+    if (!deferredTitle && !TABS.some((t) => t.key === segment)) {
+      navigate(`/purchase/${tab}`, { replace: true });
+    }
+  }, [segment, tab, navigate, deferredTitle]);
+
   const { data, loading, refetch } = useQuery<{
     purchaseOrders: PurchaseOrder[];
     goodsReceivedNotes: Grn[];
@@ -265,6 +281,18 @@ export default function PurchasePage() {
     }
   }
 
+  if (deferredTitle) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Purchase</h1>
+          <p className="text-sm text-muted-foreground">Purchase orders, goods receipt, and supplier bills.</p>
+        </div>
+        <ModulePlaceholder title={deferredTitle} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -284,7 +312,7 @@ export default function PurchasePage() {
         {TABS.map((t) => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => navigate(`/purchase/${t.key}`)}
             className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               tab === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
             }`}

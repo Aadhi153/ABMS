@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { gql, useQuery } from "@apollo/client";
 import { BarChart3, Boxes, DollarSign, ShoppingCart, Truck } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@abms/ui";
@@ -10,8 +11,6 @@ const TABS = [
   { key: "purchase", label: "Purchase", icon: Truck },
   { key: "financial", label: "Financial", icon: DollarSign },
 ] as const;
-type TabKey = (typeof TABS)[number]["key"];
-
 const QUERY = gql`
   query ReportsPageData {
     invoices {
@@ -53,7 +52,17 @@ function groupSum<T>(rows: T[], key: (r: T) => string, value: (r: T) => number) 
 }
 
 export default function ReportsPage() {
-  const [tab, setTab] = useState<TabKey>("sales");
+  const location = useLocation();
+  const navigate = useNavigate();
+  const segment = location.pathname.split("/")[2];
+  const tab = TABS.find((t) => t.key === segment)?.key ?? "sales";
+
+  useEffect(() => {
+    if (!TABS.some((t) => t.key === segment)) {
+      navigate(`/reports/${tab}`, { replace: true });
+    }
+  }, [segment, tab, navigate]);
+
   const { data, loading } = useQuery<{
     invoices: Array<{ id: string; customerName: string; total: number }>;
     products: Array<{ id: string; category: string | null; totalStock: number; reorderThreshold: number; active: boolean }>;
@@ -108,7 +117,7 @@ export default function ReportsPage() {
         {TABS.map((t) => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => navigate(`/reports/${t.key}`)}
             className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               tab === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
             }`}

@@ -271,13 +271,13 @@ export default function CrmNewPage() {
           writeRecency({ kind: "contact", id: newContactId, label: contactForm.name, at: Date.now() });
           toast.success(`${contactForm.name} added`);
         }
-        navigate("/crm?tab=contacts");
+        navigate("/crm/contacts");
       } else if (type === "company") {
         await createCompany({
           variables: { input: { name: companyForm.name, industry: companyForm.industry || undefined, website: companyForm.website || undefined } },
         });
         toast.success(`${companyForm.name} added`);
-        navigate("/crm?tab=companies");
+        navigate("/crm/companies");
       } else if (type === "deal") {
         const res = await createDeal({
           variables: {
@@ -294,7 +294,7 @@ export default function CrmNewPage() {
         const id = res.data?.createDeal?.id;
         if (id) writeRecency({ kind: "deal", id, label: dealForm.title, at: Date.now() });
         toast.success(`${dealForm.title} added`);
-        navigate("/crm?tab=deals");
+        navigate("/crm/deals");
       } else {
         await createTask({
           variables: {
@@ -307,7 +307,7 @@ export default function CrmNewPage() {
           },
         });
         toast.success(`${taskForm.title} added`);
-        navigate("/crm?tab=tasks");
+        navigate("/crm/tasks");
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save");

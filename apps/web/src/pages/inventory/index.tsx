@@ -1,6 +1,7 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
-import { AlertTriangle, Boxes, History, Package, Plus, Warehouse as WarehouseIcon } from "lucide-react";
+import { AlertTriangle, Boxes, ClipboardEdit, History, Package, Plus, Warehouse as WarehouseIcon } from "lucide-react";
 import {
   Badge,
   Button,
@@ -26,11 +27,10 @@ import {
 
 const TABS = [
   { key: "products", label: "Products", icon: Package },
-  { key: "warehouses", label: "Stock by Warehouse", icon: WarehouseIcon },
+  { key: "warehouses", label: "Warehouses", icon: WarehouseIcon },
+  { key: "adjustments", label: "Stock Adjustments", icon: ClipboardEdit },
   { key: "lowstock", label: "Low Stock", icon: AlertTriangle },
 ] as const;
-
-type TabKey = (typeof TABS)[number]["key"];
 
 interface Warehouse {
   id: string;
@@ -117,6 +117,24 @@ const STOCK_HISTORY_QUERY = gql`
   }
 `;
 
+const STOCK_ADJUSTMENTS_QUERY = gql`
+  query StockAdjustments {
+    stockAdjustments {
+      id
+      productId
+      productName
+      quantity
+      reason
+      createdByName
+      createdAt
+      warehouse {
+        id
+        name
+      }
+    }
+  }
+`;
+
 const CREATE_PRODUCT_MUTATION = gql`
   mutation CreateProduct($input: CreateProductInput!) {
     createProduct(input: $input) {
@@ -142,7 +160,17 @@ const ADJUST_STOCK_MUTATION = gql`
 `;
 
 export default function InventoryPage() {
-  const [tab, setTab] = useState<TabKey>("products");
+  const location = useLocation();
+  const navigate = useNavigate();
+  const segment = location.pathname.split("/")[2];
+  const tab = TABS.find((t) => t.key === segment)?.key ?? "products";
+
+  useEffect(() => {
+    if (!TABS.some((t) => t.key === segment)) {
+      navigate(`/inventory/${tab}`, { replace: true });
+    }
+  }, [segment, tab, navigate]);
+
   const { data, loading, refetch } = useQuery<{ products: Product[]; warehouses: Warehouse[] }>(PRODUCTS_QUERY);
   const [createProduct] = useMutation(CREATE_PRODUCT_MUTATION);
   const [updateProduct] = useMutation(UPDATE_PRODUCT_MUTATION);
@@ -152,6 +180,7 @@ export default function InventoryPage() {
   const [editing, setEditing] = useState<Product | null>(null);
   const [detail, setDetail] = useState<Product | null>(null);
   const [adjustOpen, setAdjustOpen] = useState<Product | null>(null);
+  const [quickAdjustOpen, setQuickAdjustOpen] = useState(false);
 
   const [form, setForm] = useState({
     sku: "",
@@ -275,16 +304,23 @@ export default function InventoryPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Inventory</h1>
           <p className="text-sm text-muted-foreground">Products, stock levels, and adjustments across warehouses.</p>
         </div>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="h-4 w-4" />
-          New Product
-        </Button>
+        {tab === "adjustments" ? (
+          <Button size="sm" onClick={() => setQuickAdjustOpen(true)}>
+            <Plus className="h-4 w-4" />
+            New Adjustment
+          </Button>
+        ) : (
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="h-4 w-4" />
+            New Product
+          </Button>
+        )}
       </div>
       <div className="flex flex-wrap gap-2 border-b border-border pb-2">
         {TABS.map((t) => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => navigate(`/inventory/${t.key}`)}
             className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               tab === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
             }`}
@@ -358,6 +394,8 @@ export default function InventoryPage() {
       )}
 
       {tab === "warehouses" && <StockByWarehouseTab products={data?.products ?? []} warehouses={warehouses} loading={loading} />}
+
+      {tab === "adjustments" && <StockAdjustmentsTab onNewAdjustment={() => setQuickAdjustOpen(true)} />}
 
       {tab === "lowstock" && <LowStockTab onAdjust={(p) => setAdjustOpen(p as Product)} allProducts={data?.products ?? []} />}
 
@@ -497,6 +535,32 @@ export default function InventoryPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick adjustment (from the Stock Adjustments tab — no product preselected) */}
+      <Dialog open={quickAdjustOpen} onOpenChange={setQuickAdjustOpen}>
+        <DialogContent>
+          {quickAdjustOpen && (
+            <QuickAdjustForm
+              products={data?.products ?? []}
+              warehouses={warehouses}
+              submitting={submitting}
+              onSubmit={async (productId, warehouseId, quantity, reason) => {
+                setSubmitting(true);
+                try {
+                  await adjustStock({ variables: { input: { productId, warehouseId, quantity, reason } } });
+                  toast.success("Stock adjusted");
+                  setQuickAdjustOpen(false);
+                  await refetch();
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Failed to adjust stock");
+                } finally {
+                  setSubmitting(false);
+                }
+              }}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>
@@ -652,6 +716,152 @@ function StockByWarehouseTab({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function StockAdjustmentsTab({ onNewAdjustment }: { onNewAdjustment: () => void }) {
+  const { data, loading } = useQuery<{
+    stockAdjustments: Array<{
+      id: string;
+      productName?: string;
+      quantity: number;
+      reason: string | null;
+      createdByName: string;
+      createdAt: string;
+      warehouse: { id: string; name: string };
+    }>;
+  }>(STOCK_ADJUSTMENTS_QUERY);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Stock adjustments</CardTitle>
+        <CardDescription>Manual corrections to stock on hand, most recent first.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : data?.stockAdjustments.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+            <ClipboardEdit className="h-8 w-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">No adjustments recorded yet.</p>
+            <Button size="sm" onClick={onNewAdjustment}>
+              <Plus className="h-4 w-4" />
+              Record your first adjustment
+            </Button>
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-muted-foreground">
+                <th className="py-2 font-medium">Product</th>
+                <th className="py-2 font-medium">Warehouse</th>
+                <th className="py-2 font-medium text-right">Change</th>
+                <th className="py-2 font-medium">Reason</th>
+                <th className="py-2 font-medium">By</th>
+                <th className="py-2 font-medium">Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data?.stockAdjustments.map((a) => (
+                <tr key={a.id} className="border-b border-border last:border-0">
+                  <td className="py-2">{a.productName}</td>
+                  <td className="py-2">{a.warehouse.name}</td>
+                  <td className={`py-2 text-right font-medium ${a.quantity >= 0 ? "text-success" : "text-danger"}`}>
+                    {a.quantity > 0 ? "+" : ""}
+                    {a.quantity}
+                  </td>
+                  <td className="py-2 text-muted-foreground">{a.reason || "—"}</td>
+                  <td className="py-2 text-muted-foreground">{a.createdByName}</td>
+                  <td className="py-2 text-muted-foreground">{new Date(a.createdAt).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function QuickAdjustForm({
+  products,
+  warehouses,
+  onSubmit,
+  submitting,
+}: {
+  products: Product[];
+  warehouses: Warehouse[];
+  onSubmit: (productId: string, warehouseId: string, quantity: number, reason: string) => void;
+  submitting: boolean;
+}) {
+  const [productId, setProductId] = useState("");
+  const [warehouseId, setWarehouseId] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [reason, setReason] = useState("");
+
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={(e: FormEvent) => {
+        e.preventDefault();
+        if (!productId || !warehouseId || !quantity || !reason) return;
+        onSubmit(productId, warehouseId, Number(quantity), reason);
+      }}
+    >
+      <DialogHeader>
+        <DialogTitle>New stock adjustment</DialogTitle>
+      </DialogHeader>
+      <div className="space-y-1.5">
+        <Label>Product</Label>
+        <Select value={productId} onValueChange={setProductId}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select product" />
+          </SelectTrigger>
+          <SelectContent>
+            {products.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.name} ({p.sku})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1.5">
+        <Label>Warehouse</Label>
+        <Select value={warehouseId} onValueChange={setWarehouseId}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select warehouse" />
+          </SelectTrigger>
+          <SelectContent>
+            {warehouses.map((w) => (
+              <SelectItem key={w.id} value={w.id}>
+                {w.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="qa-qty">Quantity (use negative to remove)</Label>
+        <Input id="qa-qty" type="number" required value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="qa-reason">Reason</Label>
+        <Input
+          id="qa-reason"
+          required
+          placeholder="e.g. Cycle count correction, damaged stock"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+        />
+      </div>
+      <DialogFooter>
+        <Button type="submit" disabled={submitting || !productId || !warehouseId}>
+          {submitting ? "Saving…" : "Apply adjustment"}
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }
 

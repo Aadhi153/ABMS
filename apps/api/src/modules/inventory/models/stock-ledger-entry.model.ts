@@ -12,6 +12,9 @@ export class StockLedgerEntryModel {
   @Field(() => String)
   productId!: string;
 
+  @Field(() => String, { nullable: true })
+  productName?: string;
+
   @Field(() => WarehouseModel)
   warehouse!: WarehouseModel;
 

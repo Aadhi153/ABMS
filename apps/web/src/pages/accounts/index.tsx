@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { BookOpen, Landmark, PiggyBank, Plus, Receipt, Trash2, TrendingUp } from "lucide-react";
 import {
@@ -26,8 +27,6 @@ const TABS = [
   { key: "expenses", label: "Expenses", icon: Receipt },
   { key: "pnl", label: "P&L", icon: PiggyBank },
 ] as const;
-type TabKey = (typeof TABS)[number]["key"];
-
 interface LedgerEntry {
   id: string;
   type: string;
@@ -173,7 +172,17 @@ const TYPE_TONE: Record<string, "success" | "warning" | "danger" | "info" | "mut
 };
 
 export default function AccountsPage() {
-  const [tab, setTab] = useState<TabKey>("ledger");
+  const location = useLocation();
+  const navigate = useNavigate();
+  const segment = location.pathname.split("/")[2];
+  const tab = TABS.find((t) => t.key === segment)?.key ?? "ledger";
+
+  useEffect(() => {
+    if (!TABS.some((t) => t.key === segment)) {
+      navigate(`/accounts/${tab}`, { replace: true });
+    }
+  }, [segment, tab, navigate]);
+
   const { data, loading, refetch } = useQuery<{
     ledgerEntries: LedgerEntry[];
     receivables: Receivable[];
@@ -253,7 +262,7 @@ export default function AccountsPage() {
         {TABS.map((t) => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => navigate(`/accounts/${t.key}`)}
             className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               tab === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
             }`}

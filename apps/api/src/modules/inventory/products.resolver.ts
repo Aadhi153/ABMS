@@ -40,6 +40,11 @@ export class ProductsResolver {
     return this.productsService.stockHistory(productId);
   }
 
+  @Query(() => [StockLedgerEntryModel])
+  stockAdjustments() {
+    return this.productsService.recentAdjustments();
+  }
+
   @Mutation(() => ProductModel)
   @Roles(Role.ADMIN, Role.WAREHOUSE)
   async createProduct(@Args("input") input: CreateProductInput, @CurrentUser() actor: User) {

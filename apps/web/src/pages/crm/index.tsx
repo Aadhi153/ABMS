@@ -1,5 +1,5 @@
-import { useMemo, useState, type FormEvent } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { Building2, CheckSquare, Kanban, Plus, Trash2, Users as UsersIcon } from "lucide-react";
 import {
@@ -33,12 +33,17 @@ const TABS = [
   { key: "tasks", label: "Tasks", icon: CheckSquare },
 ] as const;
 
-type TabKey = (typeof TABS)[number]["key"];
-
 export default function CrmPage() {
-  const [searchParams] = useSearchParams();
-  const initialTab = TABS.find((t) => t.key === searchParams.get("tab"))?.key ?? "contacts";
-  const [tab, setTab] = useState<TabKey>(initialTab);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const segment = location.pathname.split("/")[2];
+  const tab = TABS.find((t) => t.key === segment)?.key ?? "contacts";
+
+  useEffect(() => {
+    if (!TABS.some((t) => t.key === segment)) {
+      navigate(`/crm/${tab}`, { replace: true });
+    }
+  }, [segment, tab, navigate]);
 
   return (
     <div className="space-y-6">
@@ -50,7 +55,7 @@ export default function CrmPage() {
         {TABS.map((t) => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => navigate(`/crm/${t.key}`)}
             className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               tab === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
             }`}
