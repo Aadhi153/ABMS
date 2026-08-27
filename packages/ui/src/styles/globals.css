@@ -82,6 +82,21 @@
     --info-bg: 221 50% 18%;
   }
 
+  /*
+   * Auth flow accent — deep navy, scoped to `.auth-theme` (wraps the
+   * sign-in / create-organization / create-admin-account screens only).
+   * Kept separate from --primary so it never repaints the app-wide
+   * Charcoal & Amber buttons/links used everywhere past the login gate.
+   */
+  .auth-theme {
+    --auth-primary: 214 52% 24%;
+    --auth-primary-hover: 214 55% 18%;
+    --auth-primary-active: 214 60% 13%;
+    --auth-primary-foreground: 0 0% 100%;
+    --auth-primary-bg: 214 45% 95%;
+    --auth-ring: 214 52% 24%;
+  }
+
   * {
     @apply border-border;
   }
