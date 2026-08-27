@@ -21,6 +21,7 @@ import PurchasePage from "./pages/purchase";
 import CustomersPage from "./pages/customers";
 import SuppliersPage from "./pages/suppliers";
 import AccountsPage from "./pages/accounts";
+import HrmsPage from "./pages/hrms";
 import ReportsPage from "./pages/reports";
 import SettingsPage from "./pages/settings";
 
@@ -106,6 +107,14 @@ export function App() {
                   element={
                     <ModuleRoute module="accounts">
                       <AccountsPage />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
+                  path="/hrms/*"
+                  element={
+                    <ModuleRoute module="hrms">
+                      <HrmsPage />
                     </ModuleRoute>
                   }
                 />

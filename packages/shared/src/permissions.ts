@@ -10,6 +10,7 @@ export type ModuleKey =
   | "customers"
   | "suppliers"
   | "accounts"
+  | "hrms"
   | "reports"
   | "settings";
 

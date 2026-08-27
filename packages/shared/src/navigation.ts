@@ -101,6 +101,19 @@ export const NAV_MODULES: NavModule[] = [
     ],
   },
   {
+    id: "hrms",
+    label: "HRMS",
+    path: "/hrms",
+    icon: "Briefcase",
+    roles: [Role.ADMIN],
+    children: [
+      { id: "employees", label: "Employees", path: "/hrms/employees" },
+      { id: "attendance", label: "Attendance", path: "/hrms/attendance" },
+      { id: "leave", label: "Leave", path: "/hrms/leave" },
+      { id: "payroll", label: "Payroll", path: "/hrms/payroll" },
+    ],
+  },
+  {
     id: "reports",
     label: "Reports",
     path: "/reports",

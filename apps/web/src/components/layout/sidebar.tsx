@@ -9,6 +9,7 @@ import {
   Contact,
   Factory,
   Landmark,
+  Briefcase,
   BarChart3,
   Settings,
   ChevronDown,
@@ -28,6 +29,7 @@ const ICONS: Record<string, LucideIcon> = {
   Contact,
   Factory,
   Landmark,
+  Briefcase,
   BarChart3,
   Settings,
 };
