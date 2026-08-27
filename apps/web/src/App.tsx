@@ -6,13 +6,13 @@ import { AuthProvider } from "./providers/auth-provider";
 import { ThemeProvider } from "./providers/theme-provider";
 import { ProtectedRoute } from "./routes/protected-route";
 import { ModuleRoute } from "./routes/module-route";
+import { RootRoute } from "./routes/root-route";
 import { AppShell } from "./components/layout/app-shell";
 import LoginPage from "./pages/login";
 import SignupPage from "./pages/signup";
 import InvitePage from "./pages/invite";
 import ForgotPasswordPage from "./pages/forgot-password";
 import ResetPasswordPage from "./pages/reset-password";
-import DashboardPage from "./pages/dashboard";
 import CrmPage from "./pages/crm";
 import CrmNewPage from "./pages/crm/new";
 import InventoryPage from "./pages/inventory";
@@ -32,6 +32,7 @@ export function App() {
           <AuthProvider>
             <Toaster richColors position="top-right" />
             <Routes>
+              <Route path="/" element={<RootRoute />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/invite/:token" element={<InvitePage />} />
@@ -44,7 +45,6 @@ export function App() {
                   </ProtectedRoute>
                 }
               >
-                <Route path="/" element={<DashboardPage />} />
                 <Route
                   path="/crm/new"
                   element={
