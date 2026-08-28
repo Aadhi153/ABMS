@@ -19,6 +19,12 @@ export enum ActivityType {
   NOTE = "NOTE",
 }
 
+// --- Products ---
+export enum DiscountType {
+  PERCENTAGE = "PERCENTAGE",
+  FIXED_AMOUNT = "FIXED_AMOUNT",
+}
+
 // --- Inventory ---
 export enum StockMovementType {
   SALE = "SALE",

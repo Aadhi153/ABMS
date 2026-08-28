@@ -13,6 +13,7 @@ import { MailerModule } from "./common/mailer/mailer.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { UsersModule } from "./modules/users/users.module";
 import { SettingsModule } from "./modules/settings/settings.module";
+import { ProductsModule } from "./modules/products/products.module";
 import { InventoryModule } from "./modules/inventory/inventory.module";
 import { CrmModule } from "./modules/crm/crm.module";
 import { CustomersModule } from "./modules/customers/customers.module";
@@ -41,6 +42,7 @@ import { AccountsModule } from "./modules/accounts/accounts.module";
     AuthModule,
     UsersModule,
     SettingsModule,
+    ProductsModule,
     InventoryModule,
     CrmModule,
     CustomersModule,
