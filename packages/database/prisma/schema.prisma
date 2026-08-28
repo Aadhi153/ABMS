@@ -129,6 +129,11 @@ enum NotificationType {
   GENERIC
 }
 
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
 // ------------------------------------------------------------------
 // Organizations & Onboarding (multi-tenancy)
 // ------------------------------------------------------------------
@@ -146,6 +151,11 @@ model Organization {
   tasks              Task[]
   activities         Activity[]
   products           Product[]
+  categories         Category[]
+  brands             Brand[]
+  pricingTiers       PricingTier[]
+  discounts          Discount[]
+  taxGroups          TaxGroup[]
   warehouses         Warehouse[]
   stockLevels        StockLevel[]
   stockLedgerEntries StockLedgerEntry[]
@@ -392,7 +402,10 @@ model Product {
   organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   sku              String
   name             String
-  category         String?
+  categoryId       String?
+  category         Category? @relation(fields: [categoryId], references: [id])
+  brandId          String?
+  brand            Brand?    @relation(fields: [brandId], references: [id])
   unitOfMeasure    String   @default("unit")
   costPrice        Decimal  @db.Decimal(14, 2)
   sellPrice        Decimal  @db.Decimal(14, 2)
@@ -408,7 +421,71 @@ model Product {
   priceListItems     PriceListItem[]
 
   @@unique([organizationId, sku])
-  @@index([category])
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([organizationId])
+}
+
+model Category {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  createdAt      DateTime @default(now())
+
+  products Product[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model Brand {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  createdAt      DateTime @default(now())
+
+  products Product[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model PricingTier {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  discountPercent Decimal  @default(0) @db.Decimal(5, 2)
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  @@index([organizationId])
+}
+
+model Discount {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  type           DiscountType
+  value          Decimal      @db.Decimal(10, 2)
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+model TaxGroup {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  taxRates       TaxRate[]
+  createdAt      DateTime @default(now())
+
   @@index([organizationId])
 }
 
@@ -768,6 +845,8 @@ model TaxRate {
   rate           Decimal  @db.Decimal(5, 2)
   isDefault      Boolean  @default(false)
   createdAt      DateTime @default(now())
+
+  taxGroups TaxGroup[]
 
   @@index([organizationId])
 }

@@ -14,6 +14,7 @@ interface ProductSeed {
   sku: string;
   name: string;
   category: string;
+  brand: string;
   unitOfMeasure?: string;
   costPrice: number;
   sellPrice: number;
@@ -21,19 +22,22 @@ interface ProductSeed {
   stock: { main: number; north: number };
 }
 
+const CATEGORIES = ["Electronics", "Furniture", "Stationery"];
+const BRANDS = ["Acme Office", "NorthStar Supply"];
+
 const PRODUCTS: ProductSeed[] = [
-  { sku: "ELEC-MOU-001", name: "Wireless Mouse", category: "Electronics", costPrice: 8, sellPrice: 19.99, reorderThreshold: 20, stock: { main: 60, north: 25 } },
-  { sku: "ELEC-KEY-002", name: "Mechanical Keyboard", category: "Electronics", costPrice: 25, sellPrice: 59.99, reorderThreshold: 15, stock: { main: 30, north: 10 } },
-  { sku: "ELEC-CAB-003", name: "USB-C Cable 2m", category: "Electronics", costPrice: 2, sellPrice: 7.99, reorderThreshold: 50, stock: { main: 120, north: 80 } },
-  { sku: "ELEC-MON-004", name: '27" Monitor', category: "Electronics", costPrice: 120, sellPrice: 249.99, reorderThreshold: 10, stock: { main: 3, north: 1 } },
-  { sku: "ELEC-CAM-005", name: "Webcam HD", category: "Electronics", costPrice: 18, sellPrice: 44.99, reorderThreshold: 12, stock: { main: 22, north: 6 } },
-  { sku: "FURN-CHR-001", name: "Office Chair", category: "Furniture", costPrice: 60, sellPrice: 149.99, reorderThreshold: 8, stock: { main: 14, north: 5 } },
-  { sku: "FURN-DSK-002", name: "Standing Desk", category: "Furniture", costPrice: 150, sellPrice: 349.99, reorderThreshold: 5, stock: { main: 1, north: 1 } },
-  { sku: "FURN-LMP-003", name: "Desk Lamp", category: "Furniture", costPrice: 12, sellPrice: 29.99, reorderThreshold: 15, stock: { main: 18, north: 9 } },
-  { sku: "FURN-FTR-004", name: "Ergonomic Footrest", category: "Furniture", costPrice: 15, sellPrice: 34.99, reorderThreshold: 10, stock: { main: 12, north: 4 } },
-  { sku: "STAT-NBK-001", name: "Notebook Pack (12)", category: "Stationery", costPrice: 3, sellPrice: 9.99, reorderThreshold: 30, stock: { main: 45, north: 20 } },
-  { sku: "STAT-PEN-002", name: "Ballpoint Pen Box", category: "Stationery", costPrice: 1.5, sellPrice: 4.99, reorderThreshold: 40, stock: { main: 70, north: 30 } },
-  { sku: "STAT-MRK-003", name: "Whiteboard Marker Set", category: "Stationery", costPrice: 4, sellPrice: 12.99, reorderThreshold: 25, stock: { main: 33, north: 12 } },
+  { sku: "ELEC-MOU-001", name: "Wireless Mouse", category: "Electronics", brand: "Acme Office", costPrice: 8, sellPrice: 19.99, reorderThreshold: 20, stock: { main: 60, north: 25 } },
+  { sku: "ELEC-KEY-002", name: "Mechanical Keyboard", category: "Electronics", brand: "Acme Office", costPrice: 25, sellPrice: 59.99, reorderThreshold: 15, stock: { main: 30, north: 10 } },
+  { sku: "ELEC-CAB-003", name: "USB-C Cable 2m", category: "Electronics", brand: "NorthStar Supply", costPrice: 2, sellPrice: 7.99, reorderThreshold: 50, stock: { main: 120, north: 80 } },
+  { sku: "ELEC-MON-004", name: '27" Monitor', category: "Electronics", brand: "Acme Office", costPrice: 120, sellPrice: 249.99, reorderThreshold: 10, stock: { main: 3, north: 1 } },
+  { sku: "ELEC-CAM-005", name: "Webcam HD", category: "Electronics", brand: "NorthStar Supply", costPrice: 18, sellPrice: 44.99, reorderThreshold: 12, stock: { main: 22, north: 6 } },
+  { sku: "FURN-CHR-001", name: "Office Chair", category: "Furniture", brand: "Acme Office", costPrice: 60, sellPrice: 149.99, reorderThreshold: 8, stock: { main: 14, north: 5 } },
+  { sku: "FURN-DSK-002", name: "Standing Desk", category: "Furniture", brand: "Acme Office", costPrice: 150, sellPrice: 349.99, reorderThreshold: 5, stock: { main: 1, north: 1 } },
+  { sku: "FURN-LMP-003", name: "Desk Lamp", category: "Furniture", brand: "NorthStar Supply", costPrice: 12, sellPrice: 29.99, reorderThreshold: 15, stock: { main: 18, north: 9 } },
+  { sku: "FURN-FTR-004", name: "Ergonomic Footrest", category: "Furniture", brand: "NorthStar Supply", costPrice: 15, sellPrice: 34.99, reorderThreshold: 10, stock: { main: 12, north: 4 } },
+  { sku: "STAT-NBK-001", name: "Notebook Pack (12)", category: "Stationery", brand: "NorthStar Supply", costPrice: 3, sellPrice: 9.99, reorderThreshold: 30, stock: { main: 45, north: 20 } },
+  { sku: "STAT-PEN-002", name: "Ballpoint Pen Box", category: "Stationery", brand: "NorthStar Supply", costPrice: 1.5, sellPrice: 4.99, reorderThreshold: 40, stock: { main: 70, north: 30 } },
+  { sku: "STAT-MRK-003", name: "Whiteboard Marker Set", category: "Stationery", brand: "Acme Office", costPrice: 4, sellPrice: 12.99, reorderThreshold: 25, stock: { main: 33, north: 12 } },
 ];
 
 async function main() {
@@ -72,9 +76,9 @@ async function main() {
   console.log(`Warehouses ready: ${WAREHOUSES.map((w) => w.name).join(", ")}`);
 
   const existingTaxRate = await prisma.taxRate.findFirst({ where: { name: "Standard Sales Tax", organizationId: org.id } });
-  if (!existingTaxRate) {
-    await prisma.taxRate.create({ data: { name: "Standard Sales Tax", rate: 8.25, isDefault: true, organizationId: org.id } });
-  }
+  const standardTaxRate =
+    existingTaxRate ??
+    (await prisma.taxRate.create({ data: { name: "Standard Sales Tax", rate: 8.25, isDefault: true, organizationId: org.id } }));
   console.log("Tax rate ready: Standard Sales Tax (8.25%)");
 
   const adminEmail = process.env.SEED_ADMIN_EMAIL ?? "admin@example.com";
@@ -114,16 +118,34 @@ async function main() {
   }
   const salesUser = usersByRole.SALES;
 
+  const categoryByName: Record<string, { id: string }> = {};
+  for (const name of CATEGORIES) {
+    const existing = await prisma.category.findFirst({ where: { name, organizationId: org.id } });
+    categoryByName[name] = existing ?? (await prisma.category.create({ data: { name, organizationId: org.id } }));
+  }
+  console.log(`Categories ready: ${CATEGORIES.join(", ")}`);
+
+  const brandByName: Record<string, { id: string }> = {};
+  for (const name of BRANDS) {
+    const existing = await prisma.brand.findFirst({ where: { name, organizationId: org.id } });
+    brandByName[name] = existing ?? (await prisma.brand.create({ data: { name, organizationId: org.id } }));
+  }
+  console.log(`Brands ready: ${BRANDS.join(", ")}`);
+
   let productsCreated = 0;
   const productBySku: Record<string, { id: string }> = {};
   for (const p of PRODUCTS) {
     const product = await prisma.product.upsert({
       where: { organizationId_sku: { organizationId: org.id, sku: p.sku } },
-      update: {},
+      update: {
+        categoryId: categoryByName[p.category].id,
+        brandId: brandByName[p.brand].id,
+      },
       create: {
         sku: p.sku,
         name: p.name,
-        category: p.category,
+        categoryId: categoryByName[p.category].id,
+        brandId: brandByName[p.brand].id,
         unitOfMeasure: p.unitOfMeasure ?? "unit",
         costPrice: p.costPrice,
         sellPrice: p.sellPrice,
@@ -158,6 +180,48 @@ async function main() {
     }
   }
   console.log(`Products ready: ${productsCreated} across ${new Set(PRODUCTS.map((p) => p.category)).size} categories`);
+
+  const existingPriceList = await prisma.priceList.findFirst({ where: { name: "Wholesale Price List", organizationId: org.id } });
+  const wholesalePriceList =
+    existingPriceList ?? (await prisma.priceList.create({ data: { name: "Wholesale Price List", organizationId: org.id } }));
+  const WHOLESALE_ITEMS = [
+    { sku: "ELEC-MOU-001", price: 14.99 },
+    { sku: "ELEC-KEY-002", price: 44.99 },
+    { sku: "FURN-CHR-001", price: 119.99 },
+  ];
+  for (const item of WHOLESALE_ITEMS) {
+    const product = productBySku[item.sku];
+    await prisma.priceListItem.upsert({
+      where: { priceListId_productId: { priceListId: wholesalePriceList.id, productId: product.id } },
+      update: {},
+      create: { priceListId: wholesalePriceList.id, productId: product.id, price: item.price },
+    });
+  }
+  console.log(`Price list ready: Wholesale Price List (${WHOLESALE_ITEMS.length} items)`);
+
+  const existingPricingTier = await prisma.pricingTier.findFirst({ where: { name: "VIP Customers", organizationId: org.id } });
+  if (!existingPricingTier) {
+    await prisma.pricingTier.create({
+      data: { name: "VIP Customers", description: "10% off list price", discountPercent: 10, organizationId: org.id },
+    });
+  }
+  console.log("Pricing tier ready: VIP Customers (10%)");
+
+  const existingDiscount = await prisma.discount.findFirst({ where: { name: "Clearance 15%", organizationId: org.id } });
+  if (!existingDiscount) {
+    await prisma.discount.create({
+      data: { name: "Clearance 15%", type: "PERCENTAGE", value: 15, organizationId: org.id },
+    });
+  }
+  console.log("Discount ready: Clearance 15%");
+
+  const existingTaxGroup = await prisma.taxGroup.findFirst({ where: { name: "Standard Group", organizationId: org.id } });
+  if (!existingTaxGroup) {
+    await prisma.taxGroup.create({
+      data: { name: "Standard Group", organizationId: org.id, taxRates: { connect: { id: standardTaxRate.id } } },
+    });
+  }
+  console.log("Tax group ready: Standard Group");
 
   const COMPANIES = [
     { name: "Northwind Traders", industry: "Retail", website: "https://northwindtraders.example" },

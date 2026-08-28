@@ -15,6 +15,7 @@ import ForgotPasswordPage from "./pages/forgot-password";
 import ResetPasswordPage from "./pages/reset-password";
 import CrmPage from "./pages/crm";
 import CrmNewPage from "./pages/crm/new";
+import ProductsPage from "./pages/products";
 import InventoryPage from "./pages/inventory";
 import SalesPage from "./pages/sales";
 import PurchasePage from "./pages/purchase";
@@ -59,6 +60,14 @@ export function App() {
                   element={
                     <ModuleRoute module="crm">
                       <CrmPage />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
+                  path="/products/*"
+                  element={
+                    <ModuleRoute module="products">
+                      <ProductsPage />
                     </ModuleRoute>
                   }
                 />
