@@ -4,5 +4,17 @@
     "baseUrl": "./",
     "outDir": "./dist"
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/modules/inventory/products.service.ts",
+    "src/modules/inventory/products.resolver.ts",
+    "src/modules/inventory/models/product.model.ts",
+    "src/modules/inventory/dto/product.input.ts",
+    "src/modules/settings/tax-rates.service.ts",
+    "src/modules/settings/tax-rates.resolver.ts",
+    "src/modules/settings/models/tax-rate.model.ts",
+    "src/modules/settings/dto/tax-rate.input.ts"
+  ]
 }
