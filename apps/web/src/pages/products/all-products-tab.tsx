@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
-import { History, Package, Plus } from "lucide-react";
+import { AlertTriangle, Ban, CheckCircle2, History, Package, Plus, Search } from "lucide-react";
 import {
   Badge,
   Button,
@@ -20,6 +21,16 @@ import {
   SelectValue,
   toast,
 } from "@abms/ui";
+
+const STAT_COLORS = {
+  amber: { badge: "bg-primary-bg text-primary" },
+  green: { badge: "bg-success-bg text-success" },
+  muted: { badge: "bg-muted text-muted-foreground" },
+  red: { badge: "bg-danger-bg text-danger" },
+} as const;
+
+const STATUS_FILTERS = ["all", "active", "inactive", "low"] as const;
+type StatusFilter = (typeof STATUS_FILTERS)[number];
 
 interface Category {
   id: string;
@@ -48,6 +59,7 @@ interface Product {
   unitOfMeasure: string;
   costPrice: number;
   sellPrice: number;
+  trackInventory: boolean;
   reorderThreshold: number;
   active: boolean;
   totalStock: number;
@@ -73,6 +85,7 @@ const PRODUCTS_QUERY = gql`
       unitOfMeasure
       costPrice
       sellPrice
+      trackInventory
       reorderThreshold
       active
       totalStock
@@ -113,14 +126,6 @@ const STOCK_HISTORY_QUERY = gql`
   }
 `;
 
-const CREATE_PRODUCT_MUTATION = gql`
-  mutation CreateProduct($input: CreateProductInput!) {
-    createProduct(input: $input) {
-      id
-    }
-  }
-`;
-
 const UPDATE_PRODUCT_MUTATION = gql`
   mutation UpdateProduct($id: String!, $input: UpdateProductInput!) {
     updateProduct(id: $id, input: $input) {
@@ -130,19 +135,19 @@ const UPDATE_PRODUCT_MUTATION = gql`
 `;
 
 export default function AllProductsTab() {
+  const navigate = useNavigate();
   const { data, loading, refetch } = useQuery<{ products: Product[]; categories: Category[]; brands: Brand[] }>(
     PRODUCTS_QUERY,
   );
-  const [createProduct] = useMutation(CREATE_PRODUCT_MUTATION);
   const [updateProduct] = useMutation(UPDATE_PRODUCT_MUTATION);
 
-  const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [detail, setDetail] = useState<Product | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   const [form, setForm] = useState({
-    sku: "",
     name: "",
     categoryId: "",
     brandId: "",
@@ -154,17 +159,41 @@ export default function AllProductsTab() {
 
   const categories = data?.categories ?? [];
   const brands = data?.brands ?? [];
+  const products = data?.products ?? [];
 
-  function openCreate() {
-    setEditing(null);
-    setForm({ sku: "", name: "", categoryId: "", brandId: "", unitOfMeasure: "unit", costPrice: "", sellPrice: "", reorderThreshold: "0" });
-    setFormOpen(true);
+  function isLowStock(p: Product) {
+    return p.active && p.trackInventory && p.totalStock <= p.reorderThreshold;
   }
+
+  const stats = useMemo(
+    () => ({
+      total: products.length,
+      active: products.filter((p) => p.active).length,
+      inactive: products.filter((p) => !p.active).length,
+      low: products.filter(isLowStock).length,
+    }),
+    [products],
+  );
+
+  const filteredProducts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return products.filter((p) => {
+      if (statusFilter === "active" && !p.active) return false;
+      if (statusFilter === "inactive" && p.active) return false;
+      if (statusFilter === "low" && !isLowStock(p)) return false;
+      if (!q) return true;
+      return (
+        p.name.toLowerCase().includes(q) ||
+        p.sku.toLowerCase().includes(q) ||
+        (p.category?.name.toLowerCase().includes(q) ?? false) ||
+        (p.brand?.name.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [products, search, statusFilter]);
 
   function openEdit(p: Product) {
     setEditing(p);
     setForm({
-      sku: p.sku,
       name: p.name,
       categoryId: p.categoryId ?? "",
       brandId: p.brandId ?? "",
@@ -173,47 +202,29 @@ export default function AllProductsTab() {
       sellPrice: String(p.sellPrice),
       reorderThreshold: String(p.reorderThreshold),
     });
-    setFormOpen(true);
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!editing) return;
     setSubmitting(true);
     try {
-      if (editing) {
-        await updateProduct({
-          variables: {
-            id: editing.id,
-            input: {
-              name: form.name,
-              categoryId: form.categoryId || undefined,
-              brandId: form.brandId || undefined,
-              unitOfMeasure: form.unitOfMeasure,
-              costPrice: Number(form.costPrice),
-              sellPrice: Number(form.sellPrice),
-              reorderThreshold: Number(form.reorderThreshold),
-            },
+      await updateProduct({
+        variables: {
+          id: editing.id,
+          input: {
+            name: form.name,
+            categoryId: form.categoryId || undefined,
+            brandId: form.brandId || undefined,
+            unitOfMeasure: form.unitOfMeasure,
+            costPrice: Number(form.costPrice),
+            sellPrice: Number(form.sellPrice),
+            reorderThreshold: Number(form.reorderThreshold),
           },
-        });
-        toast.success(`${form.name} updated`);
-      } else {
-        await createProduct({
-          variables: {
-            input: {
-              sku: form.sku,
-              name: form.name,
-              categoryId: form.categoryId || undefined,
-              brandId: form.brandId || undefined,
-              unitOfMeasure: form.unitOfMeasure,
-              costPrice: Number(form.costPrice),
-              sellPrice: Number(form.sellPrice),
-              reorderThreshold: Number(form.reorderThreshold),
-            },
-          },
-        });
-        toast.success(`${form.name} added`);
-      }
-      setFormOpen(false);
+        },
+      });
+      toast.success(`${form.name} updated`);
+      setEditing(null);
       await refetch();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save product");
@@ -240,85 +251,128 @@ export default function AllProductsTab() {
           <h2 className="text-lg font-semibold">All Products</h2>
           <p className="text-sm text-muted-foreground">Click a row to view stock breakdown and history.</p>
         </div>
-        <Button size="sm" onClick={openCreate}>
+        <Button size="sm" onClick={() => navigate("/products/new")}>
           <Plus className="h-4 w-4" />
           New Product
         </Button>
       </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          { label: "Total Products", value: stats.total, icon: Package, color: STAT_COLORS.amber, footer: `${stats.active} active` },
+          { label: "Active", value: stats.active, icon: CheckCircle2, color: STAT_COLORS.green, footer: "Live products" },
+          { label: "Inactive", value: stats.inactive, icon: Ban, color: STAT_COLORS.muted, footer: "Archived products" },
+          { label: "Low Stock", value: stats.low, icon: AlertTriangle, color: STAT_COLORS.red, footer: "Items below threshold" },
+        ].map((s) => (
+          <Card key={s.label}>
+            <CardContent className="space-y-3 p-4">
+              <div className="flex items-start justify-between">
+                <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{s.label}</span>
+                <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${s.color.badge}`}>
+                  <s.icon className="h-4 w-4" />
+                </span>
+              </div>
+              <div className="text-3xl font-extrabold text-foreground">{loading ? "—" : s.value}</div>
+              <div className="text-xs text-muted-foreground">{s.footer}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="space-y-4 pt-6">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Search products…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="low">Low stock</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {loading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
-          ) : data?.products.length === 0 ? (
-            <EmptyState onAdd={openCreate} />
+          ) : products.length === 0 ? (
+            <EmptyState onAdd={() => navigate("/products/new")} />
+          ) : filteredProducts.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">No products match your search.</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-muted-foreground">
-                  <th className="py-2 font-medium">SKU</th>
-                  <th className="py-2 font-medium">Name</th>
-                  <th className="py-2 font-medium">Category</th>
-                  <th className="py-2 font-medium">Brand</th>
-                  <th className="py-2 font-medium">Stock</th>
-                  <th className="py-2 font-medium">Reorder At</th>
-                  <th className="py-2 font-medium">Status</th>
-                  <th className="py-2 font-medium text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data?.products.map((p) => {
-                  const low = p.totalStock <= p.reorderThreshold;
-                  return (
-                    <tr
-                      key={p.id}
-                      className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/50"
-                      onClick={() => setDetail(p)}
-                    >
-                      <td className="py-2 font-mono text-xs">{p.sku}</td>
-                      <td className="py-2">{p.name}</td>
-                      <td className="py-2 text-muted-foreground">{p.category?.name || "—"}</td>
-                      <td className="py-2 text-muted-foreground">{p.brand?.name || "—"}</td>
-                      <td className="py-2">{p.totalStock}</td>
-                      <td className="py-2 text-muted-foreground">{p.reorderThreshold}</td>
-                      <td className="py-2">
-                        {!p.active ? (
-                          <Badge tone="muted">Archived</Badge>
-                        ) : low ? (
-                          <Badge tone="danger">Low stock</Badge>
-                        ) : (
-                          <Badge tone="success">In stock</Badge>
-                        )}
-                      </td>
-                      <td className="py-2 text-right" onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>
-                          Edit
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-muted-foreground">
+                    <th className="w-10 py-2 pr-2 font-medium text-right">#</th>
+                    <th className="py-2 pr-4 font-medium">SKU</th>
+                    <th className="py-2 pr-4 font-medium">Name</th>
+                    <th className="py-2 pr-4 font-medium">Category</th>
+                    <th className="py-2 pr-4 font-medium">Brand</th>
+                    <th className="py-2 pr-4 font-medium text-right">Stock</th>
+                    <th className="py-2 pr-6 font-medium text-right">Reorder At</th>
+                    <th className="py-2 pr-4 font-medium">Status</th>
+                    <th className="py-2 font-medium text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredProducts.map((p, i) => {
+                    const low = isLowStock(p);
+                    return (
+                      <tr
+                        key={p.id}
+                        className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/50 animate-in fade-in slide-in-from-top-1 duration-200 ease-out motion-reduce:animate-none"
+                        onClick={() => setDetail(p)}
+                      >
+                        <td className="py-1.5 pr-2 text-right text-xs text-muted-foreground">{i + 1}</td>
+                        <td className="py-1.5 pr-4 font-mono text-xs">{p.sku}</td>
+                        <td className="py-1.5 pr-4 font-medium">{p.name}</td>
+                        <td className="py-1.5 pr-4 text-muted-foreground">{p.category?.name || "—"}</td>
+                        <td className="py-1.5 pr-4 text-muted-foreground">{p.brand?.name || "—"}</td>
+                        <td className="py-1.5 pr-4 text-right">{p.trackInventory ? p.totalStock : <span className="text-muted-foreground">—</span>}</td>
+                        <td className="py-1.5 pr-6 text-right text-muted-foreground">{p.trackInventory ? p.reorderThreshold : "—"}</td>
+                        <td className="py-1.5 pr-4">
+                          {!p.active ? (
+                            <Badge tone="muted">Archived</Badge>
+                          ) : !p.trackInventory ? (
+                            <Badge tone="info">Not tracked</Badge>
+                          ) : low ? (
+                            <Badge tone="danger">Low stock</Badge>
+                          ) : (
+                            <Badge tone="success">In stock</Badge>
+                          )}
+                        </td>
+                        <td className="py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>
+                            Edit
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>
 
-      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit product" : "New product"}</DialogTitle>
+            <DialogTitle>Edit product</DialogTitle>
           </DialogHeader>
           <form className="grid gap-4 sm:grid-cols-2" onSubmit={handleSubmit}>
-            <div className="space-y-1.5">
-              <Label htmlFor="sku">SKU</Label>
-              <Input
-                id="sku"
-                required
-                disabled={!!editing}
-                value={form.sku}
-                onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
-              />
-            </div>
             <div className="space-y-1.5">
               <Label htmlFor="p-name">Name</Label>
               <Input id="p-name" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
@@ -393,7 +447,7 @@ export default function AllProductsTab() {
             </div>
             <DialogFooter className="sm:col-span-2">
               <Button type="submit" disabled={submitting}>
-                {submitting ? "Saving…" : editing ? "Save changes" : "Create product"}
+                {submitting ? "Saving…" : "Save changes"}
               </Button>
             </DialogFooter>
           </form>
@@ -451,10 +505,16 @@ function ProductDetail({ product, onArchiveToggle }: { product: Product; onArchi
         </div>
         <div>
           <p className="text-muted-foreground">Total stock</p>
-          <p>
-            {product.totalStock}{" "}
-            {product.totalStock <= product.reorderThreshold && <Badge tone="danger">Low</Badge>}
-          </p>
+          {product.trackInventory ? (
+            <p>
+              {product.totalStock}{" "}
+              {product.totalStock <= product.reorderThreshold && <Badge tone="danger">Low</Badge>}
+            </p>
+          ) : (
+            <p>
+              <Badge tone="info">Not tracked</Badge>
+            </p>
+          )}
         </div>
       </div>
       <div>
