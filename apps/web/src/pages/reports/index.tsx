@@ -1,16 +1,11 @@
 import { useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { gql, useQuery } from "@apollo/client";
-import { BarChart3, Boxes, DollarSign, ShoppingCart, Truck } from "lucide-react";
+import { BarChart3, Boxes, ShoppingCart, Truck } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@abms/ui";
 import { BarChart, type BarDatum } from "../../components/charts/bar-chart";
 
-const TABS = [
-  { key: "sales", label: "Sales", icon: ShoppingCart },
-  { key: "inventory", label: "Inventory", icon: Boxes },
-  { key: "purchase", label: "Purchase", icon: Truck },
-  { key: "financial", label: "Financial", icon: DollarSign },
-] as const;
+const TABS = [{ key: "sales" }, { key: "inventory" }, { key: "purchase" }, { key: "financial" }] as const;
 const QUERY = gql`
   query ReportsPageData {
     invoices {
@@ -111,21 +106,6 @@ export default function ReportsPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Reports &amp; Analytics</h1>
         <p className="text-sm text-muted-foreground">Cross-module reports rendered from live database records.</p>
-      </div>
-
-      <div className="flex flex-wrap gap-2 border-b border-border pb-2">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => navigate(`/reports/${t.key}`)}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              tab === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            <t.icon className="h-4 w-4" />
-            {t.label}
-          </button>
-        ))}
       </div>
 
       {loading && <p className="text-sm text-muted-foreground">Loading…</p>}

@@ -26,12 +26,7 @@ import {
 } from "@abms/ui";
 import { DealStage } from "@abms/shared";
 
-const TABS = [
-  { key: "contacts", label: "Contacts", icon: UsersIcon },
-  { key: "companies", label: "Companies", icon: Building2 },
-  { key: "deals", label: "Deals", icon: Kanban },
-  { key: "tasks", label: "Tasks", icon: CheckSquare },
-] as const;
+const TABS = [{ key: "contacts" }, { key: "companies" }, { key: "deals" }, { key: "tasks" }] as const;
 
 export default function CrmPage() {
   const location = useLocation();
@@ -50,20 +45,6 @@ export default function CrmPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">CRM</h1>
         <p className="text-sm text-muted-foreground">Contacts, companies, deal pipeline, and follow-up tasks.</p>
-      </div>
-      <div className="flex flex-wrap gap-2 border-b border-border pb-2">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => navigate(`/crm/${t.key}`)}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              tab === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            <t.icon className="h-4 w-4" />
-            {t.label}
-          </button>
-        ))}
       </div>
       {tab === "contacts" && <ContactsTab />}
       {tab === "companies" && <CompaniesTab />}

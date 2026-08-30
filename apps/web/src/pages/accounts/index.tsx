@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
-import { BookOpen, Landmark, PiggyBank, Plus, Receipt, Trash2, TrendingUp } from "lucide-react";
+import { BookOpen, Landmark, Plus, Receipt, Trash2, TrendingUp } from "lucide-react";
 import {
   Badge,
   Button,
@@ -20,13 +20,7 @@ import {
   toast,
 } from "@abms/ui";
 
-const TABS = [
-  { key: "ledger", label: "Ledger", icon: BookOpen },
-  { key: "receivables", label: "Receivables", icon: TrendingUp },
-  { key: "payables", label: "Payables", icon: Landmark },
-  { key: "expenses", label: "Expenses", icon: Receipt },
-  { key: "pnl", label: "P&L", icon: PiggyBank },
-] as const;
+const TABS = [{ key: "ledger" }, { key: "receivables" }, { key: "payables" }, { key: "expenses" }, { key: "pnl" }] as const;
 interface LedgerEntry {
   id: string;
   type: string;
@@ -256,21 +250,6 @@ export default function AccountsPage() {
             New Expense
           </Button>
         )}
-      </div>
-
-      <div className="flex flex-wrap gap-2 border-b border-border pb-2">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => navigate(`/accounts/${t.key}`)}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              tab === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            <t.icon className="h-4 w-4" />
-            {t.label}
-          </button>
-        ))}
       </div>
 
       {tab === "ledger" && (

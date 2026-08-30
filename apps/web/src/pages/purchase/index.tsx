@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
-import { ClipboardList, FileText, PackageCheck, Plus, Send, Trash2, Truck } from "lucide-react";
+import { ClipboardList, FileText, PackageCheck, Plus, Send, Trash2 } from "lucide-react";
 import {
   Button,
   Card,
@@ -26,11 +26,7 @@ import {
 } from "@abms/ui";
 import { ModulePlaceholder } from "../../components/module-placeholder";
 
-const TABS = [
-  { key: "orders", label: "Purchase Orders", icon: Truck },
-  { key: "receipts", label: "Goods Received", icon: PackageCheck },
-  { key: "bills", label: "Supplier Bills", icon: FileText },
-] as const;
+const TABS = [{ key: "orders" }, { key: "receipts" }, { key: "bills" }] as const;
 interface Supplier {
   id: string;
   name: string;
@@ -306,21 +302,6 @@ export default function PurchasePage() {
             New Purchase Order
           </Button>
         )}
-      </div>
-
-      <div className="flex flex-wrap gap-2 border-b border-border pb-2">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => navigate(`/purchase/${t.key}`)}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              tab === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            <t.icon className="h-4 w-4" />
-            {t.label}
-          </button>
-        ))}
       </div>
 
       {tab === "orders" && (

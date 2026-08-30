@@ -1,7 +1,7 @@
 import { useEffect } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { CalendarClock, IdCard, UserPlus, Wallet } from "lucide-react";
-import { Card, CardContent, cn } from "@abms/ui";
+import { Card, CardContent } from "@abms/ui";
 
 const TABS = [
   {
@@ -49,24 +49,6 @@ export default function HrmsPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">HRMS</h1>
         <p className="text-sm text-muted-foreground">Employees, attendance, leave, and payroll — in one place.</p>
-      </div>
-
-      <div className="flex gap-1 border-b border-border">
-        {TABS.map((t) => (
-          <Link
-            key={t.key}
-            to={`/hrms/${t.key}`}
-            className={cn(
-              "flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
-              t.key === tab
-                ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <t.icon className="h-4 w-4" />
-            {t.label}
-          </Link>
-        ))}
       </div>
 
       <Card>

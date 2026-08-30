@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
-import { AlertTriangle, ArrowLeftRight, ClipboardEdit, History, Plus, Warehouse as WarehouseIcon } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, ClipboardEdit, Plus } from "lucide-react";
 import {
   Badge,
   Button,
@@ -26,11 +26,11 @@ import {
 } from "@abms/ui";
 
 const TABS = [
-  { key: "levels", label: "Stock Levels", icon: WarehouseIcon },
-  { key: "movements", label: "Stock Movements", icon: History },
-  { key: "adjustments", label: "Stock Adjustments", icon: ClipboardEdit },
-  { key: "alerts", label: "Stock Alerts", icon: AlertTriangle },
-  { key: "transfers", label: "Stock Transfers", icon: ArrowLeftRight },
+  { key: "levels" },
+  { key: "movements" },
+  { key: "adjustments" },
+  { key: "alerts" },
+  { key: "transfers" },
 ] as const;
 
 interface Warehouse {
@@ -203,20 +203,6 @@ export default function InventoryPage() {
             New Transfer
           </Button>
         )}
-      </div>
-      <div className="flex flex-wrap gap-2 border-b border-border pb-2">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => navigate(`/inventory/${t.key}`)}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              tab === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            <t.icon className="h-4 w-4" />
-            {t.label}
-          </button>
-        ))}
       </div>
 
       {tab === "levels" && <StockByWarehouseTab products={products} warehouses={warehouses} loading={loading} />}

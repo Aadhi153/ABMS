@@ -26,10 +26,7 @@ import {
 } from "@abms/ui";
 import { ModulePlaceholder } from "../../components/module-placeholder";
 
-const TABS = [
-  { key: "orders", label: "Sales Orders", icon: ShoppingCart },
-  { key: "invoices", label: "Invoices", icon: FileText },
-] as const;
+const TABS = [{ key: "orders" }, { key: "invoices" }] as const;
 interface Customer {
   id: string;
   name: string;
@@ -311,21 +308,6 @@ export default function SalesPage() {
             New Order
           </Button>
         )}
-      </div>
-
-      <div className="flex flex-wrap gap-2 border-b border-border pb-2">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => navigate(`/sales/${t.key}`)}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              tab === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            <t.icon className="h-4 w-4" />
-            {t.label}
-          </button>
-        ))}
       </div>
 
       {tab === "orders" && (
