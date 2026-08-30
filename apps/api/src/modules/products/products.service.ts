@@ -44,7 +44,7 @@ export class ProductsService {
   async create(input: CreateProductInput, organizationId: string, actorId: string) {
     const existing = await this.prisma.product.findFirst({ where: { sku: input.sku } });
     if (existing) throw new ConflictException("A product with this SKU already exists");
-    const { initialStock, ...productInput } = input;
+    const { initialStock, warehouseId, ...productInput } = input;
     const row = await this.prisma.product.create({
       data: { ...productInput, unitOfMeasure: input.unitOfMeasure ?? "unit", organizationId },
       include: PRODUCT_INCLUDE,
@@ -52,7 +52,9 @@ export class ProductsService {
 
     const trackInventory = input.trackInventory ?? true;
     if (trackInventory && initialStock && initialStock > 0) {
-      const warehouse = await this.prisma.warehouse.findFirst({ where: { active: true }, orderBy: { createdAt: "asc" } });
+      const warehouse = warehouseId
+        ? await this.prisma.warehouse.findUnique({ where: { id: warehouseId } })
+        : await this.prisma.warehouse.findFirst({ where: { active: true }, orderBy: { createdAt: "asc" } });
       if (warehouse) {
         await this.prisma.$transaction([
           this.prisma.stockLevel.create({

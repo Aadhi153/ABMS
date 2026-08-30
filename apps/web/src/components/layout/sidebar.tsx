@@ -87,7 +87,7 @@ export function Sidebar({
       )}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex h-full min-h-screen shrink-0 flex-col bg-sidebar-gradient py-[1.2rem] transition-transform duration-200 ease-out lg:static lg:z-auto lg:translate-x-0 lg:transition-[width]",
+          "fixed inset-y-0 left-0 z-40 flex h-full shrink-0 flex-col bg-sidebar-gradient py-[1.2rem] transition-transform duration-200 ease-out lg:static lg:z-auto lg:translate-x-0 lg:transition-[width]",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
           collapsed ? "w-[68px] px-2" : "w-60 px-[0.9rem]",
         )}

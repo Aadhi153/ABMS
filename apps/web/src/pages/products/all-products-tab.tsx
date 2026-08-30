@@ -13,6 +13,13 @@ import {
   Download,
   XCircle,
   BarChart2,
+  ChevronsUpDown,
+  MoreHorizontal,
+  RotateCcw,
+  Pencil,
+  Archive,
+  RefreshCw,
+  SlidersHorizontal,
 } from "lucide-react";
 import {
   Badge,
@@ -24,6 +31,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Input,
   Label,
   Select,
@@ -37,9 +49,10 @@ import {
 import { DIALOG_CONTENT_MOTION, DIALOG_OVERLAY_MOTION } from "./dialog-motion";
 import { BUTTON_PRESS, LIST_ENTER, LIST_EXIT, usePageTransition } from "./form-motion";
 
-
 const STATUS_FILTERS = ["all", "active", "inactive", "low"] as const;
 type StatusFilter = (typeof STATUS_FILTERS)[number];
+
+type ActiveTab = "overview" | "analytics";
 
 interface Category {
   id: string;
@@ -156,6 +169,11 @@ export default function AllProductsTab() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [showSummary, setShowSummary] = useState(true);
+  const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  // Dialog state
   const [showDocumentsDialog, setShowDocumentsDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -230,6 +248,9 @@ export default function AllProductsTab() {
     });
   }, [products, search, statusFilter]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / rowsPerPage));
+  const paginatedProducts = filteredProducts.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+
   function openEdit(p: Product) {
     setEditing(p);
     setForm({
@@ -284,210 +305,400 @@ export default function AllProductsTab() {
   }
 
   return (
-    <div className={cn("space-y-6", leaving ? LIST_EXIT : LIST_ENTER)}>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className={cn("space-y-4", leaving ? LIST_EXIT : LIST_ENTER)}>
+
+      {/* ── Page Header ── */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-foreground">All Products</h2>
-          <p className="text-sm text-muted-foreground">Spreadsheet view for bulk editing products and variants</p>
+          <p className="text-sm text-muted-foreground">Manage your products, variants and inventory</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setShowSummary(!showSummary)}
-            className={cn("gap-1.5", BUTTON_PRESS)}
+            className={cn("gap-1.5 text-xs", BUTTON_PRESS)}
           >
-            {showSummary ? (
-              <>
-                <ChevronUp className="h-4 w-4" />
-                Hide Summary
-              </>
-            ) : (
-              <>
-                <ChevronDown className="h-4 w-4" />
-                Show Summary
-              </>
-            )}
+            {showSummary ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            {showSummary ? "Hide Summary" : "Show Summary"}
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowDocumentsDialog(true)}
-            className={cn("gap-1.5", BUTTON_PRESS)}
-          >
-            <FolderOpen className="h-4 w-4" />
-            View Product Documents
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowImportDialog(true)}
-            className={cn("gap-1.5", BUTTON_PRESS)}
-          >
-            <Upload className="h-4 w-4" />
-            Import
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowExportDialog(true)}
-            className={cn("gap-1.5", BUTTON_PRESS)}
-          >
-            <Download className="h-4 w-4" />
-            Export
-          </Button>
+
+          {/* More Actions dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className={cn("gap-1.5 text-xs", BUTTON_PRESS)}>
+                <MoreHorizontal className="h-3.5 w-3.5" />
+                More Actions
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setShowDocumentsDialog(true)}>
+                <FolderOpen className="h-4 w-4" />
+                View Product Documents
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowImportDialog(true)}>
+                <Upload className="h-4 w-4" />
+                Import Products
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowExportDialog(true)}>
+                <Download className="h-4 w-4" />
+                Export Products
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => { refetch(); toast.success("Refreshed"); }}>
+                <RotateCcw className="h-4 w-4" />
+                Refresh
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button
             size="sm"
             onClick={() => goWithExit("/products/new")}
             disabled={leaving}
-            className={cn("gap-1.5", BUTTON_PRESS)}
+            className={cn("gap-1.5 text-xs", BUTTON_PRESS)}
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-3.5 w-3.5" />
             Add Product
           </Button>
         </div>
       </div>
 
+      {/* ── Summary Cards ── */}
       <div
         className={cn(
           "transition-all duration-300 ease-in-out origin-top",
           showSummary
-            ? "max-h-[500px] opacity-100 scale-y-100 pointer-events-auto"
-            : "max-h-0 opacity-0 scale-y-95 overflow-hidden pointer-events-none !mt-0"
+            ? "max-h-[300px] opacity-100 scale-y-100 pointer-events-auto"
+            : "max-h-0 opacity-0 scale-y-95 overflow-hidden pointer-events-none !mt-0",
         )}
       >
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 pb-2">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
             {
               label: "Total Products",
               value: stats.total,
               icon: Package,
-              footer: `${stats.active} Active`,
+              iconClass: "text-slate-500",
+              footer: `${stats.active} active`,
             },
             {
               label: "Active",
               value: stats.active,
               icon: CheckCircle2,
+              iconClass: "text-emerald-500",
               footer: "Live products",
             },
             {
               label: "Inactive",
               value: stats.inactive,
               icon: XCircle,
+              iconClass: "text-slate-400",
               footer: "Inactive products",
             },
             {
               label: "Low Stock",
               value: stats.low,
               icon: BarChart2,
+              iconClass: "text-amber-500",
               footer: "Items below threshold",
             },
           ].map((s) => (
             <Card key={s.label}>
-              <CardContent className="space-y-2 p-5 pt-5">
-                <div className="flex items-start justify-between">
-                  <span className="text-sm font-semibold text-foreground/80">{s.label}</span>
-                  <s.icon className="h-5 w-5 text-slate-400" />
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <span className="text-xs font-medium text-muted-foreground">{s.label}</span>
+                  <s.icon className={cn("h-4 w-4", s.iconClass)} />
                 </div>
-                <div className="text-3xl font-extrabold text-foreground">
+                <div className="text-2xl font-bold tracking-tight text-foreground">
                   {loading ? "—" : s.value}
                 </div>
-                <div className="text-xs text-muted-foreground">{s.footer}</div>
+                <div className="text-[11px] text-muted-foreground mt-1">{s.footer}</div>
               </CardContent>
             </Card>
           ))}
         </div>
       </div>
 
+      {/* ── Main Content Card ── */}
       <Card>
-        <CardContent className="space-y-4 pt-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[220px]">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                className="pl-9"
-                placeholder="Search products…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-                <SelectItem value="low">Low stock</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        {/* Inner card header */}
+        <div className="px-5 pt-5 pb-3 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">All Products</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Manage your products, variants and inventory</p>
+        </div>
 
-          {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+        {/* Search + filters bar */}
+        <div className="px-5 py-3 flex flex-wrap items-center gap-3 border-b border-border">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-8 h-8 text-xs"
+              placeholder="Search products..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as StatusFilter); setCurrentPage(1); }}>
+            <SelectTrigger className="w-32 h-8 text-xs">
+              <SelectValue placeholder="All Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+              <SelectItem value="low">Low Stock</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={statusFilter === "all" ? "all-cat" : "all-cat"}
+            onValueChange={() => {}}
+          >
+            <SelectTrigger className="w-32 h-8 text-xs">
+              <SelectValue placeholder="All Types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all-cat">All Types</SelectItem>
+              <SelectItem value="tracked">Tracked</SelectItem>
+              <SelectItem value="untracked">Untracked</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+            onClick={() => refetch()}
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+
+        {/* Tabs */}
+        <div className="px-5 flex gap-0 border-b border-border">
+          {(["overview", "analytics"] as ActiveTab[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={cn(
+                "px-4 py-2.5 text-xs font-medium capitalize border-b-2 transition-colors",
+                activeTab === tab
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        {/* Table area */}
+        <CardContent className="p-0">
+          {activeTab === "analytics" ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+              <SlidersHorizontal className="h-8 w-8 text-muted-foreground/40" />
+              <p className="text-sm font-medium text-foreground">Analytics coming soon</p>
+              <p className="text-xs text-muted-foreground max-w-xs">
+                Product performance charts and sales analytics will be available here.
+              </p>
+            </div>
+          ) : loading ? (
+            <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
+              Loading…
+            </div>
           ) : products.length === 0 ? (
             <EmptyState onAdd={() => goWithExit("/products/new")} />
           ) : filteredProducts.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">No products match your search.</p>
+            <p className="py-10 text-center text-sm text-muted-foreground">No products match your search.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="w-10 py-2 pr-2 font-medium text-right">#</th>
-                    <th className="py-2 pr-4 font-medium">SKU</th>
-                    <th className="py-2 pr-4 font-medium">Name</th>
-                    <th className="py-2 pr-4 font-medium">Category</th>
-                    <th className="py-2 pr-4 font-medium">Brand</th>
-                    <th className="py-2 pr-4 font-medium text-right">Stock</th>
-                    <th className="py-2 pr-6 font-medium text-right">Reorder At</th>
-                    <th className="py-2 pr-4 font-medium">Status</th>
-                    <th className="py-2 font-medium text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredProducts.map((p, i) => {
-                    const low = isLowStock(p);
-                    return (
-                      <tr
-                        key={p.id}
-                        className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/50 animate-in fade-in slide-in-from-top-1 duration-200 ease-out motion-reduce:animate-none"
-                        onClick={() => setDetail(p)}
-                      >
-                        <td className="py-1.5 pr-2 text-right text-xs text-muted-foreground">{i + 1}</td>
-                        <td className="py-1.5 pr-4 font-mono text-xs">{p.sku}</td>
-                        <td className="py-1.5 pr-4 font-medium">{p.name}</td>
-                        <td className="py-1.5 pr-4 text-muted-foreground">{p.category?.name || "—"}</td>
-                        <td className="py-1.5 pr-4 text-muted-foreground">{p.brand?.name || "—"}</td>
-                        <td className="py-1.5 pr-4 text-right">{p.trackInventory ? p.totalStock : <span className="text-muted-foreground">—</span>}</td>
-                        <td className="py-1.5 pr-6 text-right text-muted-foreground">{p.trackInventory ? p.reorderThreshold : "—"}</td>
-                        <td className="py-1.5 pr-4">
-                          {!p.active ? (
-                            <Badge tone="muted">Archived</Badge>
-                          ) : !p.trackInventory ? (
-                            <Badge tone="info">Not tracked</Badge>
-                          ) : low ? (
-                            <Badge tone="danger">Low stock</Badge>
-                          ) : (
-                            <Badge tone="success">In stock</Badge>
-                          )}
-                        </td>
-                        <td className="py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>
-                            Edit
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <>
+              {/* Inner sub-header inside table card */}
+              <div className="px-5 py-3 border-b border-border">
+                <p className="text-xs font-semibold text-foreground">Product List</p>
+                <p className="text-[11px] text-muted-foreground">Browse and manage all your products</p>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/30 text-left text-muted-foreground">
+                      <th className="px-4 py-2.5 font-medium">
+                        <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+                          Product Name <ChevronsUpDown className="h-3 w-3 opacity-60" />
+                        </button>
+                      </th>
+                      <th className="px-4 py-2.5 font-medium">
+                        <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+                          SKU <ChevronsUpDown className="h-3 w-3 opacity-60" />
+                        </button>
+                      </th>
+                      <th className="px-4 py-2.5 font-medium">Category</th>
+                      <th className="px-4 py-2.5 font-medium">Brand</th>
+                      <th className="px-4 py-2.5 font-medium text-right">
+                        <button className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors">
+                          Stock <ChevronsUpDown className="h-3 w-3 opacity-60" />
+                        </button>
+                      </th>
+                      <th className="px-4 py-2.5 font-medium text-right">Sell Price</th>
+                      <th className="px-4 py-2.5 font-medium">
+                        <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+                          Status <ChevronsUpDown className="h-3 w-3 opacity-60" />
+                        </button>
+                      </th>
+                      <th className="px-4 py-2.5 font-medium text-center w-10"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedProducts.map((p) => {
+                      const low = isLowStock(p);
+                      return (
+                        <tr
+                          key={p.id}
+                          className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors cursor-pointer animate-in fade-in slide-in-from-top-1 duration-150 ease-out motion-reduce:animate-none"
+                          onClick={() => setDetail(p)}
+                        >
+                          <td className="px-4 py-2.5">
+                            <div className="font-medium text-foreground">{p.name}</div>
+                          </td>
+                          <td className="px-4 py-2.5 font-mono text-muted-foreground">{p.sku}</td>
+                          <td className="px-4 py-2.5 text-muted-foreground">{p.category?.name || "—"}</td>
+                          <td className="px-4 py-2.5 text-muted-foreground">{p.brand?.name || "—"}</td>
+                          <td className="px-4 py-2.5 text-right">
+                            {p.trackInventory ? (
+                              <span className={cn(low && "text-amber-600 font-medium")}>{p.totalStock}</span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-muted-foreground">
+                            ₹{p.sellPrice.toFixed(2)}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            {!p.active ? (
+                              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                Inactive
+                              </span>
+                            ) : low ? (
+                              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                                Low Stock
+                              </span>
+                            ) : !p.trackInventory ? (
+                              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">
+                                Not Tracked
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-primary text-primary-foreground">
+                                Active
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                                >
+                                  <MoreHorizontal className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openEdit(p)}>
+                                  <Pencil className="h-3.5 w-3.5" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setDetail(p)}>
+                                  <Package className="h-3.5 w-3.5" />
+                                  View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => handleArchiveToggle(p)}
+                                  className={p.active ? "text-danger focus:text-danger" : "text-success focus:text-success"}
+                                >
+                                  {p.active ? (
+                                    <><Archive className="h-3.5 w-3.5" /> Archive</>
+                                  ) : (
+                                    <><RefreshCw className="h-3.5 w-3.5" /> Reactivate</>
+                                  )}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              <div className="flex items-center justify-between px-5 py-3 border-t border-border">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Rows per page</span>
+                  <Select
+                    value={String(rowsPerPage)}
+                    onValueChange={(v) => { setRowsPerPage(Number(v)); setCurrentPage(1); }}
+                  >
+                    <SelectTrigger className="h-7 w-16 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[10, 20, 50].map((n) => (
+                        <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span>Page {currentPage} of {totalPages}</span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-xs"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                    >
+                      «
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-xs"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      ‹
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-xs"
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      ›
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-xs"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                    >
+                      »
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
 
+      {/* ── Edit Product Dialog ── */}
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent className={DIALOG_CONTENT_MOTION} overlayClassName={DIALOG_OVERLAY_MOTION}>
           <DialogHeader>
@@ -575,6 +786,7 @@ export default function AllProductsTab() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Product Detail Dialog ── */}
       <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
         <DialogContent className={cn(DIALOG_CONTENT_MOTION, "max-w-lg")} overlayClassName={DIALOG_OVERLAY_MOTION}>
           {detail && (
@@ -586,7 +798,7 @@ export default function AllProductsTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Product Documents Dialog */}
+      {/* ── Product Documents Dialog ── */}
       <Dialog open={showDocumentsDialog} onOpenChange={setShowDocumentsDialog}>
         <DialogContent className={cn(DIALOG_CONTENT_MOTION, "max-w-md")} overlayClassName={DIALOG_OVERLAY_MOTION}>
           <DialogHeader>
@@ -624,7 +836,6 @@ export default function AllProductsTab() {
                 </div>
               ))}
             </div>
-            
             <div className="border border-dashed border-border rounded-lg p-6 flex flex-col items-center justify-center gap-2 bg-muted/20">
               <Upload className="h-8 w-8 text-muted-foreground/60" />
               <p className="text-sm font-medium text-foreground">Upload new document</p>
@@ -647,7 +858,7 @@ export default function AllProductsTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Import Products Dialog */}
+      {/* ── Import Products Dialog ── */}
       <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
         <DialogContent className={cn(DIALOG_CONTENT_MOTION, "max-w-md")} overlayClassName={DIALOG_OVERLAY_MOTION}>
           <DialogHeader>
@@ -657,8 +868,7 @@ export default function AllProductsTab() {
             <p className="text-sm text-muted-foreground">
               Bulk upload your products and inventory counts via CSV or Excel.
             </p>
-            
-            <div 
+            <div
               className="border border-dashed border-border rounded-lg p-8 flex flex-col items-center justify-center gap-3 bg-muted/20 hover:bg-muted/30 transition-colors cursor-pointer"
               onClick={() => toast.success("Select CSV/XLSX file to upload... (Demo)")}
             >
@@ -673,7 +883,6 @@ export default function AllProductsTab() {
                 Supported formats: .csv, .xlsx
               </p>
             </div>
-
             <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border text-xs text-muted-foreground">
               <span>Need the standard template format?</span>
               <Button
@@ -697,7 +906,7 @@ export default function AllProductsTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Export Products Dialog */}
+      {/* ── Export Products Dialog ── */}
       <Dialog open={showExportDialog} onOpenChange={handleExportDialogChange}>
         <DialogContent className={cn(DIALOG_CONTENT_MOTION, "max-w-md")} overlayClassName={DIALOG_OVERLAY_MOTION}>
           <DialogHeader>
@@ -725,28 +934,17 @@ export default function AllProductsTab() {
                   <div className="rounded-lg bg-muted/20 border border-border p-3 space-y-2">
                     <p className="text-xs font-semibold text-foreground/80">Included Data</p>
                     <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" defaultChecked disabled className="rounded border-border text-primary focus:ring-primary/20" />
-                        SKU & Product Name
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" defaultChecked disabled className="rounded border-border text-primary focus:ring-primary/20" />
-                        Category & Brand
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" defaultChecked disabled className="rounded border-border text-primary focus:ring-primary/20" />
-                        Prices (Cost & Sell)
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" defaultChecked disabled className="rounded border-border text-primary focus:ring-primary/20" />
-                        Current Stock Levels
-                      </label>
+                      {["SKU & Product Name", "Category & Brand", "Prices (Cost & Sell)", "Current Stock Levels"].map((col) => (
+                        <label key={col} className="flex items-center gap-2">
+                          <input type="checkbox" defaultChecked readOnly className="rounded" />
+                          {col}
+                        </label>
+                      ))}
                     </div>
                   </div>
                 </div>
               </>
             )}
-
             {exportStatus === "exporting" && (
               <div className="py-6 flex flex-col items-center justify-center gap-4 text-center">
                 <div className="relative flex items-center justify-center">
@@ -765,7 +963,6 @@ export default function AllProductsTab() {
                 </div>
               </div>
             )}
-
             {exportStatus === "done" && (
               <div className="py-6 flex flex-col items-center justify-center gap-3 text-center animate-in fade-in zoom-in-95 duration-200">
                 <div className="h-12 w-12 rounded-full bg-success-bg text-success flex items-center justify-center">
@@ -842,7 +1039,7 @@ function ProductDetail({ product, onArchiveToggle }: { product: Product; onArchi
         <div>
           <p className="text-muted-foreground">Cost / Sell price</p>
           <p>
-            ${product.costPrice.toFixed(2)} / ${product.sellPrice.toFixed(2)}
+            ₹{product.costPrice.toFixed(2)} / ₹{product.sellPrice.toFixed(2)}
           </p>
         </div>
         <div>

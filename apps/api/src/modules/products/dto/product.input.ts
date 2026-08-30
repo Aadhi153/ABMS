@@ -66,6 +66,11 @@ export class CreateProductInput {
   @IsBoolean()
   trackInventory?: boolean;
 
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  warehouseId?: string;
+
   @Field(() => Int, { nullable: true })
   @IsOptional()
   @IsInt()
@@ -77,6 +82,11 @@ export class CreateProductInput {
   @IsInt()
   @Min(0)
   reorderThreshold?: number;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
 }
 
 @InputType()
