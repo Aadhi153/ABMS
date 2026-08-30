@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { DollarSign, Plus, Trash2 } from "lucide-react";
 import {
@@ -15,15 +15,21 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
-  Label,
+  cn,
   toast,
 } from "@abms/ui";
+import { DIALOG_CONTENT_MOTION, DIALOG_OVERLAY_MOTION } from "./dialog-motion";
+import { BUTTON_PRESS, LIST_ENTER, LIST_EXIT, usePageTransition } from "./form-motion";
 
 const PRICE_LISTS_QUERY = gql`
   query PriceLists {
     priceLists {
       id
       name
+      description
+      currency
+      startDate
+      endDate
       isDefault
       items {
         id
@@ -37,14 +43,6 @@ const PRICE_LISTS_QUERY = gql`
       sku
       name
       sellPrice
-    }
-  }
-`;
-
-const CREATE_PRICE_LIST_MUTATION = gql`
-  mutation CreatePriceList($input: CreatePriceListInput!) {
-    createPriceList(input: $input) {
-      id
     }
   }
 `;
@@ -80,41 +78,30 @@ interface PriceListItemRow {
 interface PriceListRow {
   id: string;
   name: string;
+  description: string | null;
+  currency: string;
+  startDate: string | null;
+  endDate: string | null;
   isDefault: boolean;
   items: PriceListItemRow[];
 }
 
+function formatDate(d: string) {
+  return new Date(d).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
 export default function PriceListsTab() {
+  const { leaving, goWithExit } = usePageTransition();
   const { data, loading, refetch } = useQuery<{ priceLists: PriceListRow[]; products: ProductOption[] }>(PRICE_LISTS_QUERY);
-  const [createPriceList] = useMutation(CREATE_PRICE_LIST_MUTATION);
   const [deletePriceList] = useMutation(DELETE_PRICE_LIST_MUTATION);
   const [upsertItem] = useMutation(UPSERT_PRICE_LIST_ITEM_MUTATION);
 
-  const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState<PriceListRow | null>(null);
   const [managing, setManaging] = useState<PriceListRow | null>(null);
-  const [form, setForm] = useState({ name: "", isDefault: false });
-  const [submitting, setSubmitting] = useState(false);
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
   const [savingProductId, setSavingProductId] = useState<string | null>(null);
 
   const products = data?.products ?? [];
-
-  async function handleCreate(e: FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      await createPriceList({ variables: { input: { name: form.name, isDefault: form.isDefault } } });
-      toast.success(`${form.name} added`);
-      setOpen(false);
-      setForm({ name: "", isDefault: false });
-      await refetch();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create price list");
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   async function handleDelete() {
     if (!deleting) return;
@@ -157,13 +144,13 @@ export default function PriceListsTab() {
   }
 
   return (
-    <Card>
+    <Card className={leaving ? LIST_EXIT : LIST_ENTER}>
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <div>
           <CardTitle>Price List</CardTitle>
           <CardDescription>Alternate price books you can apply per customer or channel.</CardDescription>
         </div>
-        <Button size="sm" onClick={() => setOpen(true)}>
+        <Button size="sm" onClick={() => goWithExit("/products/price-lists/new")} disabled={leaving} className={BUTTON_PRESS}>
           <Plus className="h-4 w-4" />
           New Price List
         </Button>
@@ -172,12 +159,14 @@ export default function PriceListsTab() {
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : data?.priceLists.length === 0 ? (
-          <EmptyState onAdd={() => setOpen(true)} />
+          <EmptyState onAdd={() => goWithExit("/products/price-lists/new")} />
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-muted-foreground">
                 <th className="py-2 font-medium">Name</th>
+                <th className="py-2 font-medium">Currency</th>
+                <th className="py-2 font-medium">Effective</th>
                 <th className="py-2 font-medium">Default</th>
                 <th className="py-2 font-medium">Items</th>
                 <th className="py-2 font-medium text-right">Actions</th>
@@ -185,8 +174,21 @@ export default function PriceListsTab() {
             </thead>
             <tbody>
               {data?.priceLists.map((l) => (
-                <tr key={l.id} className="border-b border-border last:border-0">
+                <tr
+                  key={l.id}
+                  className="border-b border-border last:border-0 animate-in fade-in slide-in-from-top-1 duration-200 ease-out motion-reduce:animate-none"
+                >
                   <td className="py-2">{l.name}</td>
+                  <td className="py-2 text-muted-foreground">{l.currency}</td>
+                  <td className="py-2 text-muted-foreground">
+                    {l.startDate || l.endDate ? (
+                      <>
+                        {l.startDate ? formatDate(l.startDate) : "—"} – {l.endDate ? formatDate(l.endDate) : "—"}
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td className="py-2">{l.isDefault ? <Badge tone="info">Default</Badge> : "—"}</td>
                   <td className="py-2 text-muted-foreground">{l.items.length}</td>
                   <td className="py-2 text-right space-x-2">
@@ -204,37 +206,8 @@ export default function PriceListsTab() {
         )}
       </CardContent>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>New price list</DialogTitle>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={handleCreate}>
-            <div className="space-y-1.5">
-              <Label htmlFor="pl-name">Name</Label>
-              <Input id="pl-name" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                id="pl-default"
-                type="checkbox"
-                className="h-4 w-4 accent-primary"
-                checked={form.isDefault}
-                onChange={(e) => setForm((f) => ({ ...f, isDefault: e.target.checked }))}
-              />
-              <Label htmlFor="pl-default">Set as default</Label>
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={submitting}>
-                {submitting ? "Creating…" : "Create price list"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={!!managing} onOpenChange={(o) => !o && setManaging(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className={cn(DIALOG_CONTENT_MOTION, "max-w-lg")} overlayClassName={DIALOG_OVERLAY_MOTION}>
           <DialogHeader>
             <DialogTitle>Manage prices — {managing?.name}</DialogTitle>
           </DialogHeader>
@@ -262,7 +235,7 @@ export default function PriceListsTab() {
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setManaging(null)}>
+            <Button variant="outline" onClick={() => setManaging(null)} className={BUTTON_PRESS}>
               Done
             </Button>
           </DialogFooter>
@@ -270,7 +243,7 @@ export default function PriceListsTab() {
       </Dialog>
 
       <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
-        <DialogContent>
+        <DialogContent className={DIALOG_CONTENT_MOTION} overlayClassName={DIALOG_OVERLAY_MOTION}>
           <DialogHeader>
             <DialogTitle>Delete price list</DialogTitle>
           </DialogHeader>
@@ -278,10 +251,10 @@ export default function PriceListsTab() {
             Delete <span className="font-medium text-foreground">{deleting?.name}</span>? This cannot be undone.
           </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleting(null)}>
+            <Button variant="outline" onClick={() => setDeleting(null)} className={BUTTON_PRESS}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDelete}>
+            <Button variant="destructive" onClick={handleDelete} className={BUTTON_PRESS}>
               Delete
             </Button>
           </DialogFooter>
@@ -293,7 +266,7 @@ export default function PriceListsTab() {
 
 function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+    <div className="flex flex-col items-center justify-center gap-3 py-12 text-center animate-in fade-in zoom-in-95 duration-300 ease-out motion-reduce:animate-none">
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
         <DollarSign className="h-5 w-5 text-muted-foreground" />
       </div>
@@ -301,7 +274,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         <p className="text-sm font-medium">No price lists yet</p>
         <p className="text-sm text-muted-foreground">Get started by adding your first price list.</p>
       </div>
-      <Button size="sm" onClick={onAdd}>
+      <Button size="sm" onClick={onAdd} className={BUTTON_PRESS}>
         <Plus className="h-4 w-4" />
         Add your first price list
       </Button>

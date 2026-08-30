@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { Layers, Plus, Trash2 } from "lucide-react";
 import {
@@ -13,24 +13,22 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input,
-  Label,
   toast,
 } from "@abms/ui";
+import { DIALOG_CONTENT_MOTION, DIALOG_OVERLAY_MOTION } from "./dialog-motion";
+import { BUTTON_PRESS, LIST_ENTER, LIST_EXIT, usePageTransition } from "./form-motion";
 
 const CATEGORIES_QUERY = gql`
   query Categories {
     categories {
       id
       name
-    }
-  }
-`;
-
-const CREATE_CATEGORY_MUTATION = gql`
-  mutation CreateCategory($input: CreateCategoryInput!) {
-    createCategory(input: $input) {
-      id
+      description
+      color
+      parent {
+        id
+        name
+      }
     }
   }
 `;
@@ -44,32 +42,16 @@ const DELETE_CATEGORY_MUTATION = gql`
 interface CategoryRow {
   id: string;
   name: string;
+  description: string | null;
+  color: string | null;
+  parent: { id: string; name: string } | null;
 }
 
 export default function CategoriesTab() {
+  const { leaving, goWithExit } = usePageTransition();
   const { data, loading, refetch } = useQuery<{ categories: CategoryRow[] }>(CATEGORIES_QUERY);
-  const [createCategory] = useMutation(CREATE_CATEGORY_MUTATION);
   const [deleteCategory] = useMutation(DELETE_CATEGORY_MUTATION);
-  const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState<CategoryRow | null>(null);
-  const [name, setName] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  async function handleCreate(e: FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      await createCategory({ variables: { input: { name } } });
-      toast.success(`${name} added`);
-      setOpen(false);
-      setName("");
-      await refetch();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create category");
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   async function handleDelete() {
     if (!deleting) return;
@@ -85,13 +67,13 @@ export default function CategoriesTab() {
   }
 
   return (
-    <Card>
+    <Card className={leaving ? LIST_EXIT : LIST_ENTER}>
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <div>
           <CardTitle>All Categories</CardTitle>
           <CardDescription>Group products into categories for browsing and reporting.</CardDescription>
         </div>
-        <Button size="sm" onClick={() => setOpen(true)}>
+        <Button size="sm" onClick={() => goWithExit("/products/categories/new")} disabled={leaving} className={BUTTON_PRESS}>
           <Plus className="h-4 w-4" />
           New Category
         </Button>
@@ -100,19 +82,32 @@ export default function CategoriesTab() {
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : data?.categories.length === 0 ? (
-          <EmptyState onAdd={() => setOpen(true)} />
+          <EmptyState onAdd={() => goWithExit("/products/categories/new")} />
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-muted-foreground">
                 <th className="py-2 font-medium">Name</th>
+                <th className="py-2 font-medium">Description</th>
                 <th className="py-2 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {data?.categories.map((c) => (
-                <tr key={c.id} className="border-b border-border last:border-0">
-                  <td className="py-2">{c.name}</td>
+                <tr
+                  key={c.id}
+                  className="border-b border-border last:border-0 animate-in fade-in slide-in-from-top-1 duration-200 ease-out motion-reduce:animate-none"
+                >
+                  <td className="py-2">
+                    <div className="flex items-center gap-2">
+                      {c.color && <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: c.color }} />}
+                      <span>
+                        {c.parent && <span className="text-muted-foreground">{c.parent.name} › </span>}
+                        {c.name}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="py-2 text-muted-foreground">{c.description || "—"}</td>
                   <td className="py-2 text-right">
                     <Button variant="ghost" size="sm" onClick={() => setDeleting(c)}>
                       <Trash2 className="h-3.5 w-3.5" />
@@ -124,26 +119,8 @@ export default function CategoriesTab() {
           </table>
         )}
       </CardContent>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>New category</DialogTitle>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={handleCreate}>
-            <div className="space-y-1.5">
-              <Label htmlFor="cat-name">Name</Label>
-              <Input id="cat-name" required value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={submitting}>
-                {submitting ? "Creating…" : "Create category"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
       <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
-        <DialogContent>
+        <DialogContent className={DIALOG_CONTENT_MOTION} overlayClassName={DIALOG_OVERLAY_MOTION}>
           <DialogHeader>
             <DialogTitle>Delete category</DialogTitle>
           </DialogHeader>
@@ -152,10 +129,10 @@ export default function CategoriesTab() {
             fields but lose this category.
           </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleting(null)}>
+            <Button variant="outline" onClick={() => setDeleting(null)} className={BUTTON_PRESS}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDelete}>
+            <Button variant="destructive" onClick={handleDelete} className={BUTTON_PRESS}>
               Delete
             </Button>
           </DialogFooter>
@@ -167,7 +144,7 @@ export default function CategoriesTab() {
 
 function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+    <div className="flex flex-col items-center justify-center gap-3 py-12 text-center animate-in fade-in zoom-in-95 duration-300 ease-out motion-reduce:animate-none">
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
         <Layers className="h-5 w-5 text-muted-foreground" />
       </div>
@@ -175,7 +152,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         <p className="text-sm font-medium">No categories yet</p>
         <p className="text-sm text-muted-foreground">Get started by adding your first category.</p>
       </div>
-      <Button size="sm" onClick={onAdd}>
+      <Button size="sm" onClick={onAdd} className={BUTTON_PRESS}>
         <Plus className="h-4 w-4" />
         Add your first category
       </Button>

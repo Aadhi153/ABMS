@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { Boxes, Plus, Trash2 } from "lucide-react";
 import {
@@ -14,10 +14,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input,
-  Label,
   toast,
 } from "@abms/ui";
+import { DIALOG_CONTENT_MOTION, DIALOG_OVERLAY_MOTION } from "./dialog-motion";
+import { BUTTON_PRESS, LIST_ENTER, LIST_EXIT, usePageTransition } from "./form-motion";
 
 const PRICING_TIERS_QUERY = gql`
   query PricingTiers {
@@ -26,15 +26,9 @@ const PRICING_TIERS_QUERY = gql`
       name
       description
       discountPercent
+      minOrderValue
+      customerTag
       active
-    }
-  }
-`;
-
-const CREATE_PRICING_TIER_MUTATION = gql`
-  mutation CreatePricingTier($input: CreatePricingTierInput!) {
-    createPricingTier(input: $input) {
-      id
     }
   }
 `;
@@ -50,41 +44,18 @@ interface PricingTierRow {
   name: string;
   description: string | null;
   discountPercent: number;
+  minOrderValue: number | null;
+  customerTag: string | null;
   active: boolean;
 }
 
-export default function PricingTiersTab() {
-  const { data, loading, refetch } = useQuery<{ pricingTiers: PricingTierRow[] }>(PRICING_TIERS_QUERY);
-  const [createPricingTier] = useMutation(CREATE_PRICING_TIER_MUTATION);
-  const [deletePricingTier] = useMutation(DELETE_PRICING_TIER_MUTATION);
-  const [open, setOpen] = useState(false);
-  const [deleting, setDeleting] = useState<PricingTierRow | null>(null);
-  const [form, setForm] = useState({ name: "", description: "", discountPercent: "" });
-  const [submitting, setSubmitting] = useState(false);
+const CUSTOMER_TAG_LABELS: Record<string, string> = { REGULAR: "Regular", ONE_TIME: "One-time", LEAD: "Lead" };
 
-  async function handleCreate(e: FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      await createPricingTier({
-        variables: {
-          input: {
-            name: form.name,
-            description: form.description || undefined,
-            discountPercent: form.discountPercent ? Number(form.discountPercent) : undefined,
-          },
-        },
-      });
-      toast.success(`${form.name} added`);
-      setOpen(false);
-      setForm({ name: "", description: "", discountPercent: "" });
-      await refetch();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create pricing tier");
-    } finally {
-      setSubmitting(false);
-    }
-  }
+export default function PricingTiersTab() {
+  const { leaving, goWithExit } = usePageTransition();
+  const { data, loading, refetch } = useQuery<{ pricingTiers: PricingTierRow[] }>(PRICING_TIERS_QUERY);
+  const [deletePricingTier] = useMutation(DELETE_PRICING_TIER_MUTATION);
+  const [deleting, setDeleting] = useState<PricingTierRow | null>(null);
 
   async function handleDelete() {
     if (!deleting) return;
@@ -100,13 +71,13 @@ export default function PricingTiersTab() {
   }
 
   return (
-    <Card>
+    <Card className={leaving ? LIST_EXIT : LIST_ENTER}>
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <div>
           <CardTitle>Pricing Tiers</CardTitle>
           <CardDescription>Customer-facing pricing tiers, e.g. Retail vs. Wholesale.</CardDescription>
         </div>
-        <Button size="sm" onClick={() => setOpen(true)}>
+        <Button size="sm" onClick={() => goWithExit("/products/pricing-tiers/new")} disabled={leaving} className={BUTTON_PRESS}>
           <Plus className="h-4 w-4" />
           New Tier
         </Button>
@@ -115,7 +86,7 @@ export default function PricingTiersTab() {
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : data?.pricingTiers.length === 0 ? (
-          <EmptyState onAdd={() => setOpen(true)} />
+          <EmptyState onAdd={() => goWithExit("/products/pricing-tiers/new")} />
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -123,16 +94,23 @@ export default function PricingTiersTab() {
                 <th className="py-2 font-medium">Name</th>
                 <th className="py-2 font-medium">Description</th>
                 <th className="py-2 font-medium">Discount</th>
+                <th className="py-2 font-medium">Min. order</th>
+                <th className="py-2 font-medium">Customer tag</th>
                 <th className="py-2 font-medium">Status</th>
                 <th className="py-2 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {data?.pricingTiers.map((t) => (
-                <tr key={t.id} className="border-b border-border last:border-0">
+                <tr
+                  key={t.id}
+                  className="border-b border-border last:border-0 animate-in fade-in slide-in-from-top-1 duration-200 ease-out motion-reduce:animate-none"
+                >
                   <td className="py-2">{t.name}</td>
                   <td className="py-2 text-muted-foreground">{t.description || "—"}</td>
                   <td className="py-2">{t.discountPercent}%</td>
+                  <td className="py-2 text-muted-foreground">{t.minOrderValue != null ? `$${t.minOrderValue.toFixed(2)}` : "—"}</td>
+                  <td className="py-2">{t.customerTag ? <Badge tone="info">{CUSTOMER_TAG_LABELS[t.customerTag] ?? t.customerTag}</Badge> : "—"}</td>
                   <td className="py-2">
                     <Badge tone={t.active ? "success" : "muted"}>{t.active ? "Active" : "Inactive"}</Badge>
                   </td>
@@ -147,42 +125,8 @@ export default function PricingTiersTab() {
           </table>
         )}
       </CardContent>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>New pricing tier</DialogTitle>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={handleCreate}>
-            <div className="space-y-1.5">
-              <Label htmlFor="tier-name">Name</Label>
-              <Input id="tier-name" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="tier-desc">Description</Label>
-              <Input id="tier-desc" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="tier-discount">Discount (%)</Label>
-              <Input
-                id="tier-discount"
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
-                value={form.discountPercent}
-                onChange={(e) => setForm((f) => ({ ...f, discountPercent: e.target.value }))}
-              />
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={submitting}>
-                {submitting ? "Creating…" : "Create tier"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
       <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
-        <DialogContent>
+        <DialogContent className={DIALOG_CONTENT_MOTION} overlayClassName={DIALOG_OVERLAY_MOTION}>
           <DialogHeader>
             <DialogTitle>Delete pricing tier</DialogTitle>
           </DialogHeader>
@@ -190,10 +134,10 @@ export default function PricingTiersTab() {
             Delete <span className="font-medium text-foreground">{deleting?.name}</span>? This cannot be undone.
           </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleting(null)}>
+            <Button variant="outline" onClick={() => setDeleting(null)} className={BUTTON_PRESS}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDelete}>
+            <Button variant="destructive" onClick={handleDelete} className={BUTTON_PRESS}>
               Delete
             </Button>
           </DialogFooter>
@@ -205,7 +149,7 @@ export default function PricingTiersTab() {
 
 function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+    <div className="flex flex-col items-center justify-center gap-3 py-12 text-center animate-in fade-in zoom-in-95 duration-300 ease-out motion-reduce:animate-none">
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
         <Boxes className="h-5 w-5 text-muted-foreground" />
       </div>
@@ -213,7 +157,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         <p className="text-sm font-medium">No pricing tiers yet</p>
         <p className="text-sm text-muted-foreground">Get started by adding your first tier.</p>
       </div>
-      <Button size="sm" onClick={onAdd}>
+      <Button size="sm" onClick={onAdd} className={BUTTON_PRESS}>
         <Plus className="h-4 w-4" />
         Add your first tier
       </Button>

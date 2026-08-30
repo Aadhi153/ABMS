@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { SCOPED_PRISMA, type ScopedPrismaClient } from "../../common/tenancy/scoped-prisma.service";
 import type { CreateBrandInput, UpdateBrandInput } from "./dto/brand.input";
 
@@ -14,13 +14,21 @@ export class BrandsService {
     return this.prisma.brand.findUnique({ where: { id } });
   }
 
-  create(input: CreateBrandInput, organizationId: string) {
+  async create(input: CreateBrandInput, organizationId: string) {
+    if (input.code) {
+      const existing = await this.prisma.brand.findFirst({ where: { code: input.code } });
+      if (existing) throw new ConflictException("A brand with this code already exists");
+    }
     return this.prisma.brand.create({ data: { ...input, organizationId } });
   }
 
   async update(id: string, input: UpdateBrandInput) {
     const existing = await this.prisma.brand.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException("Brand not found");
+    if (input.code) {
+      const codeOwner = await this.prisma.brand.findFirst({ where: { code: input.code, NOT: { id } } });
+      if (codeOwner) throw new ConflictException("A brand with this code already exists");
+    }
     return this.prisma.brand.update({ where: { id }, data: input });
   }
 

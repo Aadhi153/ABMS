@@ -18,6 +18,8 @@ import {
   Label,
   toast,
 } from "@abms/ui";
+import { DIALOG_CONTENT_MOTION, DIALOG_OVERLAY_MOTION } from "./dialog-motion";
+import { BUTTON_PRESS, FOCUS_GLOW, LIST_ENTER } from "./form-motion";
 
 const TAX_GROUPS_QUERY = gql`
   query TaxGroups {
@@ -111,13 +113,13 @@ export default function TaxGroupsTab() {
   }
 
   return (
-    <Card>
+    <Card className={LIST_ENTER}>
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <div>
           <CardTitle>Tax Groups</CardTitle>
           <CardDescription>Bundle multiple tax rates together, e.g. combined state + local tax.</CardDescription>
         </div>
-        <Button size="sm" onClick={() => setOpen(true)}>
+        <Button size="sm" onClick={() => setOpen(true)} className={BUTTON_PRESS}>
           <Plus className="h-4 w-4" />
           New Tax Group
         </Button>
@@ -138,7 +140,10 @@ export default function TaxGroupsTab() {
             </thead>
             <tbody>
               {data?.taxGroups.map((g) => (
-                <tr key={g.id} className="border-b border-border last:border-0">
+                <tr
+                  key={g.id}
+                  className="border-b border-border last:border-0 animate-in fade-in slide-in-from-top-1 duration-200 ease-out motion-reduce:animate-none"
+                >
                   <td className="py-2">{g.name}</td>
                   <td className="py-2">
                     <div className="flex flex-wrap gap-1">
@@ -165,14 +170,14 @@ export default function TaxGroupsTab() {
         )}
       </CardContent>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className={DIALOG_CONTENT_MOTION} overlayClassName={DIALOG_OVERLAY_MOTION}>
           <DialogHeader>
             <DialogTitle>New tax group</DialogTitle>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleCreate}>
             <div className="space-y-1.5">
               <Label htmlFor="group-name">Name</Label>
-              <Input id="group-name" required value={name} onChange={(e) => setName(e.target.value)} />
+              <Input id="group-name" required value={name} onChange={(e) => setName(e.target.value)} className={FOCUS_GLOW} />
             </div>
             <div className="space-y-1.5">
               <Label>Tax rates</Label>
@@ -195,7 +200,7 @@ export default function TaxGroupsTab() {
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit" disabled={submitting}>
+              <Button type="submit" disabled={submitting} className={BUTTON_PRESS}>
                 {submitting ? "Creating…" : "Create tax group"}
               </Button>
             </DialogFooter>
@@ -203,7 +208,7 @@ export default function TaxGroupsTab() {
         </DialogContent>
       </Dialog>
       <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
-        <DialogContent>
+        <DialogContent className={DIALOG_CONTENT_MOTION} overlayClassName={DIALOG_OVERLAY_MOTION}>
           <DialogHeader>
             <DialogTitle>Delete tax group</DialogTitle>
           </DialogHeader>
@@ -211,10 +216,10 @@ export default function TaxGroupsTab() {
             Delete <span className="font-medium text-foreground">{deleting?.name}</span>? This cannot be undone.
           </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleting(null)}>
+            <Button variant="outline" onClick={() => setDeleting(null)} className={BUTTON_PRESS}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDelete}>
+            <Button variant="destructive" onClick={handleDelete} className={BUTTON_PRESS}>
               Delete
             </Button>
           </DialogFooter>
@@ -226,7 +231,7 @@ export default function TaxGroupsTab() {
 
 function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+    <div className="flex flex-col items-center justify-center gap-3 py-12 text-center animate-in fade-in zoom-in-95 duration-300 ease-out motion-reduce:animate-none">
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
         <Group className="h-5 w-5 text-muted-foreground" />
       </div>
@@ -234,7 +239,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         <p className="text-sm font-medium">No tax groups yet</p>
         <p className="text-sm text-muted-foreground">Get started by adding your first tax group.</p>
       </div>
-      <Button size="sm" onClick={onAdd}>
+      <Button size="sm" onClick={onAdd} className={BUTTON_PRESS}>
         <Plus className="h-4 w-4" />
         Add your first tax group
       </Button>

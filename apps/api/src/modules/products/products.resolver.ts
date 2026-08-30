@@ -38,7 +38,7 @@ export class ProductsResolver {
   @Mutation(() => ProductModel)
   @Roles(Role.ADMIN, Role.PURCHASE)
   async createProduct(@Args("input") input: CreateProductInput, @CurrentUser() actor: User) {
-    const product = await this.productsService.create(input, actor.organizationId);
+    const product = await this.productsService.create(input, actor.organizationId, actor.id);
     await this.audit.logCreate(actor, "Product", product.id, product);
     return product;
   }
