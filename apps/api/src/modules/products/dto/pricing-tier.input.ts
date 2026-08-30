@@ -18,6 +18,17 @@ export class CreatePricingTierInput {
   @Min(0)
   @Max(100)
   discountPercent?: number;
+
+  @Field(() => Float, { nullable: true })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  minOrderValue?: number;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  customerTag?: string;
 }
 
 @InputType()
@@ -38,6 +49,17 @@ export class UpdatePricingTierInput {
   @Min(0)
   @Max(100)
   discountPercent?: number;
+
+  @Field(() => Float, { nullable: true })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  minOrderValue?: number;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  customerTag?: string;
 
   @Field(() => Boolean, { nullable: true })
   @IsOptional()

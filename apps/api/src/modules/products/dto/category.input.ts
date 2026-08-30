@@ -6,6 +6,21 @@ export class CreateCategoryInput {
   @Field(() => String)
   @IsString()
   name!: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  color?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  parentId?: string;
 }
 
 @InputType()
@@ -14,4 +29,19 @@ export class UpdateCategoryInput {
   @IsOptional()
   @IsString()
   name?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  color?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  parentId?: string;
 }

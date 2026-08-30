@@ -1,5 +1,6 @@
 import { Field, Float, InputType } from "@nestjs/graphql";
-import { IsBoolean, IsNumber, IsOptional, IsString, Max, Min } from "class-validator";
+import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString, Max, Min } from "class-validator";
+import { TaxType } from "@abms/shared";
 
 @InputType()
 export class CreateTaxRateInput {
@@ -12,6 +13,16 @@ export class CreateTaxRateInput {
   @Min(0)
   @Max(100)
   rate!: number;
+
+  @Field(() => TaxType, { nullable: true })
+  @IsOptional()
+  @IsEnum(TaxType)
+  taxType?: TaxType;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  region?: string;
 
   @Field(() => Boolean, { nullable: true })
   @IsOptional()
@@ -32,6 +43,16 @@ export class UpdateTaxRateInput {
   @Min(0)
   @Max(100)
   rate?: number;
+
+  @Field(() => TaxType, { nullable: true })
+  @IsOptional()
+  @IsEnum(TaxType)
+  taxType?: TaxType;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  region?: string;
 
   @Field(() => Boolean, { nullable: true })
   @IsOptional()

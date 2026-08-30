@@ -1,11 +1,31 @@
 import { Field, Float, InputType } from "@nestjs/graphql";
-import { IsBoolean, IsNumber, IsOptional, IsString, Min } from "class-validator";
+import { IsBoolean, IsDateString, IsNumber, IsOptional, IsString, Min } from "class-validator";
 
 @InputType()
 export class CreatePriceListInput {
   @Field(() => String)
   @IsString()
   name!: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @Field(() => Date, { nullable: true })
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @Field(() => Date, { nullable: true })
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
 
   @Field(() => Boolean, { nullable: true })
   @IsOptional()
@@ -19,6 +39,26 @@ export class UpdatePriceListInput {
   @IsOptional()
   @IsString()
   name?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @Field(() => Date, { nullable: true })
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @Field(() => Date, { nullable: true })
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
 
   @Field(() => Boolean, { nullable: true })
   @IsOptional()

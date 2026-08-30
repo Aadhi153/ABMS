@@ -1,6 +1,6 @@
-import { Field, Float, InputType } from "@nestjs/graphql";
-import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString, Min } from "class-validator";
-import { DiscountType } from "@abms/shared";
+import { Field, Float, InputType, Int } from "@nestjs/graphql";
+import { IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min } from "class-validator";
+import { DiscountAppliesTo, DiscountType } from "@abms/shared";
 
 @InputType()
 export class CreateDiscountInput {
@@ -16,6 +16,42 @@ export class CreateDiscountInput {
   @IsNumber()
   @Min(0)
   value!: number;
+
+  @Field(() => Date, { nullable: true })
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @Field(() => Date, { nullable: true })
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
+
+  @Field(() => DiscountAppliesTo, { nullable: true })
+  @IsOptional()
+  @IsEnum(DiscountAppliesTo)
+  appliesTo?: DiscountAppliesTo;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  brandId?: string;
+
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  usageLimit?: number;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  couponCode?: string;
 }
 
 @InputType()
@@ -35,6 +71,42 @@ export class UpdateDiscountInput {
   @IsNumber()
   @Min(0)
   value?: number;
+
+  @Field(() => Date, { nullable: true })
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @Field(() => Date, { nullable: true })
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
+
+  @Field(() => DiscountAppliesTo, { nullable: true })
+  @IsOptional()
+  @IsEnum(DiscountAppliesTo)
+  appliesTo?: DiscountAppliesTo;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  brandId?: string;
+
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  usageLimit?: number;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  couponCode?: string;
 
   @Field(() => Boolean, { nullable: true })
   @IsOptional()

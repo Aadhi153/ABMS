@@ -14,12 +14,37 @@ export class CreateProductInput {
   @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
+  variantName?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  barcode?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
   categoryId?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   brandId?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  taxRateId?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
@@ -35,6 +60,17 @@ export class CreateProductInput {
   @IsNumber()
   @Min(0)
   sellPrice!: number;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  trackInventory?: boolean;
+
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  initialStock?: number;
 
   @Field(() => Int, { nullable: true })
   @IsOptional()
@@ -53,12 +89,37 @@ export class UpdateProductInput {
   @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
+  variantName?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  barcode?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
   categoryId?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   brandId?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  taxRateId?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
@@ -76,6 +137,11 @@ export class UpdateProductInput {
   @IsNumber()
   @Min(0)
   sellPrice?: number;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  trackInventory?: boolean;
 
   @Field(() => Int, { nullable: true })
   @IsOptional()
