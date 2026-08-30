@@ -23,6 +23,18 @@ export class PriceListModel {
   @Field(() => String)
   name!: string;
 
+  @Field(() => String, { nullable: true })
+  description?: string | null;
+
+  @Field(() => String)
+  currency!: string;
+
+  @Field(() => Date, { nullable: true })
+  startDate?: Date | null;
+
+  @Field(() => Date, { nullable: true })
+  endDate?: Date | null;
+
   @Field(() => Boolean)
   isDefault!: boolean;
 

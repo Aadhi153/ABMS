@@ -14,6 +14,12 @@ export class PricingTierModel {
   @Field(() => Float)
   discountPercent!: number;
 
+  @Field(() => Float, { nullable: true })
+  minOrderValue?: number | null;
+
+  @Field(() => String, { nullable: true })
+  customerTag?: string | null;
+
   @Field(() => Boolean)
   active!: boolean;
 

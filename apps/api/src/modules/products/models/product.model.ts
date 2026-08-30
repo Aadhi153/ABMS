@@ -2,6 +2,7 @@ import { Field, Float, Int, ObjectType } from "@nestjs/graphql";
 import { WarehouseModel } from "../../settings/models/warehouse.model";
 import { CategoryModel } from "./category.model";
 import { BrandModel } from "./brand.model";
+import { TaxRateModel } from "./tax-rate.model";
 
 @ObjectType()
 export class StockLevelModel {
@@ -33,6 +34,18 @@ export class ProductModel {
   name!: string;
 
   @Field(() => String, { nullable: true })
+  variantName?: string | null;
+
+  @Field(() => String, { nullable: true })
+  description?: string | null;
+
+  @Field(() => String, { nullable: true })
+  barcode?: string | null;
+
+  @Field(() => String, { nullable: true })
+  imageUrl?: string | null;
+
+  @Field(() => String, { nullable: true })
   categoryId?: string | null;
 
   @Field(() => CategoryModel, { nullable: true })
@@ -44,6 +57,12 @@ export class ProductModel {
   @Field(() => BrandModel, { nullable: true })
   brand?: BrandModel | null;
 
+  @Field(() => String, { nullable: true })
+  taxRateId?: string | null;
+
+  @Field(() => TaxRateModel, { nullable: true })
+  taxRate?: TaxRateModel | null;
+
   @Field(() => String)
   unitOfMeasure!: string;
 
@@ -52,6 +71,9 @@ export class ProductModel {
 
   @Field(() => Float)
   sellPrice!: number;
+
+  @Field(() => Boolean)
+  trackInventory!: boolean;
 
   @Field(() => Int)
   reorderThreshold!: number;
