@@ -25,6 +25,19 @@ export enum DiscountType {
   FIXED_AMOUNT = "FIXED_AMOUNT",
 }
 
+export enum DiscountAppliesTo {
+  ALL = "ALL",
+  CATEGORY = "CATEGORY",
+  BRAND = "BRAND",
+}
+
+export enum TaxType {
+  GST = "GST",
+  VAT = "VAT",
+  SALES_TAX = "SALES_TAX",
+  OTHER = "OTHER",
+}
+
 // --- Inventory ---
 export enum StockMovementType {
   SALE = "SALE",

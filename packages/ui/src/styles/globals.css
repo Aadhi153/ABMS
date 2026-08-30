@@ -101,6 +101,17 @@
     @apply border-border;
   }
 
+  /* Anchors the app shell's height to a plain percentage chain instead of relying solely on
+     vh/dvh units — some browsers/webviews resolve dvh unreliably (or not at all), which lets
+     `h-full`/`h-dvh` on the shell collapse to its content height and expose blank page
+     background below it. height:100% through html -> body -> #root has been universally
+     supported since long before viewport units existed. */
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
@@ -116,5 +127,19 @@
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+}
+
+/* OS-level "reduce motion" opt-out — collapses every transition/animation
+   app-wide to near-instant instead of requiring each call site to remember
+   a motion-safe: variant. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

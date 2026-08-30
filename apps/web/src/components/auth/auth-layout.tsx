@@ -16,7 +16,7 @@ interface AuthLayoutProps {
  */
 export function AuthLayout({ title, description, stepIndicator, footer, children }: AuthLayoutProps) {
   return (
-    <div className="auth-theme flex min-h-screen bg-background">
+    <div className="auth-theme flex min-h-dvh min-h-screen bg-background">
       <div className="flex w-full flex-col justify-center px-6 py-12 sm:px-10 lg:w-1/2 lg:px-16 xl:px-24">
         <div className="mx-auto w-full max-w-sm">
           <div className="flex items-center gap-3">

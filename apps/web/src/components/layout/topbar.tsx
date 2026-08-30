@@ -1,4 +1,4 @@
-import { Bell, LogOut, Moon, Sun } from "lucide-react";
+import { Bell, LogOut, Menu, Moon, Sun } from "lucide-react";
 import {
   Avatar,
   AvatarFallback,
@@ -27,12 +27,16 @@ const ICON_BUTTON = "h-9 w-9 rounded-lg bg-stone-100 text-stone-600 hover:bg-sto
 
 /** Icons only — every page already renders its own heading, so a second
  * auto-generated title here was pure duplication (see Dashboard/CRM/etc). */
-export function Topbar() {
+export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-end gap-2 border-b border-border bg-card px-6">
+    <header className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-border bg-card px-4 sm:px-6">
+      <Button variant="ghost" size="icon" aria-label="Open menu" onClick={onMenuClick} className={`${ICON_BUTTON} lg:hidden`}>
+        <Menu className="h-4 w-4" />
+      </Button>
+      <div className="ml-auto flex items-center gap-2">
       <Button variant="ghost" size="icon" aria-label="Toggle theme" onClick={toggleTheme} className={ICON_BUTTON}>
         {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
       </Button>
@@ -71,6 +75,7 @@ export function Topbar() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      </div>
     </header>
   );
 }

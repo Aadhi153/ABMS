@@ -1,15 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
-import {
-  Ban,
-  Building2,
-  Plus,
-  RefreshCw,
-  ShieldCheck,
-  Users as UsersIcon,
-  Warehouse as WarehouseIcon,
-} from "lucide-react";
+import { Ban, Plus, RefreshCw } from "lucide-react";
 import {
   Badge,
   Button,
@@ -36,12 +28,7 @@ import {
 import { ALL_ROLES, NAV_MODULES, ROLE_LABELS, ROLE_MODULE_ACCESS, Role } from "@abms/shared";
 import { ModulePlaceholder } from "../../components/module-placeholder";
 
-const TABS = [
-  { key: "org", label: "Organization", icon: Building2 },
-  { key: "users", label: "Users & Teams", icon: UsersIcon },
-  { key: "permissions", label: "Roles & Permissions", icon: ShieldCheck },
-  { key: "warehouses", label: "Warehouses", icon: WarehouseIcon },
-] as const;
+const TABS = [{ key: "org" }, { key: "users" }, { key: "permissions" }, { key: "warehouses" }] as const;
 
 const DEFERRED_SEGMENTS: Record<string, string> = {
   bankaccounts: "Bank Accounts",
@@ -72,20 +59,6 @@ export default function SettingsPage() {
         <ModulePlaceholder title={deferredTitle} />
       ) : (
         <>
-          <div className="flex flex-wrap gap-2 border-b border-border pb-2">
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => navigate(`/settings/${t.key}`)}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  tab === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                <t.icon className="h-4 w-4" />
-                {t.label}
-              </button>
-            ))}
-          </div>
           {tab === "org" && <OrgProfileTab />}
           {tab === "users" && <UsersTab />}
           {tab === "permissions" && <PermissionsTab />}

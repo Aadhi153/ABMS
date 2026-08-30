@@ -80,6 +80,8 @@ interface AcceptInviteArgs {
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
+  /** True when the `me` check itself failed (server unreachable) — distinct from a confirmed "not logged in". */
+  unreachable: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   signup: (input: SignupArgs) => Promise<void>;
@@ -89,7 +91,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data, loading, refetch } = useQuery(ME_QUERY, { fetchPolicy: "network-only" });
+  const { data, loading, error, refetch } = useQuery(ME_QUERY, { fetchPolicy: "network-only", errorPolicy: "all" });
   const [loginMutation] = useMutation(LOGIN_MUTATION);
   const [logoutMutation] = useMutation(LOGOUT_MUTATION);
   const [signupMutation] = useMutation(SIGNUP_MUTATION);
@@ -99,6 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user: data?.me ?? null,
       loading,
+      unreachable: !loading && !!error && data?.me === undefined,
       login: async (email: string, password: string) => {
         await loginMutation({ variables: { input: { email, password } } });
         await refetch();
@@ -116,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await refetch();
       },
     }),
-    [data, loading, loginMutation, logoutMutation, signupMutation, acceptInviteMutation, refetch],
+    [data, loading, error, loginMutation, logoutMutation, signupMutation, acceptInviteMutation, refetch],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -10,3 +10,6 @@ export * from "./components/dropdown-menu";
 export * from "./components/select";
 export * from "./components/separator";
 export * from "./components/toaster";
+export * from "./components/textarea";
+export * from "./components/skeleton";
+export * from "./components/switch";

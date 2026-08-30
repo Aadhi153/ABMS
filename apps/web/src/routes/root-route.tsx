@@ -14,7 +14,7 @@ export function RootRoute() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <div className="flex h-screen items-center justify-center text-sm text-muted-foreground">Loading…</div>;
+    return <div className="flex h-full min-h-screen items-center justify-center text-sm text-muted-foreground">Loading…</div>;
   }
   if (!user) {
     return <LandingPage />;
