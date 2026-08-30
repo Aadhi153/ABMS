@@ -16,8 +16,8 @@ import {
   DialogTitle,
   toast,
 } from "@abms/ui";
-import { DIALOG_CONTENT_MOTION, DIALOG_OVERLAY_MOTION } from "./dialog-motion";
 import { BUTTON_PRESS, LIST_ENTER, LIST_EXIT, usePageTransition } from "./form-motion";
+import { PricingTierFormDialog, type PricingTierFormValues } from "./pricing-tier-form-dialog";
 
 const PRICING_TIERS_QUERY = gql`
   query PricingTiers {
@@ -39,6 +39,14 @@ const DELETE_PRICING_TIER_MUTATION = gql`
   }
 `;
 
+const CREATE_PRICING_TIER_MUTATION = gql`
+  mutation CreatePricingTier($input: CreatePricingTierInput!) {
+    createPricingTier(input: $input) {
+      id
+    }
+  }
+`;
+
 interface PricingTierRow {
   id: string;
   name: string;
@@ -49,13 +57,17 @@ interface PricingTierRow {
   active: boolean;
 }
 
+import { DIALOG_CONTENT_MOTION, DIALOG_OVERLAY_MOTION } from "./dialog-motion";
+
 const CUSTOMER_TAG_LABELS: Record<string, string> = { REGULAR: "Regular", ONE_TIME: "One-time", LEAD: "Lead" };
 
 export default function PricingTiersTab() {
   const { leaving, goWithExit } = usePageTransition();
   const { data, loading, refetch } = useQuery<{ pricingTiers: PricingTierRow[] }>(PRICING_TIERS_QUERY);
   const [deletePricingTier] = useMutation(DELETE_PRICING_TIER_MUTATION);
+  const [createPricingTier] = useMutation(CREATE_PRICING_TIER_MUTATION, { refetchQueries: ["PricingTiers"] });
   const [deleting, setDeleting] = useState<PricingTierRow | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   async function handleDelete() {
     if (!deleting) return;
@@ -70,6 +82,27 @@ export default function PricingTiersTab() {
     }
   }
 
+  async function handleSaveTier(values: PricingTierFormValues) {
+    try {
+      await createPricingTier({
+        variables: {
+          input: {
+            name: values.name,
+            description: values.description || null,
+            discountPercent: values.discountPercent ? parseFloat(values.discountPercent) : 0,
+            minOrderValue: values.minOrderValue ? parseFloat(values.minOrderValue) : null,
+            customerTag: values.customerTag || null,
+            active: values.active,
+          },
+        },
+      });
+      toast.success("Pricing tier created");
+      setCreateDialogOpen(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create pricing tier");
+    }
+  }
+
   return (
     <Card className={leaving ? LIST_EXIT : LIST_ENTER}>
       <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -77,7 +110,7 @@ export default function PricingTiersTab() {
           <CardTitle>Pricing Tiers</CardTitle>
           <CardDescription>Customer-facing pricing tiers, e.g. Retail vs. Wholesale.</CardDescription>
         </div>
-        <Button size="sm" onClick={() => goWithExit("/products/pricing-tiers/new")} disabled={leaving} className={BUTTON_PRESS}>
+        <Button size="sm" onClick={() => setCreateDialogOpen(true)} disabled={leaving} className={BUTTON_PRESS}>
           <Plus className="h-4 w-4" />
           New Tier
         </Button>
@@ -86,7 +119,7 @@ export default function PricingTiersTab() {
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : data?.pricingTiers.length === 0 ? (
-          <EmptyState onAdd={() => goWithExit("/products/pricing-tiers/new")} />
+          <EmptyState onAdd={() => setCreateDialogOpen(true)} />
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -143,6 +176,12 @@ export default function PricingTiersTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <PricingTierFormDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        tier={null}
+        onSave={handleSaveTier}
+      />
     </Card>
   );
 }
