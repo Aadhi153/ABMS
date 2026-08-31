@@ -1,4 +1,5 @@
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Check, ChevronRight, Loader2, Plus } from "lucide-react";
 import {
@@ -12,17 +13,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@abms/ui";
+import { usePageFooterSlot } from "../../providers/page-footer-slot";
 import { BUTTON_PRESS, FORM_ENTER, FORM_EXIT, sectionMotion, usePageTransition } from "./form-motion";
 
 /** Content column width shared by the scroll area and the footer's button row, so the
  * footer's buttons stay aligned under the form cards above them. */
 const FORM_MAX_WIDTH = "max-w-5xl";
 
-/** No scroll container of its own — flows straight inside AppShell's <main>
- * (min-h-0 flex-1 overflow-y-auto), the same single scrollbar every other products
- * page (e.g. the All Products tab) scrolls on, instead of nesting a second
- * overflow-y-auto box that gave this page its own separate scrollbar. FormFooter's
- * `position: sticky; bottom: 0` sticks to that shared ancestor just the same.
+/** No scroll container of its own — flows straight inside AppShell's <main>, the exact
+ * same single scrollbar every other products page (e.g. All Products) scrolls on.
+ * FormFooter doesn't live in this tree at all (see its own comment): it portals into a
+ * slot AppShell renders below <main>, which is what lets this stay a plain flow div
+ * instead of needing its own nested scroll box to keep the footer from overlapping content.
  * `leaving` (from useDiscardGuard) swaps the entrance animation for its mirrored exit so the
  * page slides back out the way it came in before the route actually changes. */
 export function FormPage({ children, leaving }: { children: ReactNode; leaving?: boolean }) {
@@ -35,15 +37,10 @@ export function FormPage({ children, leaving }: { children: ReactNode; leaving?:
 
 /** The form's content column. Horizontal/top gutter comes from AppShell's <main> (p-4
  * sm:p-6) alone — this used to add its own matching px/pt on top of that, doubling the
- * gutter for every FormPage-based route relative to the plain list-tab pages. Bottom padding
- * (pb-9, ~FormFooter's own 37px) is real and load-bearing: FormFooter is `sticky bottom-0`
- * inside the *same* scrolling ancestor as this content (AppShell's <main>), so while
- * scrolling — anywhere short of the very end — it's pinned over whatever real field
- * would otherwise be there. This reserved strip is what it overlaps instead. Dropping it
- * looks fine at rest but overlaps live fields (inputs, toggles) the moment you scroll. */
+ * gutter for every FormPage-based route relative to the plain list-tab pages. */
 export function FormScrollArea({ children }: { children: ReactNode }) {
   return (
-    <div className={cn("mx-auto space-y-6 pb-9", FORM_MAX_WIDTH)}>
+    <div className={cn("mx-auto space-y-6", FORM_MAX_WIDTH)}>
       {children}
     </div>
   );
@@ -232,13 +229,19 @@ export function RequiredMark() {
   );
 }
 
-/** Sticks to the bottom of FormPage's scroll viewport once the form is tall enough to scroll;
- * otherwise sits in normal flow right after FormScrollArea's content. Needs an opaque
- * background (unlike a plain border-top divider) since content now genuinely scrolls behind
- * it — FormScrollArea's pb-24 keeps that overlap limited to reserved padding, not real fields. */
+/** Portals into the slot AppShell renders as its own shrink-0 row directly below <main>
+ * (see providers/page-footer-slot.tsx) instead of rendering inline here. That slot sits
+ * outside <main>'s scroll box entirely, so this can never end up stacked on top of this
+ * page's own content no matter how that content's height changes — the previous
+ * approaches here (sticky-in-scroll-flow with reserved padding, then a nested scroll
+ * region) both still allowed real overlap or a mismatched scrollbar; this doesn't, because
+ * the footer and the scrolling content are no longer in the same box at all. Renders
+ * nothing on the very first render before AppShell's slot ref has mounted. */
 export function FormFooter({ children }: { children: ReactNode }) {
-  return (
-    <div className="sticky bottom-0 z-10 border-t border-border bg-background">
+  const slot = usePageFooterSlot();
+  if (!slot) return null;
+  return createPortal(
+    <div className="shrink-0 border-t border-border bg-background">
       <div
         className={cn(
           "mx-auto flex min-h-7 items-center justify-end gap-1.5 pt-2",
@@ -247,7 +250,8 @@ export function FormFooter({ children }: { children: ReactNode }) {
       >
         {children}
       </div>
-    </div>
+    </div>,
+    slot,
   );
 }
 

@@ -35,7 +35,8 @@ import { BUTTON_PRESS, FOCUS_GLOW, holdSuccessThen } from "./form-motion";
 
 const STEPS = [
   { key: "details", label: "Product Details" },
-  { key: "media", label: "Media" },
+  { key: "pricing", label: "Pricing" },
+  { key: "inventory", label: "Inventory" },
   { key: "review", label: "Review" },
 ] as const;
 
@@ -60,7 +61,14 @@ function ProductStepIndicator({
         return (
           <div key={s.key} className="flex items-center">
             {i > 0 && (
-              <div className={cn("h-px w-6 sm:w-10", i <= maxVisitedStep ? "bg-foreground/30" : "bg-border")} />
+              <div className="relative h-px w-6 overflow-hidden bg-border sm:w-10">
+                <div
+                  className={cn(
+                    "absolute inset-y-0 left-0 bg-foreground/30 transition-all duration-[250ms] ease-out",
+                    i <= maxVisitedStep ? "w-full" : "w-0",
+                  )}
+                />
+              </div>
             )}
             <button
               type="button"
@@ -171,16 +179,24 @@ export default function NewProductPage() {
     dirty,
   );
 
-  function validateForCreate(): boolean {
+  /** Required fields live on the Product Details (step 0) and Pricing (step 1) steps —
+   * each gets its own gate so Next won't advance past a step with a missing required
+   * field, and the final submit re-checks both and jumps back to whichever is invalid
+   * rather than always assuming step 0 like it could when everything lived on one step. */
+  function validateDetails(): boolean {
     const skuInvalid = !form.sku.trim();
     const nameInvalid = !form.name.trim();
-    const costInvalid = form.costPrice === "" || Number(form.costPrice) < 0;
-    const sellInvalid = form.sellPrice === "" || Number(form.sellPrice) < 0;
     setSkuError(skuInvalid ? "SKU is required" : null);
     setNameError(nameInvalid ? "Name is required" : null);
+    return !skuInvalid && !nameInvalid;
+  }
+
+  function validatePricing(): boolean {
+    const costInvalid = form.costPrice === "" || Number(form.costPrice) < 0;
+    const sellInvalid = form.sellPrice === "" || Number(form.sellPrice) < 0;
     setCostPriceError(costInvalid ? "Cost price is required" : null);
     setSellPriceError(sellInvalid ? "Price is required" : null);
-    return !skuInvalid && !nameInvalid && !costInvalid && !sellInvalid;
+    return !costInvalid && !sellInvalid;
   }
 
   function goToStep(index: number) {
@@ -196,14 +212,22 @@ export default function NewProductPage() {
     e.preventDefault();
 
     if (step < STEPS.length - 1) {
+      if (step === 0 && !validateDetails()) return;
+      if (step === 1 && !validatePricing()) return;
       const next = step + 1;
       setStep(next);
       setMaxVisitedStep((m) => Math.max(m, next));
       return;
     }
 
-    if (!validateForCreate()) {
+    const detailsValid = validateDetails();
+    const pricingValid = validatePricing();
+    if (!detailsValid) {
       setStep(0);
+      return;
+    }
+    if (!pricingValid) {
+      setStep(1);
       return;
     }
     setSubmitError(null);
@@ -267,276 +291,321 @@ export default function NewProductPage() {
         <FormErrorBanner message={submitError} />
         <form id="product-form" onSubmit={handleSubmit} noValidate className="space-y-6">
           {step === 0 && (
-            <FormSection
-              title="Product Details"
-              description="Identity, pricing, inventory, and status in one entry view"
-              index={0}
-            >
-              <FormSubsection
-                title="Catalog Details"
+              <FormSection
+                title="Product"
                 description="Primary product information used in listings and transactions"
-                className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+                index={0}
               >
-                <div className="space-y-1.5 lg:col-span-2">
-                  <Label htmlFor="p-name">
-                    Product Name
-                    <RequiredMark />
-                  </Label>
-                  <Input
-                    id="p-name"
-                    required
-                    value={form.name}
-                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                    className={FOCUS_GLOW}
-                  />
-                  <FieldError message={nameError} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="p-hsn">HSN/SAC Code</Label>
-                  <Input
-                    id="p-hsn"
-                    value={form.hsnSacCode}
-                    onChange={(e) => setForm((f) => ({ ...f, hsnSacCode: e.target.value }))}
-                    className={FOCUS_GLOW}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="p-sku">
-                    SKU
-                    <RequiredMark />
-                  </Label>
-                  <Input
-                    id="p-sku"
-                    required
-                    value={form.sku}
-                    onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
-                    className={FOCUS_GLOW}
-                  />
-                  <FieldError message={skuError} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Category</Label>
-                  <Select value={form.categoryId} onValueChange={(v) => setForm((f) => ({ ...f, categoryId: v }))}>
-                    <SelectTrigger className={FOCUS_GLOW}>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(data?.categories ?? []).map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Brand</Label>
-                  <Select value={form.brandId} onValueChange={(v) => setForm((f) => ({ ...f, brandId: v }))}>
-                    <SelectTrigger className={FOCUS_GLOW}>
-                      <SelectValue placeholder="Select brand" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(data?.brands ?? []).map((b) => (
-                        <SelectItem key={b.id} value={b.id}>
-                          {b.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="p-variant">Variant</Label>
-                  <Input
-                    id="p-variant"
-                    placeholder="128GB, Red, Large"
-                    value={form.variantName}
-                    onChange={(e) => setForm((f) => ({ ...f, variantName: e.target.value }))}
-                    className={FOCUS_GLOW}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="p-barcode">Barcode</Label>
-                  <Input
-                    id="p-barcode"
-                    value={form.barcode}
-                    onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value }))}
-                    className={FOCUS_GLOW}
-                  />
-                </div>
-                <div className="space-y-1.5 lg:col-span-4">
-                  <Label htmlFor="p-desc">Description</Label>
-                  <Textarea
-                    id="p-desc"
-                    rows={2}
-                    value={form.description}
-                    onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                    className={FOCUS_GLOW}
-                  />
-                </div>
-              </FormSubsection>
-
-              <FormSubsection
-                title="Pricing"
-                description="Cost, selling price, optional sale price, and tax setup"
-                className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
-              >
-                <div className="space-y-1.5">
-                  <Label htmlFor="p-cost">
-                    Cost
-                    <RequiredMark />
-                  </Label>
-                  <Input
-                    id="p-cost"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={form.costPrice}
-                    onChange={(e) => setForm((f) => ({ ...f, costPrice: e.target.value }))}
-                    className={FOCUS_GLOW}
-                  />
-                  <FieldError message={costPriceError} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="p-sell">
-                    Price
-                    <RequiredMark />
-                  </Label>
-                  <Input
-                    id="p-sell"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={form.sellPrice}
-                    onChange={(e) => setForm((f) => ({ ...f, sellPrice: e.target.value }))}
-                    className={FOCUS_GLOW}
-                  />
-                  <FieldError message={sellPriceError} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="p-sale">Sale Price</Label>
-                  <Input
-                    id="p-sale"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={form.salePrice}
-                    onChange={(e) => setForm((f) => ({ ...f, salePrice: e.target.value }))}
-                    className={FOCUS_GLOW}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Tax Rate</Label>
-                  <Select value={form.taxRateId} onValueChange={(v) => setForm((f) => ({ ...f, taxRateId: v }))}>
-                    <SelectTrigger className={FOCUS_GLOW}>
-                      <SelectValue placeholder="No tax rate" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(data?.taxRates ?? []).map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.name} ({t.rate}%)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </FormSubsection>
-
-              <FormSubsection
-                title="Inventory"
-                description="Opening stock, warehouse, minimum stock, unit, and product status"
-                className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
-              >
-                <div className="space-y-1.5">
-                  <Label>Warehouse</Label>
-                  <Select value={form.warehouseId} onValueChange={(v) => setForm((f) => ({ ...f, warehouseId: v }))}>
-                    <SelectTrigger className={FOCUS_GLOW}>
-                      <SelectValue placeholder="Default warehouse" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(data?.warehouses ?? []).map((w) => (
-                        <SelectItem key={w.id} value={w.id}>
-                          {w.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="p-initial-stock">Stock Quantity</Label>
-                  <Input
-                    id="p-initial-stock"
-                    type="number"
-                    min="0"
-                    value={form.initialStock}
-                    onChange={(e) => setForm((f) => ({ ...f, initialStock: e.target.value }))}
-                    className={FOCUS_GLOW}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="p-reorder">Min Stock</Label>
-                  <Input
-                    id="p-reorder"
-                    type="number"
-                    min="0"
-                    value={form.reorderThreshold}
-                    onChange={(e) => setForm((f) => ({ ...f, reorderThreshold: e.target.value }))}
-                    className={FOCUS_GLOW}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="p-uom">UOM</Label>
-                  <Input
-                    id="p-uom"
-                    value={form.unitOfMeasure}
-                    onChange={(e) => setForm((f) => ({ ...f, unitOfMeasure: e.target.value }))}
-                    className={FOCUS_GLOW}
-                  />
-                </div>
-                <div className="flex items-center justify-between rounded-md border border-border px-3 py-2.5">
-                  <div>
-                    <Label htmlFor="p-track">Track Inventory</Label>
-                    <p className="text-xs text-muted-foreground">Stock moves with sales and purchases.</p>
+                <FormSubsection
+                  title="Identity"
+                  description="Name, codes, and lookups used to find this product"
+                >
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="p-name">
+                      Product Name
+                      <RequiredMark />
+                    </Label>
+                    <Input
+                      id="p-name"
+                      required
+                      value={form.name}
+                      onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                      className={FOCUS_GLOW}
+                    />
+                    <FieldError message={nameError} />
                   </div>
-                  <Switch id="p-track" checked={form.trackInventory} onCheckedChange={(v) => setForm((f) => ({ ...f, trackInventory: v }))} />
-                </div>
-                <div className="flex items-center justify-between rounded-md border border-border px-3 py-2.5">
-                  <div>
-                    <Label htmlFor="p-active">Status</Label>
-                    <p className="text-xs text-muted-foreground">{form.active ? "Active" : "Inactive"}</p>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="p-sku">
+                      SKU
+                      <RequiredMark />
+                    </Label>
+                    <Input
+                      id="p-sku"
+                      required
+                      value={form.sku}
+                      onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
+                      className={FOCUS_GLOW}
+                    />
+                    <FieldError message={skuError} />
                   </div>
-                  <Switch id="p-active" checked={form.active} onCheckedChange={(active) => setForm((f) => ({ ...f, active }))} />
-                </div>
-              </FormSubsection>
-            </FormSection>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="p-hsn">HSN/SAC Code</Label>
+                    <Input
+                      id="p-hsn"
+                      value={form.hsnSacCode}
+                      onChange={(e) => setForm((f) => ({ ...f, hsnSacCode: e.target.value }))}
+                      className={FOCUS_GLOW}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="p-barcode">Barcode</Label>
+                    <Input
+                      id="p-barcode"
+                      value={form.barcode}
+                      onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value }))}
+                      className={FOCUS_GLOW}
+                    />
+                  </div>
+                </FormSubsection>
+
+                <FormSubsection
+                  title="Classification"
+                  description="Grouping, variant options, and description shown in the catalog"
+                >
+                  <div className="space-y-1.5">
+                    <Label>Category</Label>
+                    <Select value={form.categoryId} onValueChange={(v) => setForm((f) => ({ ...f, categoryId: v }))}>
+                      <SelectTrigger className={FOCUS_GLOW}>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(data?.categories ?? []).map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Brand</Label>
+                    <Select value={form.brandId} onValueChange={(v) => setForm((f) => ({ ...f, brandId: v }))}>
+                      <SelectTrigger className={FOCUS_GLOW}>
+                        <SelectValue placeholder="Select brand" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(data?.brands ?? []).map((b) => (
+                          <SelectItem key={b.id} value={b.id}>
+                            {b.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="p-variant">Variant options</Label>
+                    <Input
+                      id="p-variant"
+                      placeholder="128GB, Red, Large"
+                      value={form.variantName}
+                      onChange={(e) => setForm((f) => ({ ...f, variantName: e.target.value }))}
+                      className={FOCUS_GLOW}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Optional — e.g. sizes, colors, or configurations, comma-separated.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="p-desc">Description</Label>
+                    <Textarea
+                      id="p-desc"
+                      rows={2}
+                      value={form.description}
+                      onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                      className={FOCUS_GLOW}
+                    />
+                  </div>
+                </FormSubsection>
+
+                <FormSubsection
+                  title="Media"
+                  description="Shown in the catalog and on order documents"
+                >
+                  <div className="sm:col-span-2">
+                    <ImageDropzone
+                      label="Product image"
+                      value={form.imageUrl}
+                      onChange={(imageUrl) => setForm((f) => ({ ...f, imageUrl }))}
+                    />
+                  </div>
+                </FormSubsection>
+              </FormSection>
           )}
 
           {step === 1 && (
-            <FormSection title="Media" description="Add product visuals" index={0}>
-              <FormSubsection title="Product Image" description="Shown in the catalog and on order documents">
-                <div className="sm:col-span-2">
-                  <ImageDropzone
-                    label="Product image"
-                    value={form.imageUrl}
-                    onChange={(imageUrl) => setForm((f) => ({ ...f, imageUrl }))}
-                  />
-                </div>
-              </FormSubsection>
-            </FormSection>
+              <FormSection
+                title="Pricing"
+                description="Cost, selling price, optional sale price, and tax setup"
+                index={0}
+              >
+                <FormSubsection
+                  title="Pricing Details"
+                  description="What this product costs you and what it sells for"
+                >
+                  <div className="space-y-1.5">
+                    <Label htmlFor="p-cost">
+                      Cost
+                      <RequiredMark />
+                    </Label>
+                    <Input
+                      id="p-cost"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={form.costPrice}
+                      onChange={(e) => setForm((f) => ({ ...f, costPrice: e.target.value }))}
+                      className={FOCUS_GLOW}
+                    />
+                    <FieldError message={costPriceError} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="p-sell">
+                      Price
+                      <RequiredMark />
+                    </Label>
+                    <Input
+                      id="p-sell"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={form.sellPrice}
+                      onChange={(e) => setForm((f) => ({ ...f, sellPrice: e.target.value }))}
+                      className={FOCUS_GLOW}
+                    />
+                    <FieldError message={sellPriceError} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="p-sale">Sale Price</Label>
+                    <Input
+                      id="p-sale"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={form.salePrice}
+                      onChange={(e) => setForm((f) => ({ ...f, salePrice: e.target.value }))}
+                      className={FOCUS_GLOW}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Tax Rate</Label>
+                    <Select value={form.taxRateId} onValueChange={(v) => setForm((f) => ({ ...f, taxRateId: v }))}>
+                      <SelectTrigger className={FOCUS_GLOW}>
+                        <SelectValue placeholder="No tax rate" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(data?.taxRates ?? []).map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.name} ({t.rate}%)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </FormSubsection>
+              </FormSection>
           )}
 
           {step === 2 && (
+              <FormSection
+                title="Inventory"
+                description="Opening stock, warehouse, minimum stock, unit, and product status"
+                index={0}
+              >
+                <FormSubsection
+                  title="Stock"
+                  description="Where this product is held and when to reorder"
+                >
+                  <div className="space-y-1.5">
+                    <Label>Warehouse</Label>
+                    <Select value={form.warehouseId} onValueChange={(v) => setForm((f) => ({ ...f, warehouseId: v }))}>
+                      <SelectTrigger className={FOCUS_GLOW}>
+                        <SelectValue placeholder="Default warehouse" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(data?.warehouses ?? []).map((w) => (
+                          <SelectItem key={w.id} value={w.id}>
+                            {w.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="p-initial-stock">Stock Quantity</Label>
+                    <Input
+                      id="p-initial-stock"
+                      type="number"
+                      min="0"
+                      value={form.initialStock}
+                      onChange={(e) => setForm((f) => ({ ...f, initialStock: e.target.value }))}
+                      className={FOCUS_GLOW}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="p-reorder">Min Stock</Label>
+                    <Input
+                      id="p-reorder"
+                      type="number"
+                      min="0"
+                      value={form.reorderThreshold}
+                      onChange={(e) => setForm((f) => ({ ...f, reorderThreshold: e.target.value }))}
+                      className={FOCUS_GLOW}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="p-uom">UOM</Label>
+                    <Input
+                      id="p-uom"
+                      value={form.unitOfMeasure}
+                      onChange={(e) => setForm((f) => ({ ...f, unitOfMeasure: e.target.value }))}
+                      className={FOCUS_GLOW}
+                    />
+                  </div>
+                </FormSubsection>
+
+                <FormSubsection
+                  title="Status & Tracking"
+                  description="Whether stock moves automatically and if this product is active"
+                >
+                  <div className="flex items-center justify-between rounded-md border border-border px-3 py-2.5">
+                    <div>
+                      <Label htmlFor="p-track">Track Inventory</Label>
+                      <p className="text-xs text-muted-foreground">Stock moves with sales and purchases.</p>
+                    </div>
+                    <Switch id="p-track" checked={form.trackInventory} onCheckedChange={(v) => setForm((f) => ({ ...f, trackInventory: v }))} />
+                  </div>
+                  <div className="flex items-center justify-between rounded-md border border-border px-3 py-2.5">
+                    <div>
+                      <Label htmlFor="p-active">Status</Label>
+                      <p className="text-xs text-muted-foreground">{form.active ? "Active" : "Inactive"}</p>
+                    </div>
+                    <Switch id="p-active" checked={form.active} onCheckedChange={(active) => setForm((f) => ({ ...f, active }))} />
+                  </div>
+                </FormSubsection>
+              </FormSection>
+          )}
+
+          {step === 3 && (
             <FormSection title="Review" description="Confirm product details before creating" index={0}>
-              <FormSubsection title="Product Details" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <FormSubsection title="Product" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {[
                   ["Product Name", form.name],
+                  ["SKU", form.sku],
                   ["HSN/SAC Code", form.hsnSacCode],
                   ["Category", data?.categories.find((c) => c.id === form.categoryId)?.name],
                   ["Brand", data?.brands.find((b) => b.id === form.brandId)?.name],
-                  ["Variant", form.variantName],
-                  ["SKU", form.sku],
+                  ["Variant Options", form.variantName],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-md border border-border px-3 py-2">
+                    <p className="text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
+                    <p className="mt-1 min-h-5 truncate text-sm font-medium text-foreground">{value || "-"}</p>
+                  </div>
+                ))}
+              </FormSubsection>
+              <FormSubsection title="Pricing" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {[
                   ["Cost", form.costPrice],
                   ["Price", form.sellPrice],
                   ["Sale Price", form.salePrice],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-md border border-border px-3 py-2">
+                    <p className="text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
+                    <p className="mt-1 min-h-5 truncate text-sm font-medium text-foreground">{value || "-"}</p>
+                  </div>
+                ))}
+              </FormSubsection>
+              <FormSubsection title="Inventory" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {[
                   ["Warehouse", data?.warehouses.find((w) => w.id === form.warehouseId)?.name],
                   ["Stock Quantity", form.initialStock],
                   ["Min Stock", form.reorderThreshold],
