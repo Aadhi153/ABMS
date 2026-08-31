@@ -23,6 +23,9 @@ export const FOCUS_GLOW =
 
 export const BUTTON_PRESS = "transition-transform duration-150 ease-out active:scale-[0.97]";
 
+/** Hover lift for stat/summary cards — shadow + a 2px rise, no width/height change so grid sizing stays fixed. */
+export const CARD_HOVER = "transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md hover:border-primary/30";
+
 const SECTION_STAGGER_MS = 40;
 
 /** Entrance stagger for a form section — each one fades/slides in ~40ms after the previous. */
@@ -55,7 +58,10 @@ export function usePageTransition() {
   const goWithExit = useCallback(
     (to: string, options?: NavigateOptions) => {
       setLeaving(true);
-      window.setTimeout(() => navigate(to, options), prefersReducedMotion() ? 0 : TRANSITION_MS);
+      window.setTimeout(() => {
+        navigate(to, options);
+        setLeaving(false);
+      }, prefersReducedMotion() ? 0 : TRANSITION_MS);
     },
     [navigate],
   );

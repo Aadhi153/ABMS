@@ -18,26 +18,33 @@ import { BUTTON_PRESS, FORM_ENTER, FORM_EXIT, sectionMotion, usePageTransition }
  * footer's buttons stay aligned under the form cards above them. */
 const FORM_MAX_WIDTH = "max-w-5xl";
 
-/** Outer flex column that always fills the routed page's available height, so FormFooter
- * (a non-scrolling flex sibling kept structurally outside the scrolling region — see
- * FormFooter for why that matters) stays pinned to the bottom of the viewport instead of
- * floating right under a short step's content and exposing blank page background below it.
- * Content taller than the available height still scrolls internally via FormScrollArea;
- * short content just leaves its slack space above the footer instead of below it.
+/** No scroll container of its own — flows straight inside AppShell's <main>
+ * (min-h-0 flex-1 overflow-y-auto), the same single scrollbar every other products
+ * page (e.g. the All Products tab) scrolls on, instead of nesting a second
+ * overflow-y-auto box that gave this page its own separate scrollbar. FormFooter's
+ * `position: sticky; bottom: 0` sticks to that shared ancestor just the same.
  * `leaving` (from useDiscardGuard) swaps the entrance animation for its mirrored exit so the
  * page slides back out the way it came in before the route actually changes. */
 export function FormPage({ children, leaving }: { children: ReactNode; leaving?: boolean }) {
-  return <div className={cn("flex h-full min-h-0 flex-col", leaving ? FORM_EXIT : FORM_ENTER)}>{children}</div>;
+  return (
+    <div className={cn(leaving ? FORM_EXIT : FORM_ENTER)}>
+      {children}
+    </div>
+  );
 }
 
-/** The form page's actual scrolling region. Only this area scrolls — FormFooter lives outside
- * it as a flex sibling, so it never has to fight scroll position to avoid covering content. */
+/** The form's content column. Horizontal/top gutter comes from AppShell's <main> (p-4
+ * sm:p-6) alone — this used to add its own matching px/pt on top of that, doubling the
+ * gutter for every FormPage-based route relative to the plain list-tab pages. Bottom padding
+ * (pb-9, ~FormFooter's own 37px) is real and load-bearing: FormFooter is `sticky bottom-0`
+ * inside the *same* scrolling ancestor as this content (AppShell's <main>), so while
+ * scrolling — anywhere short of the very end — it's pinned over whatever real field
+ * would otherwise be there. This reserved strip is what it overlaps instead. Dropping it
+ * looks fine at rest but overlaps live fields (inputs, toggles) the moment you scroll. */
 export function FormScrollArea({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className={cn("mx-auto space-y-6 pb-6", FORM_MAX_WIDTH)}>
-        {children}
-      </div>
+    <div className={cn("mx-auto space-y-6 pb-9", FORM_MAX_WIDTH)}>
+      {children}
     </div>
   );
 }
@@ -89,36 +96,64 @@ export function FormPageHeader({
   breadcrumb,
   title,
   subtitle,
+  icon,
   backLabel,
   onBack,
   onNavigate,
+  backPosition,
 }: {
   breadcrumb: BreadcrumbItem[];
   title: string;
   subtitle?: string;
+  icon?: ReactNode;
   backLabel: string;
   onBack: () => void;
   onNavigate?: (to: string) => void;
+  backPosition?: "top" | "right";
 }) {
   return (
     <div className="space-y-3">
-      <FormBreadcrumb items={breadcrumb} onNavigate={onNavigate} />
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-          {subtitle && (
-            <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
-          )}
-        </div>
+      {breadcrumb && breadcrumb.length > 0 && (
+        <FormBreadcrumb items={breadcrumb} onNavigate={onNavigate} />
+      )}
+      {backPosition === "top" && (
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
+          size="sm"
           onClick={onBack}
-          className={cn("shrink-0", BUTTON_PRESS)}
+          className={cn("w-fit gap-1.5 px-0 text-xs text-muted-foreground hover:bg-transparent", BUTTON_PRESS)}
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-3.5 w-3.5" />
           {backLabel}
         </Button>
+      )}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          {icon && (
+            <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/5 text-primary">
+              {icon}
+            </div>
+          )}
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+            {subtitle && (
+              <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
+            )}
+          </div>
+        </div>
+        {(!backPosition || backPosition === "right") && (
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            onClick={onBack}
+            className={cn("shrink-0", BUTTON_PRESS)}
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            {backLabel}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -130,27 +165,32 @@ export function FormPageHeader({
 export function FormSection({
   title,
   description,
+  icon,
   index,
   children,
 }: {
   title: string;
   description?: string;
+  icon?: ReactNode;
   index: number;
   children: ReactNode;
 }) {
   const motion = sectionMotion(index);
   return (
     <Card
-      className={cn("p-6", motion.className)}
+      className={cn("p-3", motion.className)}
       style={motion.style as CSSProperties}
     >
-      <div className="mb-5">
-        <h2 className="text-base font-semibold text-foreground">{title}</h2>
-        {description && (
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-        )}
+      <div className="mb-2 flex items-center gap-2">
+        {icon && <div className="text-muted-foreground">{icon}</div>}
+        <div>
+          <h2 className="text-base font-semibold text-foreground">{title}</h2>
+          {description && (
+            <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
+          )}
+        </div>
       </div>
-      <div className="space-y-5">{children}</div>
+      <div className="space-y-3">{children}</div>
     </Card>
   );
 }
@@ -168,14 +208,14 @@ export function FormSubsection({
   className?: string;
 }) {
   return (
-    <div className="rounded-lg border border-border p-5">
-      <div className="mb-4">
+    <div className="rounded-lg border border-border p-3">
+      <div className="mb-2">
         <h3 className="text-sm font-semibold text-foreground">{title}</h3>
         {description && (
-          <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
         )}
       </div>
-      <div className={cn("grid gap-4 sm:grid-cols-2", className)}>
+      <div className={cn("grid gap-2.5 sm:grid-cols-2", className)}>
         {children}
       </div>
     </div>
@@ -192,17 +232,16 @@ export function RequiredMark() {
   );
 }
 
-/** Lives outside FormScrollArea as a plain flex sibling (not position: sticky). A sticky
- * footer nested inside the scrolling content pins to the viewport bottom for the whole scroll
- * journey on any form taller than one screen, painting over whatever section is still passing
- * underneath — it only clears at the very end of the scroll. Keeping it structurally outside
- * the scroll region avoids that class of bug entirely instead of padding around it. */
+/** Sticks to the bottom of FormPage's scroll viewport once the form is tall enough to scroll;
+ * otherwise sits in normal flow right after FormScrollArea's content. Needs an opaque
+ * background (unlike a plain border-top divider) since content now genuinely scrolls behind
+ * it — FormScrollArea's pb-24 keeps that overlap limited to reserved padding, not real fields. */
 export function FormFooter({ children }: { children: ReactNode }) {
   return (
-    <div className="z-10 shrink-0 border-t border-border bg-muted/40 px-6 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
+    <div className="sticky bottom-0 z-10 border-t border-border bg-background">
       <div
         className={cn(
-          "mx-auto flex min-h-[72px] items-center justify-end gap-2 py-4",
+          "mx-auto flex min-h-7 items-center justify-end gap-1.5 pt-2",
           FORM_MAX_WIDTH,
         )}
       >
@@ -244,7 +283,7 @@ export function FormCancelButton({
 }: {
   onClick: () => void;
   disabled?: boolean;
-  size?: "default" | "sm";
+  size?: "default" | "sm" | "xs";
 }) {
   return (
     <Button
@@ -262,12 +301,15 @@ export function FormCancelButton({
 
 export type SubmitStatus = "idle" | "submitting" | "success";
 
-/** Primary footer action for a create form. Owns the submit -> loading -> success sequence:
- * disables on click, swaps the leading icon for a spinner then a checkmark, and relabels
- * itself at each stage so the button never sits disabled without explaining why. */
+/** Primary footer action for a create or update form. Owns the submit -> loading -> success
+ * sequence: disables on click, swaps the leading icon for a spinner then a checkmark, and
+ * relabels itself at each stage so the button never sits disabled without explaining why.
+ * `idleIcon` defaults to Plus (create forms) but takes any icon so an edit/update form can
+ * pass something that actually matches its verb, e.g. Package for "Update Product". */
 export function FormSubmitButton({
   formId,
   status,
+  idleIcon,
   idleLabel,
   loadingLabel,
   successLabel,
@@ -276,17 +318,18 @@ export function FormSubmitButton({
 }: {
   formId: string;
   status: SubmitStatus;
+  idleIcon?: ReactNode;
   idleLabel: string;
   loadingLabel: string;
   successLabel: string;
   disabled?: boolean;
-  size?: "default" | "sm";
+  size?: "default" | "sm" | "xs";
 }) {
   return (
     <Button
       type="submit"
       form={formId}
-      variant="outline"
+      variant="default"
       size={size}
       disabled={status !== "idle" || disabled}
       className={BUTTON_PRESS}
@@ -296,7 +339,7 @@ export function FormSubmitButton({
       ) : status === "submitting" ? (
         <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
       ) : (
-        <Plus className="h-4 w-4" />
+        idleIcon ?? <Plus className="h-4 w-4" />
       )}
       {status === "success" ? successLabel : status === "submitting" ? loadingLabel : idleLabel}
     </Button>

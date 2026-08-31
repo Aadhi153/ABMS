@@ -11,10 +11,10 @@ import TaxGroupsTab from "./tax-groups-tab";
 import NewProductPage from "./new-product-page";
 import NewCategoryPage from "./new-category-page";
 import NewBrandPage from "./new-brand-page";
-import NewPriceListPage from "./new-price-list-page";
-import NewPricingTierPage from "./new-pricing-tier-page";
 import NewDiscountPage from "./new-discount-page";
 import NewTaxRatePage from "./new-tax-rate-page";
+import NewPriceListPage from "./new-price-list-page";
+import NewTaxGroupPage from "./new-tax-group-page";
 
 const TABS = [
   { key: "all" },
@@ -33,10 +33,10 @@ export default function ProductsPage() {
       <Route path="new" element={<NewProductPage />} />
       <Route path="categories/new" element={<NewCategoryPage />} />
       <Route path="brands/new" element={<NewBrandPage />} />
-      <Route path="price-lists/new" element={<NewPriceListPage />} />
-      <Route path="pricing-tiers/new" element={<NewPricingTierPage />} />
       <Route path="discounts/new" element={<NewDiscountPage />} />
       <Route path="tax-rates/new" element={<NewTaxRatePage />} />
+      <Route path="pricelist/new" element={<NewPriceListPage />} />
+      <Route path="taxgroups/new" element={<NewTaxGroupPage />} />
       <Route path="*" element={<ProductsTabsShell />} />
     </Routes>
   );

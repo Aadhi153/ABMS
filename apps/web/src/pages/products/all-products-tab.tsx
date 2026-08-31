@@ -47,7 +47,7 @@ import {
   toast,
 } from "@abms/ui";
 import { DIALOG_CONTENT_MOTION, DIALOG_OVERLAY_MOTION } from "./dialog-motion";
-import { BUTTON_PRESS, LIST_ENTER, LIST_EXIT, usePageTransition } from "./form-motion";
+import { BUTTON_PRESS, CARD_HOVER, LIST_ENTER, LIST_EXIT, usePageTransition } from "./form-motion";
 
 const STATUS_FILTERS = ["all", "active", "inactive", "low"] as const;
 type StatusFilter = (typeof STATUS_FILTERS)[number];
@@ -401,11 +401,11 @@ export default function AllProductsTab() {
               label: "Low Stock",
               value: stats.low,
               icon: BarChart2,
-              iconClass: "text-amber-500",
+              iconClass: "text-primary",
               footer: "Items below threshold",
             },
           ].map((s) => (
-            <Card key={s.label}>
+            <Card key={s.label} className={CARD_HOVER}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between mb-2">
                   <span className="text-xs font-medium text-muted-foreground">{s.label}</span>
@@ -565,7 +565,7 @@ export default function AllProductsTab() {
                           <td className="px-4 py-2.5 text-muted-foreground">{p.brand?.name || "—"}</td>
                           <td className="px-4 py-2.5 text-right">
                             {p.trackInventory ? (
-                              <span className={cn(low && "text-amber-600 font-medium")}>{p.totalStock}</span>
+                              <span className={cn(low && "text-primary font-medium")}>{p.totalStock}</span>
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}
@@ -579,7 +579,7 @@ export default function AllProductsTab() {
                                 Inactive
                               </span>
                             ) : low ? (
-                              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-primary-bg text-primary">
                                 Low Stock
                               </span>
                             ) : !p.trackInventory ? (
