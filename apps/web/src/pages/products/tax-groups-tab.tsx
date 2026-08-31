@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState } from "react";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { Group, Plus, Trash2, MoreHorizontal, ChevronUp, ChevronDown, RefreshCw, Search, CheckCircle2 } from "lucide-react";
 import {
@@ -16,7 +16,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   Input,
-  Label,
   Select,
   SelectContent,
   SelectItem,
@@ -26,7 +25,7 @@ import {
   toast,
 } from "@abms/ui";
 import { DIALOG_CONTENT_MOTION, DIALOG_OVERLAY_MOTION } from "./dialog-motion";
-import { BUTTON_PRESS, FOCUS_GLOW, LIST_ENTER, LIST_EXIT, usePageTransition } from "./form-motion";
+import { BUTTON_PRESS, CARD_HOVER, LIST_ENTER, LIST_EXIT, usePageTransition } from "./form-motion";
 
 const TAX_GROUPS_QUERY = gql`
   query TaxGroups {
@@ -43,14 +42,6 @@ const TAX_GROUPS_QUERY = gql`
       id
       name
       rate
-    }
-  }
-`;
-
-const CREATE_TAX_GROUP_MUTATION = gql`
-  mutation CreateTaxGroup($input: CreateTaxGroupInput!) {
-    createTaxGroup(input: $input) {
-      id
     }
   }
 `;
@@ -74,16 +65,11 @@ interface TaxGroupRow {
 }
 
 export default function TaxGroupsTab() {
-  const { leaving } = usePageTransition();
+  const { leaving, goWithExit } = usePageTransition();
   const { data, loading, refetch } = useQuery<{ taxGroups: TaxGroupRow[]; taxRates: TaxRateOption[] }>(TAX_GROUPS_QUERY);
-  const [createTaxGroup] = useMutation(CREATE_TAX_GROUP_MUTATION);
   const [deleteTaxGroup] = useMutation(DELETE_TAX_GROUP_MUTATION);
 
-  const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState<TaxGroupRow | null>(null);
-  const [name, setName] = useState("");
-  const [selectedRateIds, setSelectedRateIds] = useState<string[]>([]);
-  const [submitting, setSubmitting] = useState(false);
   const [search, setSearch] = useState("");
   const [showSummary, setShowSummary] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -98,10 +84,6 @@ export default function TaxGroupsTab() {
     return { totalGroups, totalRates };
   }, [taxGroups, taxRates]);
 
-  function toggleRate(id: string) {
-    setSelectedRateIds((prev) => (prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]));
-  }
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return taxGroups;
@@ -110,23 +92,6 @@ export default function TaxGroupsTab() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const paginated = filtered.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
-
-  async function handleCreate(e: FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      await createTaxGroup({ variables: { input: { name, taxRateIds: selectedRateIds } } });
-      toast.success(`${name} added`);
-      setOpen(false);
-      setName("");
-      setSelectedRateIds([]);
-      await refetch();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create tax group");
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   async function handleDelete() {
     if (!deleting) return;
@@ -154,7 +119,7 @@ export default function TaxGroupsTab() {
             {showSummary ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             {showSummary ? "Hide Summary" : "Show Summary"}
           </Button>
-          <Button size="sm" onClick={() => setOpen(true)} className={cn("gap-1.5 text-xs", BUTTON_PRESS)}>
+          <Button size="sm" onClick={() => goWithExit("/products/taxgroups/new")} disabled={leaving} className={cn("gap-1.5 text-xs", BUTTON_PRESS)}>
             <Plus className="h-4 w-4" /> New Tax Group
           </Button>
         </div>
@@ -167,7 +132,7 @@ export default function TaxGroupsTab() {
             { label: "Total Groups", value: stats.totalGroups, icon: Group, iconClass: "text-slate-500", footer: "All tax groups" },
             { label: "Tax Rates", value: stats.totalRates, icon: CheckCircle2, iconClass: "text-emerald-500", footer: "Available tax rates" },
           ].map((s) => (
-            <Card key={s.label}>
+            <Card key={s.label} className={CARD_HOVER}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between mb-2">
                   <span className="text-xs font-medium text-muted-foreground">{s.label}</span>
@@ -200,7 +165,7 @@ export default function TaxGroupsTab() {
           {loading ? (
             <p className="text-sm text-muted-foreground py-16 text-center">Loading…</p>
           ) : taxGroups.length === 0 ? (
-            <EmptyState onAdd={() => setOpen(true)} />
+            <EmptyState onAdd={() => goWithExit("/products/taxgroups/new")} />
           ) : filtered.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">No tax groups match your search.</p>
           ) : (
@@ -265,38 +230,6 @@ export default function TaxGroupsTab() {
           )}
         </CardContent>
       </Card>
-
-      {/* Create Dialog */}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className={DIALOG_CONTENT_MOTION} overlayClassName={DIALOG_OVERLAY_MOTION}>
-          <DialogHeader><DialogTitle>New Tax Group</DialogTitle></DialogHeader>
-          <form className="space-y-4" onSubmit={handleCreate}>
-            <div className="space-y-1.5">
-              <Label htmlFor="group-name">Name</Label>
-              <Input id="group-name" required value={name} onChange={(e) => setName(e.target.value)} className={FOCUS_GLOW} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Tax rates</Label>
-              <div className="space-y-1.5 rounded-md border border-border p-3 max-h-60 overflow-y-auto">
-                {taxRates.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No tax rates available – create one first.</p>
-                ) : (
-                  taxRates.map((r) => (
-                    <label key={r.id} className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" className="h-4 w-4 accent-primary" checked={selectedRateIds.includes(r.id)} onChange={() => toggleRate(r.id)} />
-                      {r.name} ({r.rate}%)
-                    </label>
-                  ))
-                )}
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)} className={BUTTON_PRESS}>Cancel</Button>
-              <Button type="submit" disabled={submitting} className={BUTTON_PRESS}>{submitting ? "Creating…" : "Create"}</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Dialog */}
       <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>

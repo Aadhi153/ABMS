@@ -29,7 +29,7 @@ import {
   toast,
 } from "@abms/ui";
 import { DIALOG_CONTENT_MOTION, DIALOG_OVERLAY_MOTION } from "./dialog-motion";
-import { BUTTON_PRESS, LIST_ENTER, LIST_EXIT, usePageTransition } from "./form-motion";
+import { BUTTON_PRESS, CARD_HOVER, LIST_ENTER, LIST_EXIT, usePageTransition } from "./form-motion";
 
 const TAX_RATES_QUERY = gql`
   query TaxRates {
@@ -132,7 +132,7 @@ export default function TaxRatesTab() {
             { label: "Total Rates", value: stats.total, icon: Landmark, iconClass: "text-slate-500", footer: "All tax rates" },
             { label: "Default Rates", value: stats.defaults, icon: CheckCircle2, iconClass: "text-emerald-500", footer: "Marked as default" },
           ].map((s) => (
-            <Card key={s.label}>
+            <Card key={s.label} className={CARD_HOVER}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between mb-2">
                   <span className="text-xs font-medium text-muted-foreground">{s.label}</span>

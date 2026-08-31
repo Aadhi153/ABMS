@@ -10,22 +10,28 @@
  */
 @layer base {
   :root {
-    --background: 60 9% 98%;
-    --foreground: 24 10% 10%;
+    /* Paper (#f6f1e7) / paper-raised (#fffdf9) — matches the marketing
+       landing page's warm off-white surfaces, see landing.module.css. */
+    --background: 40 45% 94%;
+    --foreground: 218 50% 13%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 24 10% 10%;
+    --card: 40 100% 99%;
+    --card-foreground: 218 50% 13%;
 
-    --border: 20 6% 90%;
-    --input: 20 6% 90%;
-    --ring: 26 90% 37%;
+    /* Line (#e2d9c7) — landing page's warm tan border. */
+    --border: 40 32% 83%;
+    --input: 40 32% 83%;
+    --ring: 28 77% 60%;
 
-    --primary: 26 90% 37%;
-    --primary-foreground: 0 0% 100%;
-    --primary-bg: 36 93% 94%;
+    /* Amber (#e8944a) — landing page's CTA color. Dark text (not white) as
+       the foreground: white-on-amber only hits ~2.4:1 contrast, the landing
+       page's own dark-brown button text hits ~7:1. */
+    --primary: 28 77% 60%;
+    --primary-foreground: 30 79% 7%;
+    --primary-bg: 28 90% 94%;
 
-    --muted: 60 5% 96%;
-    --muted-foreground: 25 5% 45%;
+    --muted: 40 20% 96%;
+    --muted-foreground: 218 15% 45%;
 
     --success: 161 94% 30%;
     --success-bg: 149 80% 90%;
@@ -33,8 +39,9 @@
     --warning-bg: 48 96% 89%;
     --danger: 0 72% 51%;
     --danger-bg: 0 93% 94%;
-    --info: 221 83% 53%;
-    --info-bg: 214 95% 93%;
+    /* Steel (#3d6ea5) — landing page's secondary blue accent. */
+    --info: 212 46% 44%;
+    --info-bg: 210 45% 93%;
 
     /*
      * Sidebar — fixed navy brand chrome, identical in light/dark mode (this
@@ -43,34 +50,38 @@
      * spec — these aren't composed with Tailwind's alpha-modifier syntax
      * the way the theme-adaptive tokens above are.
      */
-    --sidebar-from: #1B3654;
-    --sidebar-to: #3E6B96;
-    --sidebar-logo: #F0F6FB;
-    --sidebar-inactive: #D3E1EE;
-    /* Same navy, kept as a standalone accent token — used for the
-       receivables stat-badge icon, not for a full surface anymore. */
-    --navy: #1E3A5F;
+    --sidebar-from: #1C2B45;
+    --sidebar-to: #3D6EA5;
+    --sidebar-logo: #F6F1E7;
+    --sidebar-inactive: #CDDBEA;
 
     --radius: 0.5rem;
   }
 
   .dark {
-    --background: 24 10% 8%;
-    --foreground: 60 9% 96%;
+    /* Inverse of the light theme's paper/ink pairing: dark ink page background,
+       paper-toned text — same landing-page family, not a generic charcoal. */
+    --background: 222 45% 8%;
+    --foreground: 40 45% 94%;
 
-    --card: 24 9% 12%;
-    --card-foreground: 60 9% 96%;
+    /* Lifted a few points above --background so card surfaces read as a
+       distinct raised layer instead of blending into the page — shadow-sm alone
+       doesn't register on a near-black background since its color is plain black. */
+    --card: 218 40% 13%;
+    --card-foreground: 40 45% 94%;
 
-    --border: 24 6% 20%;
-    --input: 24 6% 20%;
-    --ring: 32 95% 50%;
+    --border: 218 25% 22%;
+    --input: 218 25% 22%;
+    --ring: 28 85% 65%;
 
-    --primary: 32 95% 50%;
-    --primary-foreground: 24 10% 8%;
-    --primary-bg: 26 55% 16%;
+    /* Amber, brightened for dark-bg contrast; same dark warm-brown text as light
+       mode since it's the lightness gap (not hue) that carries the contrast. */
+    --primary: 28 85% 65%;
+    --primary-foreground: 30 79% 7%;
+    --primary-bg: 28 55% 18%;
 
-    --muted: 12 6% 15%;
-    --muted-foreground: 24 5% 64%;
+    --muted: 218 30% 16%;
+    --muted-foreground: 40 15% 70%;
 
     --success: 161 70% 45%;
     --success-bg: 161 45% 15%;
@@ -78,8 +89,9 @@
     --warning-bg: 32 55% 16%;
     --danger: 0 75% 65%;
     --danger-bg: 0 50% 18%;
-    --info: 221 80% 68%;
-    --info-bg: 221 50% 18%;
+    /* Steel-light — brightened for dark-bg pop. */
+    --info: 210 55% 66%;
+    --info-bg: 212 35% 20%;
   }
 
   /*
@@ -115,6 +127,45 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Modern, slim themed scrollbars everywhere content scrolls (main content area,
+     dialogs, dropdowns, sidebar nav, table overflow) — replaces the browser's default
+     OS-chrome scrollbar (wide track, square arrow buttons) that reads as visually
+     broken against the app's charcoal/paper surfaces. Firefox via scrollbar-color,
+     Chromium/Edge/Safari via the ::-webkit-scrollbar pseudo-elements; both key off the
+     same design tokens so they stay in sync with light/dark mode automatically. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  /* Chromium still draws its native step-arrow buttons at the ends of the track unless
+     explicitly collapsed — without this, Windows Chrome/Edge shows the old square up/down
+     buttons this section's slim thumb-only scrollbar is meant to replace. */
+  ::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.6);
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
   }
 }
 

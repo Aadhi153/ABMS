@@ -232,7 +232,7 @@ export default function NewTaxRatePage() {
       </FormScrollArea>
 
       <FormFooter>
-        <FormCancelButton onClick={goBack} disabled={status !== "idle" || leaving} />
+        <FormCancelButton onClick={goBack} disabled={status !== "idle" || leaving} size="xs" />
         <FormSubmitButton
           formId="tax-rate-form"
           status={status}
@@ -240,6 +240,7 @@ export default function NewTaxRatePage() {
           loadingLabel="Creating tax rate…"
           successLabel="Tax rate created"
           disabled={leaving}
+          size="xs"
         />
       </FormFooter>
       {discardDialog}

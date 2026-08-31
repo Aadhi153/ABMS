@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { ChevronsUpDown, ChevronDown, ChevronUp, DollarSign, MoreHorizontal, Plus, RefreshCw, RefreshCwOff, Search, Trash2, TriangleAlert } from "lucide-react";
 import {
-  Badge,
   Button,
   Card,
   CardContent,
@@ -26,8 +25,7 @@ import {
   toast,
 } from "@abms/ui";
 import { DIALOG_CONTENT_MOTION, DIALOG_OVERLAY_MOTION } from "./dialog-motion";
-import { BUTTON_PRESS, LIST_ENTER, LIST_EXIT, usePageTransition } from "./form-motion";
-import { PriceListFormDialog, type PriceListFormValues } from "./price-list-form-dialog";
+import { BUTTON_PRESS, CARD_HOVER, LIST_ENTER, LIST_EXIT, usePageTransition } from "./form-motion";
 
 const PRICE_LISTS_QUERY = gql`
   query PriceLists {
@@ -61,14 +59,6 @@ const DELETE_PRICE_LIST_MUTATION = gql`
   }
 `;
 
-const CREATE_PRICE_LIST_MUTATION = gql`
-  mutation CreatePriceList($input: CreatePriceListInput!) {
-    createPriceList(input: $input) {
-      id
-    }
-  }
-`;
-
 const UPSERT_PRICE_LIST_ITEM_MUTATION = gql`
   mutation UpsertPriceListItem($input: UpsertPriceListItemInput!) {
     upsertPriceListItem(input: $input) {
@@ -98,13 +88,11 @@ export default function PriceListsTab() {
   const { data, loading, refetch } = useQuery<{ priceLists: PriceListRow[]; products: ProductOption[] }>(PRICE_LISTS_QUERY);
   const [deletePriceList] = useMutation(DELETE_PRICE_LIST_MUTATION);
   const [upsertItem] = useMutation(UPSERT_PRICE_LIST_ITEM_MUTATION);
-  const [createPriceList] = useMutation(CREATE_PRICE_LIST_MUTATION, { refetchQueries: ["PriceLists"] });
 
   const [deleting, setDeleting] = useState<PriceListRow | null>(null);
   const [managing, setManaging] = useState<PriceListRow | null>(null);
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
   const [savingProductId, setSavingProductId] = useState<string | null>(null);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [showSummary, setShowSummary] = useState(true);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -169,27 +157,6 @@ export default function PriceListsTab() {
     }
   }
 
-  async function handleSavePriceList(values: PriceListFormValues) {
-    try {
-      await createPriceList({
-        variables: {
-          input: {
-            name: values.name,
-            currency: values.currency,
-            description: values.description || null,
-            startDate: values.startDate || null,
-            endDate: values.endDate || null,
-            isDefault: values.isDefault,
-          },
-        },
-      });
-      toast.success("Price list created");
-      setCreateDialogOpen(false);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create price list");
-    }
-  }
-
   return (
     <div className={cn("space-y-4", leaving ? LIST_EXIT : LIST_ENTER)}>
       {/* Header */}
@@ -203,7 +170,7 @@ export default function PriceListsTab() {
             {showSummary ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             {showSummary ? "Hide Summary" : "Show Summary"}
           </Button>
-          <Button size="sm" onClick={() => setCreateDialogOpen(true)} disabled={leaving} className={cn("gap-1.5 text-xs", BUTTON_PRESS)}>
+          <Button size="sm" onClick={() => goWithExit("/products/pricelist/new")} disabled={leaving} className={cn("gap-1.5 text-xs", BUTTON_PRESS)}>
             <Plus className="h-3.5 w-3.5" /> Create Price List
           </Button>
         </div>
@@ -216,9 +183,9 @@ export default function PriceListsTab() {
             { label: "Total Price Lists", value: stats.total, sub: `${stats.active} active`, icon: DollarSign, iconClass: "text-slate-500" },
             { label: "Active Price Lists", value: stats.active, sub: `${stats.total - stats.expired} inactive`, icon: RefreshCw, iconClass: "text-emerald-500" },
             { label: "Price Sync Enabled", value: stats.active, sub: "Auto-updating prices", icon: RefreshCwOff, iconClass: "text-blue-500" },
-            { label: "Expired Price Lists", value: stats.expired, sub: "Past their valid-to date", icon: TriangleAlert, iconClass: "text-amber-500" },
+            { label: "Expired Price Lists", value: stats.expired, sub: "Past their valid-to date", icon: TriangleAlert, iconClass: "text-primary" },
           ].map((s) => (
-            <Card key={s.label}>
+            <Card key={s.label} className={CARD_HOVER}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between mb-2">
                   <span className="text-xs font-medium text-muted-foreground">{s.label}</span>
@@ -251,7 +218,7 @@ export default function PriceListsTab() {
           {loading ? (
             <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">Loading…</div>
           ) : priceLists.length === 0 ? (
-            <EmptyState onAdd={() => setCreateDialogOpen(true)} />
+            <EmptyState onAdd={() => goWithExit("/products/pricelist/new")} />
           ) : filtered.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">No price lists match your search.</p>
           ) : (
@@ -355,12 +322,6 @@ export default function PriceListsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <PriceListFormDialog
-        open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
-        priceList={null}
-        onSave={handleSavePriceList}
-      />
     </div>
   );
 }

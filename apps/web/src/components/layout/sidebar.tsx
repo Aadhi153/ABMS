@@ -43,7 +43,7 @@ const HEADER_CLASS =
   "flex w-full items-center gap-3 rounded-lg border-l-[3px] border-transparent px-3 py-[9px] text-sm font-normal text-sidebar-inactive transition-colors hover:bg-white/10 hover:text-white";
 const LEAF_CLASS =
   "flex items-center gap-3 rounded-lg border-l-[3px] border-transparent px-3 py-[9px] text-sm font-normal text-sidebar-inactive transition-colors hover:bg-white/10 hover:text-white";
-const ACTIVE_CLASS = "border-l-amber-400 bg-white/[0.22] font-semibold text-white";
+const ACTIVE_CLASS = "border-l-primary bg-white/[0.22] font-semibold text-white";
 const SUBITEM_ACTIVE_CLASS = "bg-white/[0.12] font-medium text-white";
 
 export function Sidebar({
@@ -108,7 +108,7 @@ export function Sidebar({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <nav className="scrollbar-hide flex-1 space-y-0.5 overflow-y-auto">
+        <nav className="scrollbar-hide min-h-0 flex-1 space-y-0.5 overflow-y-auto">
           {items.map((item) => {
             const Icon = ICONS[item.icon];
             const hasChildren = !!item.children?.length && !collapsed;

@@ -34,7 +34,7 @@ const COLORS = {
   amber: { badge: "bg-primary-bg text-primary", footer: "text-muted-foreground" },
   red: { badge: "bg-danger-bg text-danger", footer: "text-danger" },
   green: { badge: "bg-success-bg text-success", footer: "text-success" },
-  blue: { badge: "bg-info-bg text-navy", footer: "text-muted-foreground" },
+  blue: { badge: "bg-info-bg text-info", footer: "text-muted-foreground" },
 } as const;
 
 function isToday(date: string) {
@@ -108,7 +108,7 @@ export default function DashboardPage() {
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {WIDGETS.map((w) => (
-          <Card key={w.label}>
+          <Card key={w.label} className="transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md hover:border-primary/30">
             <CardContent className="space-y-3 p-4">
               <div className="flex items-start justify-between">
                 <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{w.label}</span>
