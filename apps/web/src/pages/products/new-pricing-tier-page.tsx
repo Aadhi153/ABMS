@@ -232,7 +232,7 @@ export default function NewPricingTierPage() {
       </FormScrollArea>
 
       <FormFooter>
-        <FormCancelButton onClick={goBack} disabled={status !== "idle" || leaving} />
+        <FormCancelButton onClick={goBack} disabled={status !== "idle" || leaving} size="xs" />
         <FormSubmitButton
           formId="pricing-tier-form"
           status={status}
@@ -240,6 +240,7 @@ export default function NewPricingTierPage() {
           loadingLabel="Creating tier…"
           successLabel="Tier created"
           disabled={leaving}
+          size="xs"
         />
       </FormFooter>
       {discardDialog}

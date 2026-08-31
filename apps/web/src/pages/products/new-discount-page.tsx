@@ -363,7 +363,7 @@ export default function NewDiscountPage() {
       </FormScrollArea>
 
       <FormFooter>
-        <FormCancelButton onClick={goBack} disabled={status !== "idle" || leaving} />
+        <FormCancelButton onClick={goBack} disabled={status !== "idle" || leaving} size="xs" />
         <FormSubmitButton
           formId="discount-form"
           status={status}
@@ -371,6 +371,7 @@ export default function NewDiscountPage() {
           loadingLabel="Creating discount…"
           successLabel="Discount created"
           disabled={leaving}
+          size="xs"
         />
       </FormFooter>
       {discardDialog}

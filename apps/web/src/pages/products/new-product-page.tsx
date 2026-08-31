@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { gql, useMutation, useQuery } from "@apollo/client";
-import { Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Image, PackageCheck } from "lucide-react";
 import {
   Button,
   Input,
@@ -34,9 +34,9 @@ import { ImageDropzone } from "./image-dropzone";
 import { BUTTON_PRESS, FOCUS_GLOW, holdSuccessThen } from "./form-motion";
 
 const STEPS = [
-  { key: "basic", label: "Basic Info" },
-  { key: "pricing", label: "Pricing & Tax" },
-  { key: "inventory", label: "Inventory" },
+  { key: "details", label: "Product Details" },
+  { key: "media", label: "Media" },
+  { key: "review", label: "Review" },
 ] as const;
 
 /** Small clickable stepper: already-visited steps can be revisited (forward or back),
@@ -108,6 +108,10 @@ const PRODUCT_FORM_OPTIONS_QUERY = gql`
       name
       rate
     }
+    warehouses {
+      id
+      name
+    }
   }
 `;
 
@@ -129,12 +133,16 @@ const EMPTY_FORM = {
   categoryId: "",
   brandId: "",
   taxRateId: "",
+  hsnSacCode: "",
   unitOfMeasure: "unit",
   costPrice: "",
   sellPrice: "",
+  salePrice: "",
+  warehouseId: "",
   trackInventory: true,
   initialStock: "",
   reorderThreshold: "0",
+  active: true,
 };
 
 export default function NewProductPage() {
@@ -142,6 +150,7 @@ export default function NewProductPage() {
     categories: Array<{ id: string; name: string }>;
     brands: Array<{ id: string; name: string }>;
     taxRates: Array<{ id: string; name: string; rate: number }>;
+    warehouses: Array<{ id: string; name: string }>;
   }>(PRODUCT_FORM_OPTIONS_QUERY);
   const [createProduct] = useMutation(CREATE_PRODUCT_MUTATION, {
     refetchQueries: ["AllProducts"],
@@ -162,24 +171,16 @@ export default function NewProductPage() {
     dirty,
   );
 
-  /** Only steps 0 (Basic Info) and 1 (Pricing & Tax) have required fields; Inventory and
-   * Media are all-optional, so Next always passes through them. */
-  function validateStep(index: number): boolean {
-    if (index === 0) {
-      const skuInvalid = !form.sku.trim();
-      const nameInvalid = !form.name.trim();
-      setSkuError(skuInvalid ? "SKU is required" : null);
-      setNameError(nameInvalid ? "Name is required" : null);
-      return !skuInvalid && !nameInvalid;
-    }
-    if (index === 1) {
-      const costInvalid = form.costPrice === "" || Number(form.costPrice) < 0;
-      const sellInvalid = form.sellPrice === "" || Number(form.sellPrice) < 0;
-      setCostPriceError(costInvalid ? "Cost price is required" : null);
-      setSellPriceError(sellInvalid ? "Sell price is required" : null);
-      return !costInvalid && !sellInvalid;
-    }
-    return true;
+  function validateForCreate(): boolean {
+    const skuInvalid = !form.sku.trim();
+    const nameInvalid = !form.name.trim();
+    const costInvalid = form.costPrice === "" || Number(form.costPrice) < 0;
+    const sellInvalid = form.sellPrice === "" || Number(form.sellPrice) < 0;
+    setSkuError(skuInvalid ? "SKU is required" : null);
+    setNameError(nameInvalid ? "Name is required" : null);
+    setCostPriceError(costInvalid ? "Cost price is required" : null);
+    setSellPriceError(sellInvalid ? "Price is required" : null);
+    return !skuInvalid && !nameInvalid && !costInvalid && !sellInvalid;
   }
 
   function goToStep(index: number) {
@@ -195,19 +196,14 @@ export default function NewProductPage() {
     e.preventDefault();
 
     if (step < STEPS.length - 1) {
-      if (!validateStep(step)) return;
       const next = step + 1;
       setStep(next);
       setMaxVisitedStep((m) => Math.max(m, next));
       return;
     }
 
-    // Final step: re-validate every required step in case the user revisited and changed
-    // an earlier answer via the step indicator without passing through Next again.
-    const basicValid = validateStep(0);
-    const pricingValid = validateStep(1);
-    if (!basicValid || !pricingValid) {
-      setStep(basicValid ? 1 : 0);
+    if (!validateForCreate()) {
+      setStep(0);
       return;
     }
     setSubmitError(null);
@@ -228,6 +224,8 @@ export default function NewProductPage() {
             unitOfMeasure: form.unitOfMeasure || undefined,
             costPrice: Number(form.costPrice),
             sellPrice: Number(form.sellPrice),
+            active: form.active,
+            warehouseId: form.warehouseId || undefined,
             trackInventory: form.trackInventory,
             initialStock: form.initialStock
               ? Number(form.initialStock)
@@ -269,295 +267,316 @@ export default function NewProductPage() {
         <FormErrorBanner message={submitError} />
         <form id="product-form" onSubmit={handleSubmit} noValidate className="space-y-6">
           {step === 0 && (
-          <div className="space-y-6">
-          <FormSection
-            title="Product Information"
-            description="Core identity and catalog details"
-            index={0}
-          >
-            <FormSubsection
-              title="Basic Information"
-              description="Enter the basic details and required information"
+            <FormSection
+              title="Product Details"
+              description="Identity, pricing, inventory, and status in one entry view"
+              index={0}
             >
-              <div className="space-y-1.5">
-                <Label htmlFor="p-sku">
-                  SKU
-                  <RequiredMark />
-                </Label>
-                <Input
-                  id="p-sku"
-                  required
-                  value={form.sku}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, sku: e.target.value }))
-                  }
-                  className={FOCUS_GLOW}
-                />
-                <FieldError message={skuError} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="p-name">
-                  Name
-                  <RequiredMark />
-                </Label>
-                <Input
-                  id="p-name"
-                  required
-                  value={form.name}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, name: e.target.value }))
-                  }
-                  className={FOCUS_GLOW}
-                />
-                <FieldError message={nameError} />
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="p-variant">Variant name</Label>
-                <Input
-                  id="p-variant"
-                  placeholder="e.g. 128GB, Red, Large"
-                  value={form.variantName}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, variantName: e.target.value }))
-                  }
-                  className={FOCUS_GLOW}
-                />
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="p-desc">Description</Label>
-                <Textarea
-                  id="p-desc"
-                  placeholder="Optional short description"
-                  rows={2}
-                  value={form.description}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, description: e.target.value }))
-                  }
-                  className={FOCUS_GLOW}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Category</Label>
-                <Select
-                  value={form.categoryId}
-                  onValueChange={(v) =>
-                    setForm((f) => ({ ...f, categoryId: v }))
-                  }
-                >
-                  <SelectTrigger className={FOCUS_GLOW}>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(data?.categories ?? []).map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Brand</Label>
-                <Select
-                  value={form.brandId}
-                  onValueChange={(v) => setForm((f) => ({ ...f, brandId: v }))}
-                >
-                  <SelectTrigger className={FOCUS_GLOW}>
-                    <SelectValue placeholder="Select brand" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(data?.brands ?? []).map((b) => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {b.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </FormSubsection>
-          </FormSection>
+              <FormSubsection
+                title="Catalog Details"
+                description="Primary product information used in listings and transactions"
+                className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+              >
+                <div className="space-y-1.5 lg:col-span-2">
+                  <Label htmlFor="p-name">
+                    Product Name
+                    <RequiredMark />
+                  </Label>
+                  <Input
+                    id="p-name"
+                    required
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    className={FOCUS_GLOW}
+                  />
+                  <FieldError message={nameError} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="p-hsn">HSN/SAC Code</Label>
+                  <Input
+                    id="p-hsn"
+                    value={form.hsnSacCode}
+                    onChange={(e) => setForm((f) => ({ ...f, hsnSacCode: e.target.value }))}
+                    className={FOCUS_GLOW}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="p-sku">
+                    SKU
+                    <RequiredMark />
+                  </Label>
+                  <Input
+                    id="p-sku"
+                    required
+                    value={form.sku}
+                    onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
+                    className={FOCUS_GLOW}
+                  />
+                  <FieldError message={skuError} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Category</Label>
+                  <Select value={form.categoryId} onValueChange={(v) => setForm((f) => ({ ...f, categoryId: v }))}>
+                    <SelectTrigger className={FOCUS_GLOW}>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(data?.categories ?? []).map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Brand</Label>
+                  <Select value={form.brandId} onValueChange={(v) => setForm((f) => ({ ...f, brandId: v }))}>
+                    <SelectTrigger className={FOCUS_GLOW}>
+                      <SelectValue placeholder="Select brand" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(data?.brands ?? []).map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                          {b.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="p-variant">Variant</Label>
+                  <Input
+                    id="p-variant"
+                    placeholder="128GB, Red, Large"
+                    value={form.variantName}
+                    onChange={(e) => setForm((f) => ({ ...f, variantName: e.target.value }))}
+                    className={FOCUS_GLOW}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="p-barcode">Barcode</Label>
+                  <Input
+                    id="p-barcode"
+                    value={form.barcode}
+                    onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value }))}
+                    className={FOCUS_GLOW}
+                  />
+                </div>
+                <div className="space-y-1.5 lg:col-span-4">
+                  <Label htmlFor="p-desc">Description</Label>
+                  <Textarea
+                    id="p-desc"
+                    rows={2}
+                    value={form.description}
+                    onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                    className={FOCUS_GLOW}
+                  />
+                </div>
+              </FormSubsection>
 
-          <FormSection
-            title="Media"
-            description="Add a product image"
-            index={1}
-          >
-            <FormSubsection
-              title="Product Image"
-              description="Shown in the catalog and on order documents"
-            >
-              <div className="sm:col-span-2">
-                <ImageDropzone
-                  label="Product image"
-                  value={form.imageUrl}
-                  onChange={(imageUrl) => setForm((f) => ({ ...f, imageUrl }))}
-                />
-              </div>
-            </FormSubsection>
-          </FormSection>
-          </div>
+              <FormSubsection
+                title="Pricing"
+                description="Cost, selling price, optional sale price, and tax setup"
+                className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+              >
+                <div className="space-y-1.5">
+                  <Label htmlFor="p-cost">
+                    Cost
+                    <RequiredMark />
+                  </Label>
+                  <Input
+                    id="p-cost"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.costPrice}
+                    onChange={(e) => setForm((f) => ({ ...f, costPrice: e.target.value }))}
+                    className={FOCUS_GLOW}
+                  />
+                  <FieldError message={costPriceError} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="p-sell">
+                    Price
+                    <RequiredMark />
+                  </Label>
+                  <Input
+                    id="p-sell"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.sellPrice}
+                    onChange={(e) => setForm((f) => ({ ...f, sellPrice: e.target.value }))}
+                    className={FOCUS_GLOW}
+                  />
+                  <FieldError message={sellPriceError} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="p-sale">Sale Price</Label>
+                  <Input
+                    id="p-sale"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.salePrice}
+                    onChange={(e) => setForm((f) => ({ ...f, salePrice: e.target.value }))}
+                    className={FOCUS_GLOW}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Tax Rate</Label>
+                  <Select value={form.taxRateId} onValueChange={(v) => setForm((f) => ({ ...f, taxRateId: v }))}>
+                    <SelectTrigger className={FOCUS_GLOW}>
+                      <SelectValue placeholder="No tax rate" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(data?.taxRates ?? []).map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name} ({t.rate}%)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </FormSubsection>
+
+              <FormSubsection
+                title="Inventory"
+                description="Opening stock, warehouse, minimum stock, unit, and product status"
+                className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+              >
+                <div className="space-y-1.5">
+                  <Label>Warehouse</Label>
+                  <Select value={form.warehouseId} onValueChange={(v) => setForm((f) => ({ ...f, warehouseId: v }))}>
+                    <SelectTrigger className={FOCUS_GLOW}>
+                      <SelectValue placeholder="Default warehouse" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(data?.warehouses ?? []).map((w) => (
+                        <SelectItem key={w.id} value={w.id}>
+                          {w.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="p-initial-stock">Stock Quantity</Label>
+                  <Input
+                    id="p-initial-stock"
+                    type="number"
+                    min="0"
+                    value={form.initialStock}
+                    onChange={(e) => setForm((f) => ({ ...f, initialStock: e.target.value }))}
+                    className={FOCUS_GLOW}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="p-reorder">Min Stock</Label>
+                  <Input
+                    id="p-reorder"
+                    type="number"
+                    min="0"
+                    value={form.reorderThreshold}
+                    onChange={(e) => setForm((f) => ({ ...f, reorderThreshold: e.target.value }))}
+                    className={FOCUS_GLOW}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="p-uom">UOM</Label>
+                  <Input
+                    id="p-uom"
+                    value={form.unitOfMeasure}
+                    onChange={(e) => setForm((f) => ({ ...f, unitOfMeasure: e.target.value }))}
+                    className={FOCUS_GLOW}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-md border border-border px-3 py-2.5">
+                  <div>
+                    <Label htmlFor="p-track">Track Inventory</Label>
+                    <p className="text-xs text-muted-foreground">Stock moves with sales and purchases.</p>
+                  </div>
+                  <Switch id="p-track" checked={form.trackInventory} onCheckedChange={(v) => setForm((f) => ({ ...f, trackInventory: v }))} />
+                </div>
+                <div className="flex items-center justify-between rounded-md border border-border px-3 py-2.5">
+                  <div>
+                    <Label htmlFor="p-active">Status</Label>
+                    <p className="text-xs text-muted-foreground">{form.active ? "Active" : "Inactive"}</p>
+                  </div>
+                  <Switch id="p-active" checked={form.active} onCheckedChange={(active) => setForm((f) => ({ ...f, active }))} />
+                </div>
+              </FormSubsection>
+            </FormSection>
           )}
 
           {step === 1 && (
-          <FormSection
-            title="Pricing & Tax"
-            description="Set cost, sell price and applicable tax"
-            index={0}
-          >
-            <FormSubsection
-              title="Price Details"
-              description="Cost, margin and tax rate for this product"
-            >
-              <div className="space-y-1.5">
-                <Label htmlFor="p-cost">
-                  Cost price
-                  <RequiredMark />
-                </Label>
-                <Input
-                  id="p-cost"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  required
-                  value={form.costPrice}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, costPrice: e.target.value }))
-                  }
-                  className={FOCUS_GLOW}
-                />
-                <FieldError message={costPriceError} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="p-sell">
-                  Sell price
-                  <RequiredMark />
-                </Label>
-                <Input
-                  id="p-sell"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  required
-                  value={form.sellPrice}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, sellPrice: e.target.value }))
-                  }
-                  className={FOCUS_GLOW}
-                />
-                <FieldError message={sellPriceError} />
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label>Tax rate</Label>
-                <Select
-                  value={form.taxRateId}
-                  onValueChange={(v) =>
-                    setForm((f) => ({ ...f, taxRateId: v }))
-                  }
-                >
-                  <SelectTrigger className={FOCUS_GLOW}>
-                    <SelectValue placeholder="No tax rate" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(data?.taxRates ?? []).map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.name} ({t.rate}%)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </FormSubsection>
-          </FormSection>
+            <FormSection title="Media" description="Add product visuals" index={0}>
+              <FormSubsection title="Product Image" description="Shown in the catalog and on order documents">
+                <div className="sm:col-span-2">
+                  <ImageDropzone
+                    label="Product image"
+                    value={form.imageUrl}
+                    onChange={(imageUrl) => setForm((f) => ({ ...f, imageUrl }))}
+                  />
+                </div>
+              </FormSubsection>
+            </FormSection>
           )}
 
           {step === 2 && (
-          <FormSection
-            title="Inventory"
-            description="Stock tracking and reorder settings"
-            index={0}
-          >
-            <FormSubsection
-              title="Stock Settings"
-              description="Unit, barcode and reorder thresholds"
-            >
-              <div className="space-y-1.5">
-                <Label htmlFor="p-uom">Unit of measure</Label>
-                <Input
-                  id="p-uom"
-                  value={form.unitOfMeasure}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, unitOfMeasure: e.target.value }))
-                  }
-                  className={FOCUS_GLOW}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="p-barcode">Barcode</Label>
-                <Input
-                  id="p-barcode"
-                  placeholder="Optional"
-                  value={form.barcode}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, barcode: e.target.value }))
-                  }
-                  className={FOCUS_GLOW}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="p-initial-stock">Initial stock</Label>
-                <Input
-                  id="p-initial-stock"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  value={form.initialStock}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, initialStock: e.target.value }))
-                  }
-                  className={FOCUS_GLOW}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="p-reorder">Reorder threshold</Label>
-                <Input
-                  id="p-reorder"
-                  type="number"
-                  min="0"
-                  value={form.reorderThreshold}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, reorderThreshold: e.target.value }))
-                  }
-                  className={FOCUS_GLOW}
-                />
-              </div>
-              <div className="flex items-center justify-between rounded-md border border-border px-3 py-2.5 sm:col-span-2">
-                <div>
-                  <Label htmlFor="p-track">Track inventory</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Deduct stock automatically on sales and purchases.
-                  </p>
+            <FormSection title="Review" description="Confirm product details before creating" index={0}>
+              <FormSubsection title="Product Details" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  ["Product Name", form.name],
+                  ["HSN/SAC Code", form.hsnSacCode],
+                  ["Category", data?.categories.find((c) => c.id === form.categoryId)?.name],
+                  ["Brand", data?.brands.find((b) => b.id === form.brandId)?.name],
+                  ["Variant", form.variantName],
+                  ["SKU", form.sku],
+                  ["Cost", form.costPrice],
+                  ["Price", form.sellPrice],
+                  ["Sale Price", form.salePrice],
+                  ["Warehouse", data?.warehouses.find((w) => w.id === form.warehouseId)?.name],
+                  ["Stock Quantity", form.initialStock],
+                  ["Min Stock", form.reorderThreshold],
+                  ["UOM", form.unitOfMeasure],
+                  ["Status", form.active ? "Active" : "Inactive"],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-md border border-border px-3 py-2">
+                    <p className="text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
+                    <p className="mt-1 min-h-5 truncate text-sm font-medium text-foreground">{value || "-"}</p>
+                  </div>
+                ))}
+              </FormSubsection>
+              <FormSubsection title="Readiness" className="grid gap-3 sm:grid-cols-2">
+                <div className="flex items-center gap-3 rounded-md border border-border px-3 py-2.5">
+                  <PackageCheck className="h-4 w-4 text-emerald-500" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Inventory</p>
+                    <p className="text-xs text-muted-foreground">{form.trackInventory ? "Tracked" : "Not tracked"}</p>
+                  </div>
                 </div>
-                <Switch
-                  id="p-track"
-                  checked={form.trackInventory}
-                  onCheckedChange={(v) =>
-                    setForm((f) => ({ ...f, trackInventory: v }))
-                  }
-                />
-              </div>
-            </FormSubsection>
-          </FormSection>
+                <div className="flex items-center gap-3 rounded-md border border-border px-3 py-2.5">
+                  <Image className="h-4 w-4 text-slate-500" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Media</p>
+                    <p className="text-xs text-muted-foreground">{form.imageUrl ? "Image attached" : "No image"}</p>
+                  </div>
+                </div>
+              </FormSubsection>
+            </FormSection>
           )}
         </form>
       </FormScrollArea>
 
       <FormFooter>
-        <FormCancelButton onClick={goBack} disabled={status !== "idle" || leaving} size="sm" />
+        <FormCancelButton onClick={goBack} disabled={status !== "idle" || leaving} size="xs" />
         {step > 0 && (
           <Button
             type="button"
             variant="outline"
-            size="sm"
+            size="xs"
             onClick={handleBack}
             disabled={status !== "idle" || leaving}
             className={BUTTON_PRESS}
@@ -571,7 +590,7 @@ export default function NewProductPage() {
             type="submit"
             form="product-form"
             variant="outline"
-            size="sm"
+            size="xs"
             disabled={status !== "idle" || leaving}
             className={BUTTON_PRESS}
           >
@@ -582,7 +601,7 @@ export default function NewProductPage() {
           <FormSubmitButton
             formId="product-form"
             status={status}
-            size="sm"
+            size="xs"
             idleLabel="Create Product"
             loadingLabel="Creating…"
             successLabel="Product created"

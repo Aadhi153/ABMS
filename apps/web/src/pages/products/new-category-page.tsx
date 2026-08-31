@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from "react";
+import { Folder, Plus } from "lucide-react";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import {
+  Button,
   Input,
   Label,
   Select,
@@ -8,9 +10,12 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
   Textarea,
+  cn,
   toast,
 } from "@abms/ui";
+import { ImageDropzone } from "./image-dropzone";
 import {
   FormPage,
   FormScrollArea,
@@ -47,9 +52,13 @@ const CREATE_CATEGORY_MUTATION = gql`
 
 const EMPTY_FORM = {
   name: "",
+  code: "",
   description: "",
-  color: "",
+  image: null as File | null,
+  sortOrder: 0,
+  active: true,
   parentId: "",
+  color: "",
 };
 
 const COLOR_SWATCHES = [
@@ -117,14 +126,12 @@ export default function NewCategoryPage() {
     <FormPage leaving={leaving}>
       <FormScrollArea>
         <FormPageHeader
-          breadcrumb={[
-            { label: "Products", to: "/products/all" },
-            { label: "All Categories", to: "/products/categories" },
-            { label: "New Category" },
-          ]}
-          title="Create Category"
-          subtitle="Add a new category to organize your products"
+          breadcrumb={[]}
+          title="Add New Category"
+          subtitle="Create a new product category for your inventory"
+          icon={<Folder className="h-5 w-5" />}
           backLabel="Back to Categories"
+          backPosition="right"
           onBack={goBack}
           onNavigate={requestNavigate}
         />
@@ -132,16 +139,17 @@ export default function NewCategoryPage() {
         <form id="category-form" onSubmit={handleSubmit} noValidate className="space-y-6">
           <FormSection
             title="Category Information"
-            description="Enter the core details for this category"
+            description="Fill in the details below to create a new category"
+            icon={<Plus className="h-5 w-5" />}
             index={0}
           >
             <FormSubsection
               title="Basic Information"
-              description="Name and description"
+              description="Enter the basic details for this category"
             >
-              <div className="space-y-1.5 sm:col-span-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="cat-name">
-                  Name
+                  Category Name
                   <RequiredMark />
                 </Label>
                 <Input
@@ -156,12 +164,32 @@ export default function NewCategoryPage() {
                 />
                 <FieldError message={error} />
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="cat-code">
+                  Category Code
+                  <RequiredMark />
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="cat-code"
+                    required
+                    placeholder="ENTER CATEGORY CODE"
+                    value={form.code}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, code: e.target.value }))
+                    }
+                    className={cn(FOCUS_GLOW, "uppercase")}
+                  />
+                  <Button type="button" variant="outline" className={BUTTON_PRESS}>Auto</Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">Code will be auto-generated from name if left empty</p>
+              </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="cat-desc">Description</Label>
                 <Textarea
                   id="cat-desc"
-                  placeholder="Optional short description"
-                  rows={2}
+                  placeholder="Enter category description"
+                  rows={3}
                   value={form.description}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, description: e.target.value }))
@@ -170,19 +198,52 @@ export default function NewCategoryPage() {
                 />
               </div>
             </FormSubsection>
+
+            <FormSubsection title="Category Image" className="sm:grid-cols-1">
+              <div className="max-w-md">
+                <ImageDropzone
+                  value={form.image}
+                  onChange={(file) => setForm((f) => ({ ...f, image: file }))}
+                />
+                <div className="mt-2 text-xs text-muted-foreground">
+                  <p>{form.image ? "1/1 images uploaded" : "0/1 images uploaded"}</p>
+                  <p className="mt-0.5">Upload an image for this category (max 5MB)</p>
+                </div>
+              </div>
+            </FormSubsection>
+
+            <FormSubsection title="Sort Order" className="sm:grid-cols-1 border-0 p-0 pb-2">
+              <div className="space-y-1.5 max-w-sm">
+                <Input
+                  type="number"
+                  value={form.sortOrder}
+                  onChange={(e) => setForm((f) => ({ ...f, sortOrder: parseInt(e.target.value) || 0 }))}
+                  className={FOCUS_GLOW}
+                />
+                <p className="text-[11px] text-muted-foreground">Lower numbers appear first</p>
+              </div>
+            </FormSubsection>
+
+            <div className="flex items-center gap-3">
+              <Switch
+                id="cat-active"
+                checked={form.active}
+                onCheckedChange={(c) => setForm((f) => ({ ...f, active: c }))}
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="cat-active" className="text-sm font-medium">Active</Label>
+                <p className="text-xs text-muted-foreground">Inactive categories won't be visible in product listings</p>
+              </div>
+            </div>
           </FormSection>
 
           <FormSection
-            title="Organization"
-            description="Control where this category appears and how it's visually tagged"
+            title="Hierarchy Settings"
+            description="Configure the category hierarchy and parent-child relationships"
             index={1}
           >
-            <FormSubsection
-              title="Hierarchy & Color"
-              description="Optional parent category and color tag"
-            >
-              <div className="space-y-1.5">
-                <Label>Parent category</Label>
+            <div className="space-y-1.5 max-w-xl">
+              <Label>Parent Category</Label>
                 <Select
                   value={form.parentId}
                   onValueChange={(v) => setForm((f) => ({ ...f, parentId: v }))}
@@ -198,34 +259,14 @@ export default function NewCategoryPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-[11px] text-muted-foreground mt-1.5">Select a parent to create a subcategory</p>
               </div>
-              <div className="space-y-1.5">
-                <Label>Color</Label>
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  {COLOR_SWATCHES.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      aria-label={`Choose color ${c}`}
-                      onClick={() =>
-                        setForm((f) => ({
-                          ...f,
-                          color: f.color === c ? "" : c,
-                        }))
-                      }
-                      className={`h-6 w-6 rounded-full ${BUTTON_PRESS} ${form.color === c ? "ring-2 ring-offset-2 ring-primary" : ""}`}
-                      style={{ backgroundColor: c }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </FormSubsection>
           </FormSection>
         </form>
       </FormScrollArea>
 
       <FormFooter>
-        <FormCancelButton onClick={goBack} disabled={status !== "idle" || leaving} />
+        <FormCancelButton onClick={goBack} disabled={status !== "idle" || leaving} size="xs" />
         <FormSubmitButton
           formId="category-form"
           status={status}
@@ -233,6 +274,7 @@ export default function NewCategoryPage() {
           loadingLabel="Creating category…"
           successLabel="Category created"
           disabled={leaving}
+          size="xs"
         />
       </FormFooter>
       {discardDialog}

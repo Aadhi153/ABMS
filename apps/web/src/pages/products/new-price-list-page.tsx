@@ -231,7 +231,7 @@ export default function NewPriceListPage() {
       </FormScrollArea>
 
       <FormFooter>
-        <FormCancelButton onClick={goBack} disabled={status !== "idle" || leaving} />
+        <FormCancelButton onClick={goBack} disabled={status !== "idle" || leaving} size="xs" />
         <FormSubmitButton
           formId="price-list-form"
           status={status}
@@ -239,6 +239,7 @@ export default function NewPriceListPage() {
           loadingLabel="Creating price list…"
           successLabel="Price list created"
           disabled={leaving}
+          size="xs"
         />
       </FormFooter>
       {discardDialog}

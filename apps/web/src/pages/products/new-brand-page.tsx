@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from "react";
+import { Plus } from "lucide-react";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { Button, Input, Label, Switch, Textarea, cn, toast } from "@abms/ui";
 import {
@@ -153,14 +154,11 @@ export default function NewBrandPage() {
     <FormPage leaving={leaving}>
       <FormScrollArea>
         <FormPageHeader
-          breadcrumb={[
-            { label: "Products", to: "/products/all" },
-            { label: "All Brands", to: BRANDS_LIST_ROUTE },
-            { label: "New Brand" },
-          ]}
+          breadcrumb={[]}
           title="Create Brand"
           subtitle="Add a new brand to organize your products"
           backLabel="Back to Brands"
+          backPosition="right"
           onBack={goBack}
           onNavigate={requestNavigate}
         />
@@ -169,6 +167,7 @@ export default function NewBrandPage() {
           <FormSection
             title="Brand Information"
             description="Enter the core details and basic information"
+            icon={<Plus className="h-5 w-5" />}
             index={0}
           >
             <FormSubsection
@@ -238,46 +237,6 @@ export default function NewBrandPage() {
                 )}
               </div>
               <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="brand-description">Description</Label>
-                <Textarea
-                  id="brand-description"
-                  placeholder="Optional short description"
-                  rows={3}
-                  value={form.description}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, description: e.target.value }))
-                  }
-                  className={cn(FOCUS_GLOW, "resize-none")}
-                />
-              </div>
-              <div className="flex items-center justify-between rounded-md border border-border px-3 py-2.5 sm:col-span-2">
-                <div>
-                  <Label htmlFor="brand-active">Status</Label>
-                  <p className="text-xs text-muted-foreground">
-                    {form.active ? "Active" : "Inactive"}
-                  </p>
-                </div>
-                <Switch
-                  id="brand-active"
-                  checked={form.active}
-                  onCheckedChange={(active) =>
-                    setForm((f) => ({ ...f, active }))
-                  }
-                />
-              </div>
-            </FormSubsection>
-          </FormSection>
-
-          <FormSection
-            title="Branding"
-            description="Customize the look and web presence for this brand"
-            index={1}
-          >
-            <FormSubsection
-              title="Brand Assets"
-              description="Website and logo details"
-            >
-              <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="brand-website">Website URL</Label>
                 <Input
                   id="brand-website"
@@ -292,11 +251,13 @@ export default function NewBrandPage() {
                 />
                 <FieldError message={urlError} />
               </div>
-              <div className="sm:col-span-2">
+            </FormSubsection>
+
+            <FormSubsection title="Brand Logo" className="sm:grid-cols-1">
+              <div className="max-w-md">
                 <ImageDropzone
-                  label="Brand logo"
                   value={form.logoUrl}
-                  onChange={(logoUrl) => setForm((f) => ({ ...f, logoUrl }))}
+                  onChange={(logoUrl) => setForm((f) => ({ ...f, logoUrl: logoUrl as any }))}
                   accept="image/png,image/jpeg"
                   maxBytes={5 * 1024 * 1024}
                   helpText="PNG or JPG, up to 5MB"
@@ -304,12 +265,28 @@ export default function NewBrandPage() {
                 />
               </div>
             </FormSubsection>
+
+            <div className="flex items-center gap-3">
+              <Switch
+                id="brand-active"
+                checked={form.active}
+                onCheckedChange={(active) =>
+                  setForm((f) => ({ ...f, active }))
+                }
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="brand-active" className="text-sm font-medium">Active</Label>
+                <p className="text-xs text-muted-foreground">Inactive brands won't be visible in product listings</p>
+              </div>
+            </div>
           </FormSection>
+
+
         </form>
       </FormScrollArea>
 
       <FormFooter>
-        <FormCancelButton onClick={goBack} disabled={status !== "idle" || leaving} />
+        <FormCancelButton onClick={goBack} disabled={status !== "idle" || leaving} size="xs" />
         <FormSubmitButton
           formId="brand-form"
           status={status}
@@ -317,6 +294,7 @@ export default function NewBrandPage() {
           loadingLabel="Creating brand…"
           successLabel="Brand created"
           disabled={leaving}
+          size="xs"
         />
       </FormFooter>
       {discardDialog}
