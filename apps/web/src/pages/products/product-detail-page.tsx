@@ -511,15 +511,16 @@ export default function ProductDetailPage() {
         <Card>
           <div className="px-5 pt-5 pb-3 border-b border-border">
             <h3 className="text-sm font-semibold text-foreground">Pricing Management</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Choose a variant to view and manage its pricing details
-            </p>
           </div>
           <CardContent className="p-5 space-y-5">
-            <div className="rounded-lg border border-border p-3 space-y-1.5 max-w-xs">
+            <div className="space-y-2">
+              <div>
+                <h4 className="text-sm font-semibold text-foreground">Select Variant for Pricing</h4>
+                <p className="text-xs text-muted-foreground">Choose a variant to view and manage its pricing details</p>
+              </div>
               <Label className="text-xs text-muted-foreground">Select Variant</Label>
               <Select value={product.id} onValueChange={() => {}}>
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -530,30 +531,13 @@ export default function ProductDetailPage() {
               </Select>
             </div>
 
-            <div>
+            <div className="border-t border-border pt-4">
               <p className="mb-3 text-xs font-semibold text-foreground">
                 Pricing Details for {product.variantName || product.name}
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <Label className="text-xs text-muted-foreground">Cost Price</Label>
-                  {editingPricing ? (
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={priceForm.costPrice}
-                      onChange={(e) => setPriceForm((f) => ({ ...f, costPrice: e.target.value }))}
-                      className="mt-1"
-                    />
-                  ) : (
-                    <p className="mt-1 rounded-md bg-muted/40 px-3 py-2 text-sm font-medium text-foreground">
-                      ₹{product.costPrice.toFixed(2)}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">Sell Price</Label>
+                  <Label className="text-xs text-muted-foreground">Current Price</Label>
                   {editingPricing ? (
                     <Input
                       type="number"
@@ -566,6 +550,23 @@ export default function ProductDetailPage() {
                   ) : (
                     <p className="mt-1 rounded-md bg-muted/40 px-3 py-2 text-sm font-medium text-foreground">
                       ₹{product.sellPrice.toFixed(2)}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Cost</Label>
+                  {editingPricing ? (
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={priceForm.costPrice}
+                      onChange={(e) => setPriceForm((f) => ({ ...f, costPrice: e.target.value }))}
+                      className="mt-1"
+                    />
+                  ) : (
+                    <p className="mt-1 rounded-md bg-muted/40 px-3 py-2 text-sm font-medium text-foreground">
+                      ₹{product.costPrice.toFixed(2)}
                     </p>
                   )}
                 </div>

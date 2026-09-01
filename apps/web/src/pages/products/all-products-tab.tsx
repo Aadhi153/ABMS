@@ -81,6 +81,7 @@ interface Product {
   sellPrice: number;
   trackInventory: boolean;
   reorderThreshold: number;
+  maxStockLevel: number | null;
   active: boolean;
   totalStock: number;
   stockLevels: StockLevel[];
@@ -107,6 +108,7 @@ const PRODUCTS_QUERY = gql`
       sellPrice
       trackInventory
       reorderThreshold
+      maxStockLevel
       active
       totalStock
       stockLevels {
@@ -192,6 +194,7 @@ export default function AllProductsTab() {
     costPrice: "",
     sellPrice: "",
     reorderThreshold: "0",
+    maxStockLevel: "",
   });
 
   const categories = data?.categories ?? [];
@@ -241,6 +244,7 @@ export default function AllProductsTab() {
       costPrice: String(p.costPrice),
       sellPrice: String(p.sellPrice),
       reorderThreshold: String(p.reorderThreshold),
+      maxStockLevel: p.maxStockLevel != null ? String(p.maxStockLevel) : "",
     });
   }
 
@@ -260,6 +264,7 @@ export default function AllProductsTab() {
             costPrice: Number(form.costPrice),
             sellPrice: Number(form.sellPrice),
             reorderThreshold: Number(form.reorderThreshold),
+            maxStockLevel: form.maxStockLevel ? Number(form.maxStockLevel) : undefined,
           },
         },
       });
@@ -746,7 +751,7 @@ export default function AllProductsTab() {
                 onChange={(e) => setForm((f) => ({ ...f, sellPrice: e.target.value }))}
               />
             </div>
-            <div className="space-y-1.5 sm:col-span-2">
+            <div className="space-y-1.5">
               <Label htmlFor="reorder">Reorder threshold</Label>
               <Input
                 id="reorder"
@@ -754,6 +759,17 @@ export default function AllProductsTab() {
                 min="0"
                 value={form.reorderThreshold}
                 onChange={(e) => setForm((f) => ({ ...f, reorderThreshold: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="max-stock">Max stock level</Label>
+              <Input
+                id="max-stock"
+                type="number"
+                min="0"
+                placeholder="No limit"
+                value={form.maxStockLevel}
+                onChange={(e) => setForm((f) => ({ ...f, maxStockLevel: e.target.value }))}
               />
             </div>
             <DialogFooter className="sm:col-span-2">

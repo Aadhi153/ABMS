@@ -83,6 +83,12 @@ export class CreateProductInput {
   @Min(0)
   reorderThreshold?: number;
 
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  maxStockLevel?: number;
+
   @Field(() => Boolean, { nullable: true })
   @IsOptional()
   @IsBoolean()
@@ -158,6 +164,12 @@ export class UpdateProductInput {
   @IsInt()
   @Min(0)
   reorderThreshold?: number;
+
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  maxStockLevel?: number;
 
   @Field(() => Boolean, { nullable: true })
   @IsOptional()

@@ -150,6 +150,7 @@ const EMPTY_FORM = {
   trackInventory: true,
   initialStock: "",
   reorderThreshold: "0",
+  maxStockLevel: "",
   active: true,
 };
 
@@ -256,6 +257,9 @@ export default function NewProductPage() {
               : undefined,
             reorderThreshold: form.reorderThreshold
               ? Number(form.reorderThreshold)
+              : undefined,
+            maxStockLevel: form.maxStockLevel
+              ? Number(form.maxStockLevel)
               : undefined,
           },
         },
@@ -543,6 +547,18 @@ export default function NewProductPage() {
                     />
                   </div>
                   <div className="space-y-1.5">
+                    <Label htmlFor="p-max-stock">Max Stock</Label>
+                    <Input
+                      id="p-max-stock"
+                      type="number"
+                      min="0"
+                      placeholder="No limit"
+                      value={form.maxStockLevel}
+                      onChange={(e) => setForm((f) => ({ ...f, maxStockLevel: e.target.value }))}
+                      className={FOCUS_GLOW}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
                     <Label htmlFor="p-uom">UOM</Label>
                     <Input
                       id="p-uom"
@@ -609,6 +625,7 @@ export default function NewProductPage() {
                   ["Warehouse", data?.warehouses.find((w) => w.id === form.warehouseId)?.name],
                   ["Stock Quantity", form.initialStock],
                   ["Min Stock", form.reorderThreshold],
+                  ["Max Stock", form.maxStockLevel],
                   ["UOM", form.unitOfMeasure],
                   ["Status", form.active ? "Active" : "Inactive"],
                 ].map(([label, value]) => (

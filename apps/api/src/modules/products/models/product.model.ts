@@ -78,6 +78,9 @@ export class ProductModel {
   @Field(() => Int)
   reorderThreshold!: number;
 
+  @Field(() => Int, { nullable: true })
+  maxStockLevel?: number | null;
+
   @Field(() => Boolean)
   active!: boolean;
 

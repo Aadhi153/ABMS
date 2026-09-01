@@ -1,7 +1,22 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
-import { AlertTriangle, ArrowLeftRight, ClipboardEdit, Plus } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeftRight,
+  Check,
+  ChevronDown,
+  ChevronsUpDown,
+  ChevronUp,
+  ClipboardEdit,
+  MapPin,
+  Package,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings2,
+  TrendingUp,
+} from "lucide-react";
 import {
   Badge,
   Button,
@@ -15,6 +30,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Input,
   Label,
   Select,
@@ -22,6 +41,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  cn,
   toast,
 } from "@abms/ui";
 
@@ -48,7 +68,12 @@ interface Product {
   id: string;
   sku: string;
   name: string;
+  variantName: string | null;
+  unitOfMeasure: string;
   totalStock: number;
+  costPrice: number;
+  reorderThreshold: number;
+  maxStockLevel: number | null;
   stockLevels: StockLevel[];
 }
 
@@ -58,7 +83,12 @@ const PRODUCTS_QUERY = gql`
       id
       sku
       name
+      variantName
+      unitOfMeasure
       totalStock
+      costPrice
+      reorderThreshold
+      maxStockLevel
       stockLevels {
         id
         quantity
@@ -186,6 +216,7 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-6">
+      {tab !== "levels" && (
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Inventory</h1>
@@ -204,8 +235,11 @@ export default function InventoryPage() {
           </Button>
         )}
       </div>
+      )}
 
-      {tab === "levels" && <StockByWarehouseTab products={products} warehouses={warehouses} loading={loading} />}
+      {tab === "levels" && (
+        <StockByWarehouseTab products={products} warehouses={warehouses} loading={loading} onRefresh={refetch} />
+      )}
       {tab === "movements" && <StockMovementsTab products={products} warehouses={warehouses} />}
       {tab === "adjustments" && <StockAdjustmentsTab onNewAdjustment={() => setQuickAdjustOpen(true)} />}
       {tab === "alerts" && <LowStockTab />}
@@ -245,63 +279,523 @@ export default function InventoryPage() {
   );
 }
 
+/** Hover lift for stat/summary cards — shadow + a 2px rise, no width/height change so grid sizing stays fixed.
+ * Mirrors the products module's CARD_HOVER (apps/web/src/pages/products/form-motion.ts) for a consistent feel. */
+const CARD_HOVER = "transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md hover:border-primary/30";
+
+function StockSummaryCards({ products, warehouses, loading }: { products: Product[]; warehouses: Warehouse[]; loading: boolean }) {
+  const totalItems = products.length;
+  const lowStockCount = products.filter((p) => p.totalStock <= p.reorderThreshold).length;
+  const totalValue = products.reduce((sum, p) => sum + p.totalStock * p.costPrice, 0);
+  const stockedWarehouseIds = new Set(
+    products.flatMap((p) => p.stockLevels.filter((sl) => sl.quantity > 0).map((sl) => sl.warehouse.id)),
+  );
+  const locationsWithStock = warehouses.filter((w) => stockedWarehouseIds.has(w.id)).length;
+
+  const widgets = [
+    {
+      label: "Total Items",
+      value: loading ? "—" : String(totalItems),
+      icon: Package,
+      iconClass: "text-slate-500",
+      footer: "Items in Stock",
+    },
+    {
+      label: "Low Stock",
+      value: loading ? "—" : String(lowStockCount),
+      icon: AlertTriangle,
+      iconClass: "text-primary",
+      footer: "Below Minimum",
+    },
+    {
+      label: "Stock Value",
+      value: loading ? "—" : `₹${totalValue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      icon: TrendingUp,
+      iconClass: "text-emerald-500",
+      footer: "Total Inventory Value",
+    },
+    {
+      label: "Locations",
+      value: loading ? "—" : String(locationsWithStock),
+      icon: MapPin,
+      iconClass: "text-purple-500",
+      footer: "Warehouses with Stock",
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {widgets.map((w) => (
+        <Card key={w.label} className={CARD_HOVER}>
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground">{w.label}</span>
+              <w.icon className={cn("h-4 w-4", w.iconClass)} />
+            </div>
+            <div className="text-2xl font-bold tracking-tight text-foreground">{w.value}</div>
+            <div className="text-[11px] text-muted-foreground mt-1">{w.footer}</div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+type StockStatus = "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK" | "OVER_STOCK";
+
+const STOCK_STATUS_LABEL: Record<StockStatus, string> = {
+  IN_STOCK: "In Stock",
+  LOW_STOCK: "Low Stock",
+  OUT_OF_STOCK: "Out of Stock",
+  OVER_STOCK: "Over Stock",
+};
+
+const STOCK_STATUS_PILL: Record<StockStatus, string> = {
+  IN_STOCK: "bg-info-bg text-info",
+  LOW_STOCK: "bg-warning-bg text-warning",
+  OUT_OF_STOCK: "bg-danger-bg text-danger",
+  OVER_STOCK: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400",
+};
+
+function computeStockStatus(qty: number, reorderPoint: number, maxStockLevel: number | null): StockStatus {
+  if (qty <= 0) return "OUT_OF_STOCK";
+  if (qty <= reorderPoint) return "LOW_STOCK";
+  if (maxStockLevel != null && qty > maxStockLevel) return "OVER_STOCK";
+  return "IN_STOCK";
+}
+
+function StockStatusPill({ status }: { status: StockStatus }) {
+  return (
+    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold", STOCK_STATUS_PILL[status])}>
+      {STOCK_STATUS_LABEL[status]}
+    </span>
+  );
+}
+
+interface StockRow {
+  key: string;
+  product: Product;
+  warehouse: Warehouse;
+  qty: number;
+  status: StockStatus;
+  value: number;
+}
+
+const STATUS_FILTERS = ["all", "IN_STOCK", "LOW_STOCK", "OUT_OF_STOCK", "OVER_STOCK"] as const;
+type SortKey = "product" | "variant" | "warehouse" | "qty" | "reorder" | "value" | "status";
+
+function SortableHeader({
+  label,
+  sortKey,
+  active,
+  dir,
+  onSort,
+  align = "left",
+}: {
+  label: string;
+  sortKey: SortKey;
+  active: boolean;
+  dir: "asc" | "desc";
+  onSort: (key: SortKey) => void;
+  align?: "left" | "right";
+}) {
+  return (
+    <th className={cn("px-3 py-2.5 font-medium", align === "right" && "text-right")}>
+      <button
+        className={cn(
+          "flex items-center gap-1 hover:text-foreground transition-colors",
+          align === "right" && "ml-auto",
+          active && "text-foreground",
+        )}
+        onClick={() => onSort(sortKey)}
+      >
+        {label}
+        {active ? (
+          dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
+        ) : (
+          <ChevronsUpDown className="h-3 w-3 opacity-60" />
+        )}
+      </button>
+    </th>
+  );
+}
+
 function StockByWarehouseTab({
   products,
   warehouses,
   loading,
+  onRefresh,
 }: {
   products: Product[];
   warehouses: Warehouse[];
   loading: boolean;
+  onRefresh: () => Promise<unknown>;
 }) {
-  const rows = products.map((p) => ({
-    product: p,
-    byWarehouse: Object.fromEntries(warehouses.map((w) => [w.id, p.stockLevels.find((sl) => sl.warehouse.id === w.id)?.quantity ?? 0])),
-  }));
+  const [showSummary, setShowSummary] = useState(true);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("all");
+  const [warehouseFilter, setWarehouseFilter] = useState("all");
+  const [sortKey, setSortKey] = useState<SortKey>("product");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [showReorderCol, setShowReorderCol] = useState(true);
+  const [showValueCol, setShowValueCol] = useState(true);
+
+  const allRows: StockRow[] = useMemo(
+    () =>
+      products.flatMap((product) =>
+        product.stockLevels.map((sl) => ({
+          key: sl.id,
+          product,
+          warehouse: sl.warehouse,
+          qty: sl.quantity,
+          status: computeStockStatus(sl.quantity, product.reorderThreshold, product.maxStockLevel),
+          value: sl.quantity * product.costPrice,
+        })),
+      ),
+    [products],
+  );
+
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return allRows.filter((row) => {
+      if (statusFilter !== "all" && row.status !== statusFilter) return false;
+      if (warehouseFilter !== "all" && row.warehouse.id !== warehouseFilter) return false;
+      if (!q) return true;
+      return (
+        row.product.name.toLowerCase().includes(q) ||
+        row.product.sku.toLowerCase().includes(q) ||
+        (row.product.variantName?.toLowerCase().includes(q) ?? false) ||
+        row.warehouse.name.toLowerCase().includes(q)
+      );
+    });
+  }, [allRows, search, statusFilter, warehouseFilter]);
+
+  const sortedRows = useMemo(() => {
+    const dirMul = sortDir === "asc" ? 1 : -1;
+    return [...filteredRows].sort((a, b) => {
+      switch (sortKey) {
+        case "product":
+          return a.product.name.localeCompare(b.product.name) * dirMul;
+        case "variant":
+          return (a.product.variantName ?? "").localeCompare(b.product.variantName ?? "") * dirMul;
+        case "warehouse":
+          return a.warehouse.name.localeCompare(b.warehouse.name) * dirMul;
+        case "qty":
+          return (a.qty - b.qty) * dirMul;
+        case "reorder":
+          return (a.product.reorderThreshold - b.product.reorderThreshold) * dirMul;
+        case "value":
+          return (a.value - b.value) * dirMul;
+        case "status":
+          return STOCK_STATUS_LABEL[a.status].localeCompare(STOCK_STATUS_LABEL[b.status]) * dirMul;
+        default:
+          return 0;
+      }
+    });
+  }, [filteredRows, sortKey, sortDir]);
+
+  function handleSort(key: SortKey) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+    setCurrentPage(1);
+  }
+
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / rowsPerPage));
+  const paginatedRows = sortedRows.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Stock levels</CardTitle>
-        <CardDescription>Quantity on hand for each product, broken down per warehouse.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : products.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No products yet.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-muted-foreground">
-                  <th className="py-2 font-medium">Product</th>
-                  {warehouses.map((w) => (
-                    <th key={w.id} className="px-3 py-2 text-right font-medium">
-                      {w.name}
-                    </th>
-                  ))}
-                  <th className="py-2 pl-3 text-right font-medium">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map(({ product, byWarehouse }) => (
-                  <tr key={product.id} className="border-b border-border last:border-0">
-                    <td className="py-2">{product.name}</td>
-                    {warehouses.map((w) => (
-                      <td key={w.id} className="px-3 py-2 text-right">
-                        {byWarehouse[w.id]}
-                      </td>
-                    ))}
-                    <td className="py-2 pl-3 text-right font-medium">{product.totalStock}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-foreground">Stock Levels</h2>
+          <p className="text-sm text-muted-foreground">Monitor current inventory levels across all locations</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setShowSummary((s) => !s)}>
+            {showSummary ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            {showSummary ? "Hide Summary" : "Show Summary"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs"
+            onClick={async () => {
+              await onRefresh();
+              toast.success("Refreshed");
+            }}
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      <div
+        className={cn(
+          "transition-all duration-300 ease-in-out origin-top",
+          showSummary
+            ? "max-h-[300px] opacity-100 scale-y-100 pointer-events-auto"
+            : "max-h-0 opacity-0 scale-y-95 overflow-hidden pointer-events-none",
         )}
-      </CardContent>
-    </Card>
+      >
+        <StockSummaryCards products={products} warehouses={warehouses} loading={loading} />
+      </div>
+
+      <Card>
+        <div className="px-5 py-3 flex flex-wrap items-center gap-3 border-b border-border">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-8 h-8 text-xs"
+              placeholder="Search products..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => {
+              setStatusFilter(v as (typeof STATUS_FILTERS)[number]);
+              setCurrentPage(1);
+            }}
+          >
+            <SelectTrigger className="w-36 h-8 text-xs">
+              <SelectValue placeholder="All Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              {(["IN_STOCK", "LOW_STOCK", "OUT_OF_STOCK", "OVER_STOCK"] as StockStatus[]).map((s) => (
+                <SelectItem key={s} value={s}>
+                  {STOCK_STATUS_LABEL[s]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={warehouseFilter}
+            onValueChange={(v) => {
+              setWarehouseFilter(v);
+              setCurrentPage(1);
+            }}
+          >
+            <SelectTrigger className="w-40 h-8 text-xs">
+              <SelectValue placeholder="All Warehouses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Warehouses</SelectItem>
+              {warehouses.map((w) => (
+                <SelectItem key={w.id} value={w.id}>
+                  {w.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">Loading…</div>
+          ) : products.length === 0 ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">No products yet.</p>
+          ) : sortedRows.length === 0 ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">No stock records match your filters.</p>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/30 text-left text-muted-foreground">
+                      <SortableHeader label="Product" sortKey="product" active={sortKey === "product"} dir={sortDir} onSort={handleSort} />
+                      <SortableHeader label="Variant" sortKey="variant" active={sortKey === "variant"} dir={sortDir} onSort={handleSort} />
+                      <SortableHeader
+                        label="Warehouse"
+                        sortKey="warehouse"
+                        active={sortKey === "warehouse"}
+                        dir={sortDir}
+                        onSort={handleSort}
+                      />
+                      <SortableHeader label="Qty" sortKey="qty" active={sortKey === "qty"} dir={sortDir} onSort={handleSort} align="right" />
+                      <th className="px-3 py-2.5 font-medium">Stock Status</th>
+                      {showReorderCol && (
+                        <SortableHeader
+                          label="Reorder Info"
+                          sortKey="reorder"
+                          active={sortKey === "reorder"}
+                          dir={sortDir}
+                          onSort={handleSort}
+                        />
+                      )}
+                      {showValueCol && (
+                        <SortableHeader
+                          label="Value"
+                          sortKey="value"
+                          active={sortKey === "value"}
+                          dir={sortDir}
+                          onSort={handleSort}
+                          align="right"
+                        />
+                      )}
+                      <SortableHeader label="Status" sortKey="status" active={sortKey === "status"} dir={sortDir} onSort={handleSort} />
+                      <th className="px-3 py-2.5 font-medium text-center w-10">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="text-muted-foreground hover:text-foreground transition-colors">
+                              <Settings2 className="h-3.5 w-3.5" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                setShowReorderCol((v) => !v);
+                              }}
+                            >
+                              <Check className={cn("h-3.5 w-3.5", !showReorderCol && "opacity-0")} />
+                              Reorder Info
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                setShowValueCol((v) => !v);
+                              }}
+                            >
+                              <Check className={cn("h-3.5 w-3.5", !showValueCol && "opacity-0")} />
+                              Value
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedRows.map((row) => (
+                      <tr key={row.key} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
+                        <td className="px-3 py-2.5 font-medium text-foreground">{row.product.name}</td>
+                        <td className="px-3 py-2.5">
+                          <div className="font-medium text-primary">{row.product.variantName || "Standard"}</div>
+                          <div className="text-[10px] text-muted-foreground">SKU: {row.product.sku}</div>
+                        </td>
+                        <td className="px-3 py-2.5 text-muted-foreground">{row.warehouse.name}</td>
+                        <td className="px-3 py-2.5 text-right">
+                          <span className="font-medium text-foreground">{row.qty}</span>{" "}
+                          <span className="text-muted-foreground">{row.product.unitOfMeasure}</span>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <StockStatusPill status={row.status} />
+                          <div className="mt-1 text-[10px] text-muted-foreground">
+                            Avail: {row.qty} Res: 0 In: 0
+                          </div>
+                        </td>
+                        {showReorderCol && (
+                          <td className="px-3 py-2.5 text-muted-foreground">
+                            <div>Reorder Point: {row.product.reorderThreshold}</div>
+                            <div>Max Quantity: {row.product.maxStockLevel ?? "–"}</div>
+                          </td>
+                        )}
+                        {showValueCol && (
+                          <td className="px-3 py-2.5 text-right">
+                            <div className="font-medium text-foreground">
+                              ₹{row.value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground">
+                              Avg Cost: ₹{row.product.costPrice.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                          </td>
+                        )}
+                        <td className="px-3 py-2.5">
+                          <StockStatusPill status={row.status} />
+                        </td>
+                        <td className="px-3 py-2.5" />
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex items-center justify-between px-5 py-3 border-t border-border">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>
+                    Showing {(currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, sortedRows.length)} of{" "}
+                    {sortedRows.length} results
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span>Rows per page</span>
+                  <Select
+                    value={String(rowsPerPage)}
+                    onValueChange={(v) => {
+                      setRowsPerPage(Number(v));
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="h-7 w-16 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[10, 20, 50].map((n) => (
+                        <SelectItem key={n} value={String(n)}>
+                          {n}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span>
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-xs"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                    >
+                      «
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-xs"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      ‹
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-xs"
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      ›
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-xs"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                    >
+                      »
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
