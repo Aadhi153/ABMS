@@ -8,13 +8,15 @@ function toModel<T extends { creditLimit: unknown; _count: { salesOrders: number
   return { ...rest, creditLimit: rest.creditLimit == null ? null : Number(rest.creditLimit), orderCount: _count.salesOrders };
 }
 
+const CUSTOMER_INCLUDE = { contacts: true, _count: { select: { salesOrders: true } } } as const;
+
 @Injectable()
 export class CustomersService {
   constructor(@Inject(SCOPED_PRISMA) private readonly prisma: ScopedPrismaClient) {}
 
   async findAll() {
     const rows = await this.prisma.customer.findMany({
-      include: { _count: { select: { salesOrders: true } } },
+      include: CUSTOMER_INCLUDE,
       orderBy: { createdAt: "asc" },
     });
     return rows.map(toModel);
@@ -23,7 +25,7 @@ export class CustomersService {
   async findById(id: string) {
     const row = await this.prisma.customer.findUnique({
       where: { id },
-      include: { _count: { select: { salesOrders: true } } },
+      include: CUSTOMER_INCLUDE,
     });
     return row ? toModel(row) : null;
   }
@@ -43,19 +45,40 @@ export class CustomersService {
     }));
   }
 
-  create(input: CreateCustomerInput, organizationId: string) {
-    return this.prisma.customer
-      .create({ data: { ...input, organizationId }, include: { _count: { select: { salesOrders: true } } } })
-      .then(toModel);
+  private async nextCustomerCode(organizationId: string) {
+    const count = await this.prisma.customer.count({ where: { organizationId } });
+    return `CUST-${String(count + 1).padStart(5, "0")}`;
+  }
+
+  async create(input: CreateCustomerInput, organizationId: string) {
+    const { contacts, ...rest } = input;
+    const code = await this.nextCustomerCode(organizationId);
+    const row = await this.prisma.customer.create({
+      data: {
+        ...rest,
+        code,
+        organizationId,
+        contacts: contacts?.length ? { create: contacts.map((c) => ({ type: c.type, value: c.value, isPrimary: c.isPrimary ?? false })) } : undefined,
+      },
+      include: CUSTOMER_INCLUDE,
+    });
+    return toModel(row);
   }
 
   async update(id: string, input: UpdateCustomerInput) {
     const existing = await this.prisma.customer.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException("Customer not found");
+    const { contacts, ...rest } = input;
     const row = await this.prisma.customer.update({
       where: { id },
-      data: input,
-      include: { _count: { select: { salesOrders: true } } },
+      data: {
+        ...rest,
+        // A full replace of the contacts list on every update — the client always sends the
+        // complete desired set (rows are managed entirely in the form's local state), so a
+        // blanket delete+recreate is simpler and safer than diffing by id.
+        contacts: contacts ? { deleteMany: {}, create: contacts.map((c) => ({ type: c.type, value: c.value, isPrimary: c.isPrimary ?? false })) } : undefined,
+      },
+      include: CUSTOMER_INCLUDE,
     });
     return toModel(row);
   }
