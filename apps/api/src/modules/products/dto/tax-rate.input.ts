@@ -8,6 +8,11 @@ export class CreateTaxRateInput {
   @IsString()
   name!: string;
 
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  code?: string;
+
   @Field(() => Float)
   @IsNumber()
   @Min(0)
@@ -22,12 +27,22 @@ export class CreateTaxRateInput {
   @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
-  region?: string;
+  country?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  state?: string;
 
   @Field(() => Boolean, { nullable: true })
   @IsOptional()
   @IsBoolean()
   isDefault?: boolean;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
 }
 
 @InputType()
@@ -36,6 +51,11 @@ export class UpdateTaxRateInput {
   @IsOptional()
   @IsString()
   name?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  code?: string;
 
   @Field(() => Float, { nullable: true })
   @IsOptional()
@@ -52,10 +72,20 @@ export class UpdateTaxRateInput {
   @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
-  region?: string;
+  country?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  state?: string;
 
   @Field(() => Boolean, { nullable: true })
   @IsOptional()
   @IsBoolean()
   isDefault?: boolean;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
 }

@@ -11,6 +11,9 @@ export class TaxRateModel {
   @Field(() => String)
   name!: string;
 
+  @Field(() => String, { nullable: true })
+  code?: string | null;
+
   @Field(() => Float)
   rate!: number;
 
@@ -18,11 +21,20 @@ export class TaxRateModel {
   taxType!: TaxType;
 
   @Field(() => String, { nullable: true })
-  region?: string | null;
+  country?: string | null;
+
+  @Field(() => String, { nullable: true })
+  state?: string | null;
 
   @Field(() => Boolean)
   isDefault!: boolean;
 
+  @Field(() => Boolean)
+  active!: boolean;
+
   @Field(() => Date)
   createdAt!: Date;
+
+  @Field(() => Date)
+  updatedAt!: Date;
 }

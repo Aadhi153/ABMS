@@ -45,9 +45,11 @@ const TAX_TYPES = [
 
 const EMPTY_FORM = {
   name: "",
+  code: "",
   rate: "",
   taxType: "OTHER" as (typeof TAX_TYPES)[number]["value"],
-  region: "",
+  country: "",
+  state: "",
   isDefault: false,
 };
 
@@ -84,9 +86,11 @@ export default function NewTaxRatePage() {
         variables: {
           input: {
             name: form.name,
+            code: form.code || undefined,
             rate: Number(form.rate),
             taxType: form.taxType,
-            region: form.region || undefined,
+            country: form.country || undefined,
+            state: form.state || undefined,
             isDefault: form.isDefault,
           },
         },
@@ -188,13 +192,37 @@ export default function NewTaxRatePage() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="tax-region">Region</Label>
+                <Label htmlFor="tax-code">Tax code</Label>
                 <Input
-                  id="tax-region"
-                  placeholder="e.g. California, Ontario"
-                  value={form.region}
+                  id="tax-code"
+                  placeholder="e.g. GST12"
+                  value={form.code}
                   onChange={(e) =>
-                    setForm((f) => ({ ...f, region: e.target.value }))
+                    setForm((f) => ({ ...f, code: e.target.value }))
+                  }
+                  className={FOCUS_GLOW}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="tax-country">Country</Label>
+                <Input
+                  id="tax-country"
+                  placeholder="e.g. India"
+                  value={form.country}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, country: e.target.value }))
+                  }
+                  className={FOCUS_GLOW}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="tax-state">State</Label>
+                <Input
+                  id="tax-state"
+                  placeholder="e.g. Tamil Nadu"
+                  value={form.state}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, state: e.target.value }))
                   }
                   className={FOCUS_GLOW}
                 />
