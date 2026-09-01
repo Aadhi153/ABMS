@@ -24,10 +24,22 @@ export class PriceListModel {
   name!: string;
 
   @Field(() => String, { nullable: true })
+  code?: string | null;
+
+  @Field(() => String, { nullable: true })
   description?: string | null;
 
   @Field(() => String)
   currency!: string;
+
+  @Field(() => String, { nullable: true })
+  zone?: string | null;
+
+  @Field(() => Boolean)
+  priceSyncEnabled!: boolean;
+
+  @Field(() => Boolean)
+  productsAutoSyncEnabled!: boolean;
 
   @Field(() => Date, { nullable: true })
   startDate?: Date | null;
@@ -38,9 +50,15 @@ export class PriceListModel {
   @Field(() => Boolean)
   isDefault!: boolean;
 
+  @Field(() => Boolean)
+  active!: boolean;
+
   @Field(() => [PriceListItemModel])
   items!: PriceListItemModel[];
 
   @Field(() => Date)
   createdAt!: Date;
+
+  @Field(() => Date)
+  updatedAt!: Date;
 }

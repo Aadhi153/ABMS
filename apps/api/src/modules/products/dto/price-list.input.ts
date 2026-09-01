@@ -10,12 +10,32 @@ export class CreatePriceListInput {
   @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
+  code?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
   description?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   currency?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  zone?: string;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  priceSyncEnabled?: boolean;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  productsAutoSyncEnabled?: boolean;
 
   @Field(() => Date, { nullable: true })
   @IsOptional()
@@ -31,6 +51,11 @@ export class CreatePriceListInput {
   @IsOptional()
   @IsBoolean()
   isDefault?: boolean;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
 }
 
 @InputType()
@@ -43,12 +68,32 @@ export class UpdatePriceListInput {
   @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
+  code?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
   description?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   currency?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  zone?: string;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  priceSyncEnabled?: boolean;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  productsAutoSyncEnabled?: boolean;
 
   @Field(() => Date, { nullable: true })
   @IsOptional()
@@ -64,6 +109,11 @@ export class UpdatePriceListInput {
   @IsOptional()
   @IsBoolean()
   isDefault?: boolean;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
 }
 
 @InputType()
