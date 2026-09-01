@@ -44,6 +44,15 @@ export class DiscountModel {
   @Field(() => Int, { nullable: true })
   usageLimit?: number | null;
 
+  @Field(() => Int)
+  usageCount!: number;
+
+  @Field(() => Float, { nullable: true })
+  minPurchaseAmount?: number | null;
+
+  @Field(() => Int, { nullable: true })
+  minQuantity?: number | null;
+
   @Field(() => String, { nullable: true })
   couponCode?: string | null;
 
@@ -52,4 +61,7 @@ export class DiscountModel {
 
   @Field(() => Date)
   createdAt!: Date;
+
+  @Field(() => Date)
+  updatedAt!: Date;
 }

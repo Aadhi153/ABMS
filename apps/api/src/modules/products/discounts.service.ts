@@ -4,8 +4,12 @@ import type { CreateDiscountInput, UpdateDiscountInput } from "./dto/discount.in
 
 const DISCOUNT_INCLUDE = { category: true, brand: true } as const;
 
-function toModel<T extends { value: unknown }>(row: T) {
-  return { ...row, value: Number(row.value) };
+function toModel<T extends { value: unknown; minPurchaseAmount: unknown }>(row: T) {
+  return {
+    ...row,
+    value: Number(row.value),
+    minPurchaseAmount: row.minPurchaseAmount == null ? null : Number(row.minPurchaseAmount),
+  };
 }
 
 @Injectable()
