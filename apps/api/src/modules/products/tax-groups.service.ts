@@ -5,7 +5,9 @@ import type { CreateTaxGroupInput, UpdateTaxGroupInput } from "./dto/tax-group.i
 const TAX_GROUP_INCLUDE = { taxRates: true } as const;
 
 function toModel<T extends { taxRates: Array<{ rate: unknown }> }>(row: T) {
-  return { ...row, taxRates: row.taxRates.map((r) => ({ ...r, rate: Number(r.rate) })) };
+  const taxRates = row.taxRates.map((r) => ({ ...r, rate: Number(r.rate) }));
+  const totalRate = taxRates.reduce((sum, r) => sum + r.rate, 0);
+  return { ...row, taxRates, totalRate };
 }
 
 @Injectable()
@@ -26,6 +28,8 @@ export class TaxGroupsService {
     const row = await this.prisma.taxGroup.create({
       data: {
         name: input.name,
+        code: input.code,
+        active: input.active,
         organizationId,
         taxRates: { connect: input.taxRateIds.map((id) => ({ id })) },
       },
@@ -41,6 +45,8 @@ export class TaxGroupsService {
       where: { id },
       data: {
         name: input.name,
+        code: input.code,
+        active: input.active,
         ...(input.taxRateIds ? { taxRates: { set: input.taxRateIds.map((id) => ({ id })) } } : {}),
       },
       include: TAX_GROUP_INCLUDE,
