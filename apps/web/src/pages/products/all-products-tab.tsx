@@ -2,7 +2,6 @@ import { useMemo, useState, type FormEvent } from "react";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import {
   CheckCircle2,
-  History,
   Package,
   Plus,
   Search,
@@ -22,7 +21,6 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import {
-  Badge,
   Button,
   Card,
   CardContent,
@@ -131,23 +129,6 @@ const PRODUCTS_QUERY = gql`
   }
 `;
 
-const STOCK_HISTORY_QUERY = gql`
-  query ProductStockHistory($productId: String!) {
-    productStockHistory(productId: $productId) {
-      id
-      type
-      quantity
-      reason
-      createdByName
-      createdAt
-      warehouse {
-        id
-        name
-      }
-    }
-  }
-`;
-
 const UPDATE_PRODUCT_MUTATION = gql`
   mutation UpdateProduct($id: String!, $input: UpdateProductInput!) {
     updateProduct(id: $id, input: $input) {
@@ -164,7 +145,6 @@ export default function AllProductsTab() {
   const [updateProduct] = useMutation(UPDATE_PRODUCT_MUTATION);
 
   const [editing, setEditing] = useState<Product | null>(null);
-  const [detail, setDetail] = useState<Product | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -297,7 +277,6 @@ export default function AllProductsTab() {
     try {
       await updateProduct({ variables: { id: p.id, input: { active: !p.active } } });
       toast.success(`${p.name} ${p.active ? "archived" : "reactivated"}`);
-      setDetail(null);
       await refetch();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update product");
@@ -555,7 +534,7 @@ export default function AllProductsTab() {
                         <tr
                           key={p.id}
                           className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors cursor-pointer animate-in fade-in slide-in-from-top-1 duration-150 ease-out motion-reduce:animate-none"
-                          onClick={() => setDetail(p)}
+                          onClick={() => goWithExit(`/products/view/${p.id}`)}
                         >
                           <td className="px-4 py-2.5">
                             <div className="font-medium text-foreground">{p.name}</div>
@@ -608,7 +587,7 @@ export default function AllProductsTab() {
                                   <Pencil className="h-3.5 w-3.5" />
                                   Edit
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setDetail(p)}>
+                                <DropdownMenuItem onClick={() => goWithExit(`/products/view/${p.id}`)}>
                                   <Package className="h-3.5 w-3.5" />
                                   View Details
                                 </DropdownMenuItem>
@@ -783,18 +762,6 @@ export default function AllProductsTab() {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Product Detail Dialog ── */}
-      <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
-        <DialogContent className={cn(DIALOG_CONTENT_MOTION, "max-w-lg")} overlayClassName={DIALOG_OVERLAY_MOTION}>
-          {detail && (
-            <ProductDetail
-              product={detail}
-              onArchiveToggle={() => handleArchiveToggle(detail)}
-            />
-          )}
         </DialogContent>
       </Dialog>
 
@@ -1003,95 +970,6 @@ export default function AllProductsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-function ProductDetail({ product, onArchiveToggle }: { product: Product; onArchiveToggle: () => void }) {
-  const { data } = useQuery<{
-    productStockHistory: Array<{
-      id: string;
-      type: string;
-      quantity: number;
-      reason: string | null;
-      createdByName: string;
-      createdAt: string;
-      warehouse: { id: string; name: string };
-    }>;
-  }>(STOCK_HISTORY_QUERY, { variables: { productId: product.id } });
-
-  return (
-    <div className="space-y-4">
-      <DialogHeader>
-        <DialogTitle>{product.name}</DialogTitle>
-      </DialogHeader>
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        <div>
-          <p className="text-muted-foreground">SKU</p>
-          <p className="font-mono">{product.sku}</p>
-        </div>
-        <div>
-          <p className="text-muted-foreground">Category / Brand</p>
-          <p>
-            {product.category?.name || "—"} / {product.brand?.name || "—"}
-          </p>
-        </div>
-        <div>
-          <p className="text-muted-foreground">Cost / Sell price</p>
-          <p>
-            ₹{product.costPrice.toFixed(2)} / ₹{product.sellPrice.toFixed(2)}
-          </p>
-        </div>
-        <div>
-          <p className="text-muted-foreground">Total stock</p>
-          {product.trackInventory ? (
-            <p>
-              {product.totalStock}{" "}
-              {product.totalStock <= product.reorderThreshold && <Badge tone="danger">Low</Badge>}
-            </p>
-          ) : (
-            <p>
-              <Badge tone="info">Not tracked</Badge>
-            </p>
-          )}
-        </div>
-      </div>
-      <div>
-        <p className="mb-1.5 text-sm font-medium">Stock by warehouse</p>
-        <table className="w-full text-sm">
-          <tbody>
-            {product.stockLevels.map((sl) => (
-              <tr key={sl.id} className="border-b border-border last:border-0">
-                <td className="py-1.5">{sl.warehouse.name}</td>
-                <td className="py-1.5 text-right">{sl.quantity}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div>
-        <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium">
-          <History className="h-3.5 w-3.5" />
-          Stock history
-        </p>
-        <div className="max-h-40 space-y-1.5 overflow-y-auto text-xs">
-          {data?.productStockHistory.length === 0 && <p className="text-muted-foreground">No movements yet.</p>}
-          {data?.productStockHistory.map((h) => (
-            <div key={h.id} className="flex items-center justify-between border-b border-border pb-1 last:border-0">
-              <span>
-                {h.quantity > 0 ? "+" : ""}
-                {h.quantity} · {h.warehouse.name} · {h.reason || h.type}
-              </span>
-              <span className="text-muted-foreground">{h.createdByName}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-      <DialogFooter>
-        <Button variant="outline" onClick={onArchiveToggle} className={BUTTON_PRESS}>
-          {product.active ? "Archive" : "Reactivate"}
-        </Button>
-      </DialogFooter>
     </div>
   );
 }
