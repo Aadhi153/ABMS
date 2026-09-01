@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { Factory, Plus, Trash2 } from "lucide-react";
 import {
@@ -14,18 +15,18 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input,
-  Label,
   StatusBadge,
   toast,
 } from "@abms/ui";
 
 interface Supplier {
   id: string;
+  code: string;
   name: string;
   email: string | null;
   phone: string | null;
   paymentTerms: string | null;
+  active: boolean;
   orderCount: number;
   createdAt: string;
 }
@@ -42,10 +43,12 @@ const SUPPLIERS_QUERY = gql`
   query Suppliers {
     suppliers {
       id
+      code
       name
       email
       phone
       paymentTerms
+      active
       orderCount
       createdAt
     }
@@ -64,80 +67,20 @@ const SUPPLIER_PURCHASES_QUERY = gql`
   }
 `;
 
-const CREATE_SUPPLIER = gql`
-  mutation CreateSupplier($input: CreateSupplierInput!) {
-    createSupplier(input: $input) {
-      id
-    }
-  }
-`;
-
-const UPDATE_SUPPLIER = gql`
-  mutation UpdateSupplier($id: String!, $input: UpdateSupplierInput!) {
-    updateSupplier(id: $id, input: $input) {
-      id
-    }
-  }
-`;
-
 const DELETE_SUPPLIER = gql`
   mutation DeleteSupplier($id: String!) {
     deleteSupplier(id: $id)
   }
 `;
 
-const emptyForm = { name: "", email: "", phone: "", paymentTerms: "" };
-
 export default function SuppliersPage() {
+  const navigate = useNavigate();
   const { data, loading, refetch } = useQuery<{ suppliers: Supplier[] }>(SUPPLIERS_QUERY);
-  const [createSupplier] = useMutation(CREATE_SUPPLIER);
-  const [updateSupplier] = useMutation(UPDATE_SUPPLIER);
   const [deleteSupplier] = useMutation(DELETE_SUPPLIER);
 
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<Supplier | null>(null);
   const [detail, setDetail] = useState<Supplier | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Supplier | null>(null);
-  const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
-
-  function openCreate() {
-    setEditing(null);
-    setForm(emptyForm);
-    setFormOpen(true);
-  }
-
-  function openEdit(s: Supplier) {
-    setEditing(s);
-    setForm({ name: s.name, email: s.email ?? "", phone: s.phone ?? "", paymentTerms: s.paymentTerms ?? "" });
-    setFormOpen(true);
-  }
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    const input = {
-      name: form.name,
-      email: form.email || undefined,
-      phone: form.phone || undefined,
-      paymentTerms: form.paymentTerms || undefined,
-    };
-    try {
-      if (editing) {
-        await updateSupplier({ variables: { id: editing.id, input } });
-        toast.success(`${form.name} updated`);
-      } else {
-        await createSupplier({ variables: { input } });
-        toast.success(`${form.name} added`);
-      }
-      setFormOpen(false);
-      await refetch();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save supplier");
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   async function handleDelete() {
     if (!deleteTarget) return;
@@ -164,7 +107,7 @@ export default function SuppliersPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Suppliers</h1>
           <p className="text-sm text-muted-foreground">Supplier directory referenced by Purchase orders and bills.</p>
         </div>
-        <Button size="sm" onClick={openCreate}>
+        <Button size="sm" onClick={() => navigate("/suppliers/new")}>
           <Plus className="h-4 w-4" />
           New Supplier
         </Button>
@@ -179,16 +122,18 @@ export default function SuppliersPage() {
           {loading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : suppliers.length === 0 ? (
-            <EmptyState onAdd={openCreate} />
+            <EmptyState onAdd={() => navigate("/suppliers/new")} />
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-muted-foreground">
+                  <th className="py-2 font-medium">Code</th>
                   <th className="py-2 font-medium">Name</th>
                   <th className="py-2 font-medium">Email</th>
                   <th className="py-2 font-medium">Phone</th>
                   <th className="py-2 font-medium">Payment terms</th>
                   <th className="py-2 font-medium">Orders</th>
+                  <th className="py-2 font-medium">Status</th>
                   <th className="py-2 font-medium text-right">Actions</th>
                 </tr>
               </thead>
@@ -199,6 +144,7 @@ export default function SuppliersPage() {
                     className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/50"
                     onClick={() => setDetail(s)}
                   >
+                    <td className="py-2 font-mono text-xs text-muted-foreground">{s.code}</td>
                     <td className="py-2 font-medium">{s.name}</td>
                     <td className="py-2 text-muted-foreground">{s.email || "—"}</td>
                     <td className="py-2 text-muted-foreground">{s.phone || "—"}</td>
@@ -206,8 +152,11 @@ export default function SuppliersPage() {
                     <td className="py-2">
                       <Badge tone={s.orderCount > 0 ? "info" : "muted"}>{s.orderCount}</Badge>
                     </td>
+                    <td className="py-2">
+                      <Badge tone={s.active ? "success" : "muted"}>{s.active ? "Active" : "Inactive"}</Badge>
+                    </td>
                     <td className="py-2 text-right" onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(s)}>
+                      <Button variant="ghost" size="sm" onClick={() => navigate(`/suppliers/edit/${s.id}`)}>
                         Edit
                       </Button>
                       <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(s)}>
@@ -222,53 +171,13 @@ export default function SuppliersPage() {
         </CardContent>
       </Card>
 
-      {/* Create / Edit dialog */}
-      <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit supplier" : "New supplier"}</DialogTitle>
-          </DialogHeader>
-          <form className="grid gap-4 sm:grid-cols-2" onSubmit={handleSubmit}>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="s-name">Name</Label>
-              <Input id="s-name" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="s-email">Email</Label>
-              <Input id="s-email" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="s-phone">Phone</Label>
-              <Input id="s-phone" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="s-terms">Payment terms</Label>
-              <Input
-                id="s-terms"
-                placeholder="e.g. Net 45"
-                value={form.paymentTerms}
-                onChange={(e) => setForm((f) => ({ ...f, paymentTerms: e.target.value }))}
-              />
-            </div>
-            <DialogFooter className="sm:col-span-2">
-              <Button type="submit" disabled={submitting}>
-                {submitting ? "Saving…" : editing ? "Save changes" : "Create supplier"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
       {/* Detail panel */}
       <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
         <DialogContent className="max-w-lg">
           {detail && (
             <SupplierDetail
               supplier={detail}
-              onEdit={() => {
-                openEdit(detail);
-                setDetail(null);
-              }}
+              onEdit={() => navigate(`/suppliers/edit/${detail.id}`)}
               onDelete={() => setDeleteTarget(detail)}
             />
           )}
@@ -306,9 +215,16 @@ function SupplierDetail({ supplier, onEdit, onDelete }: { supplier: Supplier; on
   return (
     <div className="space-y-4">
       <DialogHeader>
-        <DialogTitle>{supplier.name}</DialogTitle>
+        <DialogTitle className="flex items-center gap-2">
+          {supplier.name}
+          <Badge tone={supplier.active ? "success" : "muted"}>{supplier.active ? "Active" : "Inactive"}</Badge>
+        </DialogTitle>
       </DialogHeader>
       <div className="grid grid-cols-2 gap-3 text-sm">
+        <div>
+          <p className="text-muted-foreground">Code</p>
+          <p className="font-mono text-xs">{supplier.code}</p>
+        </div>
         <div>
           <p className="text-muted-foreground">Email</p>
           <p>{supplier.email || "—"}</p>
@@ -317,7 +233,7 @@ function SupplierDetail({ supplier, onEdit, onDelete }: { supplier: Supplier; on
           <p className="text-muted-foreground">Phone</p>
           <p>{supplier.phone || "—"}</p>
         </div>
-        <div className="col-span-2">
+        <div>
           <p className="text-muted-foreground">Payment terms</p>
           <p>{supplier.paymentTerms || "—"}</p>
         </div>
