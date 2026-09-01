@@ -1,4 +1,4 @@
-import { Field, ObjectType } from "@nestjs/graphql";
+import { Field, Int, ObjectType } from "@nestjs/graphql";
 
 @ObjectType()
 export class BrandModel {
@@ -22,6 +22,9 @@ export class BrandModel {
 
   @Field(() => Boolean)
   active!: boolean;
+
+  @Field(() => Int)
+  productsCount!: number;
 
   @Field(() => Date)
   createdAt!: Date;

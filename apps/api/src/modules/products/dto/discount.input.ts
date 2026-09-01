@@ -48,6 +48,18 @@ export class CreateDiscountInput {
   @Min(1)
   usageLimit?: number;
 
+  @Field(() => Float, { nullable: true })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  minPurchaseAmount?: number;
+
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  minQuantity?: number;
+
   @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
@@ -102,6 +114,18 @@ export class UpdateDiscountInput {
   @IsInt()
   @Min(1)
   usageLimit?: number;
+
+  @Field(() => Float, { nullable: true })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  minPurchaseAmount?: number;
+
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  minQuantity?: number;
 
   @Field(() => String, { nullable: true })
   @IsOptional()

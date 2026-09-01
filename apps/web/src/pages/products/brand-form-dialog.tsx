@@ -6,6 +6,7 @@ import { ImageDropzone } from "./image-dropzone";
 
 export interface BrandFormValues {
   name: string;
+  code: string;
   description: string;
   logoUrl: string;
   active: boolean;
@@ -14,12 +15,13 @@ export interface BrandFormValues {
 export interface BrandFormBrand {
   id: string;
   name: string;
+  code: string | null;
   description: string | null;
   logoUrl: string | null;
   active: boolean;
 }
 
-const EMPTY_FORM: BrandFormValues = { name: "", description: "", logoUrl: "", active: true };
+const EMPTY_FORM: BrandFormValues = { name: "", code: "", description: "", logoUrl: "", active: true };
 const SUCCESS_DISPLAY_MS = 700;
 
 interface BrandFormDialogProps {
@@ -39,7 +41,7 @@ export function BrandFormDialog({ open, onOpenChange, brand, onSave }: BrandForm
     if (!open) return;
     setForm(
       brand
-        ? { name: brand.name, description: brand.description ?? "", logoUrl: brand.logoUrl ?? "", active: brand.active }
+        ? { name: brand.name, code: brand.code ?? "", description: brand.description ?? "", logoUrl: brand.logoUrl ?? "", active: brand.active }
         : EMPTY_FORM,
     );
     setSuccess(false);
@@ -80,6 +82,16 @@ export function BrandFormDialog({ open, onOpenChange, brand, onSave }: BrandForm
               required
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              className={FOCUS_GLOW}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="brand-code">Code</Label>
+            <Input
+              id="brand-code"
+              placeholder="Optional short code"
+              value={form.code}
+              onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))}
               className={FOCUS_GLOW}
             />
           </div>
