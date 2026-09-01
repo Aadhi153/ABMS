@@ -15,7 +15,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   Input,
   Label,
   Select,
@@ -237,16 +236,6 @@ const PENDING_INVITES_QUERY = gql`
   }
 `;
 
-const INVITE_USER_MUTATION = gql`
-  mutation InviteUser($input: InviteUserInput!) {
-    inviteUser(input: $input) {
-      id
-      email
-      role
-    }
-  }
-`;
-
 const RESEND_INVITE_MUTATION = gql`
   mutation ResendInvite($id: String!) {
     resendInvite(id: $id) {
@@ -280,33 +269,14 @@ interface InviteRow {
 }
 
 function UsersTab() {
+  const navigate = useNavigate();
   const { data, loading, refetch } = useQuery<{ users: UserRow[] }>(USERS_QUERY);
   const { data: inviteData, loading: invitesLoading, refetch: refetchInvites } =
     useQuery<{ pendingInvites: InviteRow[] }>(PENDING_INVITES_QUERY);
-  const [inviteUser] = useMutation(INVITE_USER_MUTATION);
   const [resendInvite] = useMutation(RESEND_INVITE_MUTATION);
   const [revokeInvite] = useMutation(REVOKE_INVITE_MUTATION);
   const [updateUser] = useMutation(UPDATE_USER_MUTATION);
-  const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<UserRow | null>(null);
-  const [form, setForm] = useState({ email: "", role: Role.SALES });
-  const [submitting, setSubmitting] = useState(false);
-
-  async function handleInvite(e: FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      await inviteUser({ variables: { input: form } });
-      toast.success(`Invite sent to ${form.email}`);
-      setOpen(false);
-      setForm({ email: "", role: Role.SALES });
-      await refetchInvites();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to send invite");
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   async function handleResendInvite(invite: InviteRow) {
     try {
@@ -358,57 +328,16 @@ function UsersTab() {
           <CardTitle>Users & Teams</CardTitle>
           <CardDescription>Invite teammates by email — they set their own password.</CardDescription>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm">
-              <Plus className="h-4 w-4" />
-              Invite User
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Invite user</DialogTitle>
-            </DialogHeader>
-            <form className="space-y-4" onSubmit={handleInvite}>
-              <div className="space-y-1.5">
-                <Label htmlFor="invite-email">Email</Label>
-                <Input
-                  id="invite-email"
-                  type="email"
-                  required
-                  value={form.email}
-                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Role</Label>
-                <Select value={form.role} onValueChange={(role) => setForm((f) => ({ ...f, role: role as Role }))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ALL_ROLES.map((role) => (
-                      <SelectItem key={role} value={role}>
-                        {ROLE_LABELS[role]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <DialogFooter>
-                <Button type="submit" disabled={submitting}>
-                  {submitting ? "Sending…" : "Send invite"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <Button size="sm" onClick={() => navigate("/settings/users/invite")}>
+          <Plus className="h-4 w-4" />
+          Invite User
+        </Button>
       </CardHeader>
       <CardContent>
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : data?.users.length === 0 ? (
-          <EmptyState label="user" onAdd={() => setOpen(true)} />
+          <EmptyState label="user" onAdd={() => navigate("/settings/users/invite")} />
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -593,14 +522,6 @@ const WAREHOUSES_QUERY = gql`
   }
 `;
 
-const CREATE_WAREHOUSE_MUTATION = gql`
-  mutation CreateWarehouse($input: CreateWarehouseInput!) {
-    createWarehouse(input: $input) {
-      id
-    }
-  }
-`;
-
 const UPDATE_WAREHOUSE_MUTATION = gql`
   mutation UpdateWarehouse($id: String!, $input: UpdateWarehouseInput!) {
     updateWarehouse(id: $id, input: $input) {
@@ -617,19 +538,13 @@ interface WarehouseRow {
 }
 
 function WarehousesTab() {
+  const navigate = useNavigate();
   const { data, loading, refetch } = useQuery<{ warehouses: WarehouseRow[] }>(WAREHOUSES_QUERY);
-  const [createWarehouse] = useMutation(CREATE_WAREHOUSE_MUTATION);
   const [updateWarehouse] = useMutation(UPDATE_WAREHOUSE_MUTATION);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<WarehouseRow | null>(null);
   const [form, setForm] = useState({ name: "", address: "" });
   const [submitting, setSubmitting] = useState(false);
-
-  function openCreate() {
-    setEditing(null);
-    setForm({ name: "", address: "" });
-    setOpen(true);
-  }
 
   function openEdit(w: WarehouseRow) {
     setEditing(w);
@@ -639,15 +554,11 @@ function WarehousesTab() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!editing) return;
     setSubmitting(true);
     try {
-      if (editing) {
-        await updateWarehouse({ variables: { id: editing.id, input: form } });
-        toast.success(`${form.name} updated`);
-      } else {
-        await createWarehouse({ variables: { input: form } });
-        toast.success(`${form.name} added`);
-      }
+      await updateWarehouse({ variables: { id: editing.id, input: form } });
+      toast.success(`${form.name} updated`);
       setOpen(false);
       await refetch();
     } catch (err) {
@@ -674,7 +585,7 @@ function WarehousesTab() {
           <CardTitle>Warehouses</CardTitle>
           <CardDescription>Physical or virtual stock locations used across Inventory, Sales, and Purchase.</CardDescription>
         </div>
-        <Button size="sm" onClick={openCreate}>
+        <Button size="sm" onClick={() => navigate("/settings/warehouses/new")}>
           <Plus className="h-4 w-4" />
           New Warehouse
         </Button>
@@ -683,7 +594,7 @@ function WarehousesTab() {
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : data?.warehouses.length === 0 ? (
-          <EmptyState label="warehouse" onAdd={openCreate} />
+          <EmptyState label="warehouse" onAdd={() => navigate("/settings/warehouses/new")} />
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -719,7 +630,7 @@ function WarehousesTab() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit warehouse" : "New warehouse"}</DialogTitle>
+            <DialogTitle>Edit warehouse</DialogTitle>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-1.5">
@@ -732,7 +643,7 @@ function WarehousesTab() {
             </div>
             <DialogFooter>
               <Button type="submit" disabled={submitting}>
-                {submitting ? "Saving…" : editing ? "Save changes" : "Create warehouse"}
+                {submitting ? "Saving…" : "Save changes"}
               </Button>
             </DialogFooter>
           </form>

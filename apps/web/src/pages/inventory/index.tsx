@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { gql, useMutation, useQuery } from "@apollo/client";
+import { gql, useQuery } from "@apollo/client";
 import {
   AlertTriangle,
   ArrowLeftRight,
@@ -25,17 +25,11 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   Input,
-  Label,
   Select,
   SelectContent,
   SelectItem,
@@ -177,22 +171,6 @@ const STOCK_TRANSFERS_QUERY = gql`
   }
 `;
 
-const ADJUST_STOCK_MUTATION = gql`
-  mutation AdjustStock($input: StockAdjustmentInput!) {
-    adjustStock(input: $input) {
-      id
-    }
-  }
-`;
-
-const TRANSFER_STOCK_MUTATION = gql`
-  mutation TransferStock($input: TransferStockInput!) {
-    transferStock(input: $input) {
-      id
-    }
-  }
-`;
-
 export default function InventoryPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -206,10 +184,6 @@ export default function InventoryPage() {
   }, [segment, tab, navigate]);
 
   const { data, loading, refetch } = useQuery<{ products: Product[]; warehouses: Warehouse[] }>(PRODUCTS_QUERY);
-  const [adjustStock] = useMutation(ADJUST_STOCK_MUTATION);
-  const [quickAdjustOpen, setQuickAdjustOpen] = useState(false);
-  const [transferOpen, setTransferOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
 
   const products = data?.products ?? [];
   const warehouses = data?.warehouses ?? [];
@@ -223,13 +197,13 @@ export default function InventoryPage() {
           <p className="text-sm text-muted-foreground">Stock levels, movements, adjustments, alerts, and transfers across warehouses.</p>
         </div>
         {tab === "adjustments" && (
-          <Button size="sm" onClick={() => setQuickAdjustOpen(true)}>
+          <Button size="sm" onClick={() => navigate("/inventory/adjustments/new")}>
             <Plus className="h-4 w-4" />
             New Adjustment
           </Button>
         )}
         {tab === "transfers" && (
-          <Button size="sm" onClick={() => setTransferOpen(true)}>
+          <Button size="sm" onClick={() => navigate("/inventory/transfers/new")}>
             <Plus className="h-4 w-4" />
             New Transfer
           </Button>
@@ -241,40 +215,9 @@ export default function InventoryPage() {
         <StockByWarehouseTab products={products} warehouses={warehouses} loading={loading} onRefresh={refetch} />
       )}
       {tab === "movements" && <StockMovementsTab products={products} warehouses={warehouses} />}
-      {tab === "adjustments" && <StockAdjustmentsTab onNewAdjustment={() => setQuickAdjustOpen(true)} />}
+      {tab === "adjustments" && <StockAdjustmentsTab onNewAdjustment={() => navigate("/inventory/adjustments/new")} />}
       {tab === "alerts" && <LowStockTab />}
-      {tab === "transfers" && <StockTransfersTab onNewTransfer={() => setTransferOpen(true)} />}
-
-      <Dialog open={quickAdjustOpen} onOpenChange={setQuickAdjustOpen}>
-        <DialogContent>
-          {quickAdjustOpen && (
-            <QuickAdjustForm
-              products={products}
-              warehouses={warehouses}
-              submitting={submitting}
-              onSubmit={async (productId, warehouseId, quantity, reason) => {
-                setSubmitting(true);
-                try {
-                  await adjustStock({ variables: { input: { productId, warehouseId, quantity, reason } } });
-                  toast.success("Stock adjusted");
-                  setQuickAdjustOpen(false);
-                  await refetch();
-                } catch (err) {
-                  toast.error(err instanceof Error ? err.message : "Failed to adjust stock");
-                } finally {
-                  setSubmitting(false);
-                }
-              }}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
-        <DialogContent>
-          {transferOpen && <TransferForm products={products} warehouses={warehouses} onClose={() => setTransferOpen(false)} onSaved={refetch} />}
-        </DialogContent>
-      </Dialog>
+      {tab === "transfers" && <StockTransfersTab onNewTransfer={() => navigate("/inventory/transfers/new")} />}
     </div>
   );
 }
@@ -975,87 +918,6 @@ function StockAdjustmentsTab({ onNewAdjustment }: { onNewAdjustment: () => void 
   );
 }
 
-function QuickAdjustForm({
-  products,
-  warehouses,
-  onSubmit,
-  submitting,
-}: {
-  products: Product[];
-  warehouses: Warehouse[];
-  onSubmit: (productId: string, warehouseId: string, quantity: number, reason: string) => void;
-  submitting: boolean;
-}) {
-  const [productId, setProductId] = useState("");
-  const [warehouseId, setWarehouseId] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [reason, setReason] = useState("");
-
-  return (
-    <form
-      className="space-y-4"
-      onSubmit={(e: FormEvent) => {
-        e.preventDefault();
-        if (!productId || !warehouseId || !quantity || !reason) return;
-        onSubmit(productId, warehouseId, Number(quantity), reason);
-      }}
-    >
-      <DialogHeader>
-        <DialogTitle>New stock adjustment</DialogTitle>
-      </DialogHeader>
-      <div className="space-y-1.5">
-        <Label>Product</Label>
-        <Select value={productId} onValueChange={setProductId}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select product" />
-          </SelectTrigger>
-          <SelectContent>
-            {products.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name} ({p.sku})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-1.5">
-        <Label>Warehouse</Label>
-        <Select value={warehouseId} onValueChange={setWarehouseId}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select warehouse" />
-          </SelectTrigger>
-          <SelectContent>
-            {warehouses.map((w) => (
-              <SelectItem key={w.id} value={w.id}>
-                {w.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="qa-qty">Quantity (use negative to remove)</Label>
-        <Input id="qa-qty" type="number" required value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="qa-reason">Reason</Label>
-        <Input
-          id="qa-reason"
-          required
-          placeholder="e.g. Cycle count correction, damaged stock"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-        />
-      </div>
-      <DialogFooter>
-        <Button type="submit" disabled={submitting || !productId || !warehouseId}>
-          {submitting ? "Saving…" : "Apply adjustment"}
-        </Button>
-      </DialogFooter>
-    </form>
-  );
-}
-
 function StockTransfersTab({ onNewTransfer }: { onNewTransfer: () => void }) {
   const { data, loading } = useQuery<{
     stockTransfers: Array<{
@@ -1118,121 +980,6 @@ function StockTransfersTab({ onNewTransfer }: { onNewTransfer: () => void }) {
         )}
       </CardContent>
     </Card>
-  );
-}
-
-function TransferForm({
-  products,
-  warehouses,
-  onClose,
-  onSaved,
-}: {
-  products: Product[];
-  warehouses: Warehouse[];
-  onClose: () => void;
-  onSaved: () => Promise<unknown>;
-}) {
-  const [transferStock] = useMutation(TRANSFER_STOCK_MUTATION);
-  const [productId, setProductId] = useState("");
-  const [fromWarehouseId, setFromWarehouseId] = useState("");
-  const [toWarehouseId, setToWarehouseId] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const sameWarehouse = !!fromWarehouseId && fromWarehouseId === toWarehouseId;
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!productId || !fromWarehouseId || !toWarehouseId || !quantity || !reason || sameWarehouse) return;
-    setBusy(true);
-    try {
-      await transferStock({
-        variables: { input: { productId, fromWarehouseId, toWarehouseId, quantity: Number(quantity), reason } },
-      });
-      toast.success("Stock transferred");
-      onClose();
-      await onSaved();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to transfer stock");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form className="space-y-4" onSubmit={handleSubmit}>
-      <DialogHeader>
-        <DialogTitle>New stock transfer</DialogTitle>
-      </DialogHeader>
-      <div className="space-y-1.5">
-        <Label>Product</Label>
-        <Select value={productId} onValueChange={setProductId}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select product" />
-          </SelectTrigger>
-          <SelectContent>
-            {products.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name} ({p.sku})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label>From warehouse</Label>
-          <Select value={fromWarehouseId} onValueChange={setFromWarehouseId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Source" />
-            </SelectTrigger>
-            <SelectContent>
-              {warehouses.map((w) => (
-                <SelectItem key={w.id} value={w.id}>
-                  {w.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label>To warehouse</Label>
-          <Select value={toWarehouseId} onValueChange={setToWarehouseId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Destination" />
-            </SelectTrigger>
-            <SelectContent>
-              {warehouses.map((w) => (
-                <SelectItem key={w.id} value={w.id}>
-                  {w.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      {sameWarehouse && <p className="text-sm text-danger">Source and destination must be different.</p>}
-      <div className="space-y-1.5">
-        <Label htmlFor="tr-qty">Quantity</Label>
-        <Input id="tr-qty" type="number" min="1" required value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="tr-reason">Reason</Label>
-        <Input
-          id="tr-reason"
-          required
-          placeholder="e.g. Rebalancing stock, fulfilling regional demand"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-        />
-      </div>
-      <DialogFooter>
-        <Button type="submit" disabled={busy || !productId || !fromWarehouseId || !toWarehouseId || sameWarehouse}>
-          {busy ? "Transferring…" : "Transfer stock"}
-        </Button>
-      </DialogFooter>
-    </form>
   );
 }
 

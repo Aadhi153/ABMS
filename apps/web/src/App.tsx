@@ -17,14 +17,25 @@ import CrmPage from "./pages/crm";
 import CrmNewPage from "./pages/crm/new";
 import ProductsPage from "./pages/products";
 import InventoryPage from "./pages/inventory";
+import NewAdjustmentPage from "./pages/inventory/new-adjustment-page";
+import NewTransferPage from "./pages/inventory/new-transfer-page";
 import SalesPage from "./pages/sales";
+import NewSalesOrderPage from "./pages/sales/new-sales-order-page";
 import PurchasePage from "./pages/purchase";
+import NewPurchaseOrderPage from "./pages/purchase/new-purchase-order-page";
 import CustomersPage from "./pages/customers";
+import NewCustomerPage from "./pages/customers/new-customer-page";
+import EditCustomerPage from "./pages/customers/edit-customer-page";
 import SuppliersPage from "./pages/suppliers";
+import NewSupplierPage from "./pages/suppliers/new-supplier-page";
+import EditSupplierPage from "./pages/suppliers/edit-supplier-page";
 import AccountsPage from "./pages/accounts";
+import NewExpensePage from "./pages/accounts/new-expense-page";
 import HrmsPage from "./pages/hrms";
 import ReportsPage from "./pages/reports";
 import SettingsPage from "./pages/settings";
+import NewWarehousePage from "./pages/settings/new-warehouse-page";
+import NewUserInvitePage from "./pages/settings/new-user-invite-page";
 
 export function App() {
   return (
@@ -72,10 +83,34 @@ export function App() {
                   }
                 />
                 <Route
+                  path="/inventory/adjustments/new"
+                  element={
+                    <ModuleRoute module="inventory">
+                      <NewAdjustmentPage />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
+                  path="/inventory/transfers/new"
+                  element={
+                    <ModuleRoute module="inventory">
+                      <NewTransferPage />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
                   path="/inventory/*"
                   element={
                     <ModuleRoute module="inventory">
                       <InventoryPage />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
+                  path="/sales/new"
+                  element={
+                    <ModuleRoute module="sales">
+                      <NewSalesOrderPage />
                     </ModuleRoute>
                   }
                 />
@@ -88,10 +123,34 @@ export function App() {
                   }
                 />
                 <Route
+                  path="/purchase/new"
+                  element={
+                    <ModuleRoute module="purchase">
+                      <NewPurchaseOrderPage />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
                   path="/purchase/*"
                   element={
                     <ModuleRoute module="purchase">
                       <PurchasePage />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
+                  path="/customers/new"
+                  element={
+                    <ModuleRoute module="customers">
+                      <NewCustomerPage />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
+                  path="/customers/edit/:id"
+                  element={
+                    <ModuleRoute module="customers">
+                      <EditCustomerPage />
                     </ModuleRoute>
                   }
                 />
@@ -104,10 +163,34 @@ export function App() {
                   }
                 />
                 <Route
+                  path="/suppliers/new"
+                  element={
+                    <ModuleRoute module="suppliers">
+                      <NewSupplierPage />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
+                  path="/suppliers/edit/:id"
+                  element={
+                    <ModuleRoute module="suppliers">
+                      <EditSupplierPage />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
                   path="/suppliers/*"
                   element={
                     <ModuleRoute module="suppliers">
                       <SuppliersPage />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
+                  path="/accounts/new"
+                  element={
+                    <ModuleRoute module="accounts">
+                      <NewExpensePage />
                     </ModuleRoute>
                   }
                 />
@@ -132,6 +215,22 @@ export function App() {
                   element={
                     <ModuleRoute module="reports">
                       <ReportsPage />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
+                  path="/settings/warehouses/new"
+                  element={
+                    <ModuleRoute module="settings">
+                      <NewWarehousePage />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
+                  path="/settings/users/invite"
+                  element={
+                    <ModuleRoute module="settings">
+                      <NewUserInvitePage />
                     </ModuleRoute>
                   }
                 />
