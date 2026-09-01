@@ -104,9 +104,12 @@ export default function NewCategoryPage() {
         variables: {
           input: {
             name: form.name,
+            code: form.code || undefined,
             description: form.description || undefined,
             color: form.color || undefined,
             parentId: form.parentId || undefined,
+            active: form.active,
+            sortOrder: form.sortOrder,
           },
         },
       });

@@ -1,4 +1,4 @@
-import { Field, ObjectType } from "@nestjs/graphql";
+import { Field, Int, ObjectType } from "@nestjs/graphql";
 
 @ObjectType()
 export class CategoryModel {
@@ -7,6 +7,9 @@ export class CategoryModel {
 
   @Field(() => String)
   name!: string;
+
+  @Field(() => String, { nullable: true })
+  code?: string | null;
 
   @Field(() => String, { nullable: true })
   description?: string | null;
@@ -20,6 +23,21 @@ export class CategoryModel {
   @Field(() => CategoryModel, { nullable: true })
   parent?: CategoryModel | null;
 
+  @Field(() => Boolean)
+  active!: boolean;
+
+  @Field(() => Int)
+  sortOrder!: number;
+
+  @Field(() => Int)
+  productsCount!: number;
+
+  @Field(() => Int)
+  subcategoriesCount!: number;
+
   @Field(() => Date)
   createdAt!: Date;
+
+  @Field(() => Date)
+  updatedAt!: Date;
 }
