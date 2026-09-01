@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { BookOpen, Landmark, Plus, Receipt, Trash2, TrendingUp } from "lucide-react";
@@ -15,8 +15,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input,
-  Label,
   toast,
 } from "@abms/ui";
 
@@ -144,14 +142,6 @@ const QUERY = gql`
   }
 `;
 
-const CREATE_EXPENSE = gql`
-  mutation CreateExpense($input: CreateExpenseInput!) {
-    createExpense(input: $input) {
-      id
-    }
-  }
-`;
-
 const DELETE_EXPENSE = gql`
   mutation DeleteExpense($id: String!) {
     deleteExpense(id: $id)
@@ -188,12 +178,9 @@ export default function AccountsPage() {
   }>(QUERY);
   const [receivableDetail, setReceivableDetail] = useState<Receivable | null>(null);
   const [payableDetail, setPayableDetail] = useState<Payable | null>(null);
-  const [createExpense] = useMutation(CREATE_EXPENSE);
   const [deleteExpense] = useMutation(DELETE_EXPENSE);
 
-  const [expenseOpen, setExpenseOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
-  const [form, setForm] = useState({ category: "", amount: "", date: new Date().toISOString().slice(0, 10), notes: "" });
   const [submitting, setSubmitting] = useState(false);
 
   async function handleDeleteExpense() {
@@ -206,26 +193,6 @@ export default function AccountsPage() {
       await refetch();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to delete expense");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      await createExpense({
-        variables: {
-          input: { category: form.category, amount: Number(form.amount), date: form.date, notes: form.notes || undefined },
-        },
-      });
-      toast.success("Expense recorded");
-      setExpenseOpen(false);
-      setForm({ category: "", amount: "", date: new Date().toISOString().slice(0, 10), notes: "" });
-      await refetch();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to record expense");
     } finally {
       setSubmitting(false);
     }
@@ -245,7 +212,7 @@ export default function AccountsPage() {
           <p className="text-sm text-muted-foreground">Ledger, receivables, payables, expenses, and P&amp;L — all from real transactions.</p>
         </div>
         {tab === "expenses" && (
-          <Button size="sm" onClick={() => setExpenseOpen(true)}>
+          <Button size="sm" onClick={() => navigate("/accounts/new")}>
             <Plus className="h-4 w-4" />
             New Expense
           </Button>
@@ -411,7 +378,7 @@ export default function AccountsPage() {
               <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
                 <Receipt className="h-8 w-8 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">No expenses recorded yet.</p>
-                <Button size="sm" onClick={() => setExpenseOpen(true)}>
+                <Button size="sm" onClick={() => navigate("/accounts/new")}>
                   <Plus className="h-4 w-4" />
                   Add your first expense
                 </Button>
@@ -558,52 +525,6 @@ export default function AccountsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={expenseOpen} onOpenChange={setExpenseOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>New expense</DialogTitle>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="space-y-1.5">
-              <Label htmlFor="e-category">Category</Label>
-              <Input
-                id="e-category"
-                required
-                placeholder="e.g. Rent, Utilities, Software"
-                value={form.category}
-                onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="e-amount">Amount</Label>
-                <Input
-                  id="e-amount"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  required
-                  value={form.amount}
-                  onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="e-date">Date</Label>
-                <Input id="e-date" type="date" required value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="e-notes">Notes</Label>
-              <Input id="e-notes" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={submitting}>
-                {submitting ? "Saving…" : "Record expense"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
