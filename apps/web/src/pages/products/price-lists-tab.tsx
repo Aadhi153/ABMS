@@ -7,7 +7,6 @@ import {
   ChevronsUpDown,
   ChevronUp,
   DollarSign,
-  Eye,
   Layers,
   MoreHorizontal,
   Pencil,
@@ -44,7 +43,6 @@ import {
 } from "@abms/ui";
 import { DIALOG_CONTENT_MOTION, DIALOG_OVERLAY_MOTION } from "./dialog-motion";
 import { BUTTON_PRESS, CARD_HOVER, LIST_ENTER, LIST_EXIT, usePageTransition } from "./form-motion";
-import { PriceListFormDialog, type PriceListFormRow, type PriceListFormValues } from "./price-list-form-dialog";
 
 const PRICE_LISTS_QUERY = gql`
   query PriceLists {
@@ -123,10 +121,6 @@ interface PriceListRow {
 
 type SortKey = "name" | "code" | "currency" | "zone" | "priceSyncEnabled" | "productsAutoSyncEnabled" | "active";
 
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-}
-
 function isExpired(endDate: string | null) {
   if (!endDate) return false;
   return new Date(endDate) < new Date();
@@ -148,8 +142,6 @@ export default function PriceListsTab() {
   const [upsertItem] = useMutation(UPSERT_PRICE_LIST_ITEM_MUTATION);
 
   const [deleting, setDeleting] = useState<PriceListRow | null>(null);
-  const [editing, setEditing] = useState<PriceListFormRow | null | undefined>(undefined);
-  const [viewing, setViewing] = useState<PriceListRow | null>(null);
   const [managing, setManaging] = useState<PriceListRow | null>(null);
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
   const [savingProductId, setSavingProductId] = useState<string | null>(null);
@@ -231,26 +223,6 @@ export default function PriceListsTab() {
     } finally {
       setDeleting(null);
     }
-  }
-
-  async function handleSaveEdit(values: PriceListFormValues, id?: string) {
-    const input = {
-      name: values.name,
-      code: values.code || undefined,
-      description: values.description || undefined,
-      currency: values.currency || undefined,
-      zone: values.zone || undefined,
-      priceSyncEnabled: values.priceSyncEnabled,
-      productsAutoSyncEnabled: values.productsAutoSyncEnabled,
-      startDate: values.startDate || undefined,
-      endDate: values.endDate || undefined,
-      isDefault: values.isDefault,
-      active: values.active,
-    };
-    if (!id) return;
-    await updatePriceList({ variables: { id, input } });
-    toast.success(`${values.name} updated`);
-    await refetch();
   }
 
   async function handleToggleActive(row: PriceListRow) {
@@ -386,7 +358,11 @@ export default function PriceListsTab() {
                   </thead>
                   <tbody>
                     {paginated.map((l) => (
-                      <tr key={l.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors animate-in fade-in slide-in-from-top-1 duration-150 ease-out">
+                      <tr
+                        key={l.id}
+                        className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/40 transition-colors animate-in fade-in slide-in-from-top-1 duration-150 ease-out"
+                        onClick={() => goWithExit(`/products/pricelist/edit/${l.id}`)}
+                      >
                         <td className="px-4 py-2.5 font-medium text-foreground">{l.name}</td>
                         {visibleCols.code && (
                           <td className="px-4 py-2.5">
@@ -414,14 +390,13 @@ export default function PriceListsTab() {
                             ? <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-primary text-primary-foreground">Active</span>
                             : <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">Inactive</span>}
                         </td>
-                        <td className="px-4 py-2.5 text-center">
+                        <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground"><MoreHorizontal className="h-3.5 w-3.5" /></Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setViewing(l)}><Eye className="h-3.5 w-3.5" /> View Details</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setEditing(l)}><Pencil className="h-3.5 w-3.5" /> Edit Price List</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => goWithExit(`/products/pricelist/edit/${l.id}`)}><Pencil className="h-3.5 w-3.5" /> Edit Price List</DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => openManage(l)}><DollarSign className="h-3.5 w-3.5" /> Manage Prices</DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleToggleActive(l)}>
@@ -460,40 +435,6 @@ export default function PriceListsTab() {
           )}
         </CardContent>
       </Card>
-
-      {/* Edit Dialog */}
-      <PriceListFormDialog open={editing !== undefined} onOpenChange={(o) => !o && setEditing(undefined)} priceList={editing ?? null} onSave={handleSaveEdit} />
-
-      {/* View Details Dialog */}
-      <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
-        <DialogContent className={DIALOG_CONTENT_MOTION} overlayClassName={DIALOG_OVERLAY_MOTION}>
-          <DialogHeader><DialogTitle>Price list details</DialogTitle></DialogHeader>
-          {viewing && (
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              {[
-                ["Name", viewing.name],
-                ["Code", viewing.code || "—"],
-                ["Currency", viewing.currency],
-                ["Zone", viewing.zone || "All Zones"],
-                ["Price sync enabled", viewing.priceSyncEnabled ? "Yes" : "No"],
-                ["Products auto sync enabled", viewing.productsAutoSyncEnabled ? "Yes" : "No"],
-                ["Effective from", viewing.startDate ? formatDate(viewing.startDate) : "—"],
-                ["Effective to", viewing.endDate ? formatDate(viewing.endDate) : "—"],
-                ["Status", viewing.active ? "Active" : "Inactive"],
-                ["Default", viewing.isDefault ? "Yes" : "No"],
-                ["Items", String(viewing.items.length)],
-                ["Updated", new Date(viewing.updatedAt).toLocaleString()],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-md border border-border px-3 py-2">
-                  <p className="text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
-                  <p className="mt-1 text-sm font-medium text-foreground">{value}</p>
-                </div>
-              ))}
-            </div>
-          )}
-          <DialogFooter><Button onClick={() => setViewing(null)} className={BUTTON_PRESS}>Close</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Manage Prices Dialog */}
       <Dialog open={!!managing} onOpenChange={(o) => !o && setManaging(null)}>

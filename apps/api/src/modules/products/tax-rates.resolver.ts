@@ -24,6 +24,11 @@ export class TaxRatesResolver {
     return this.taxRatesService.findAll();
   }
 
+  @Query(() => TaxRateModel, { nullable: true })
+  taxRate(@Args("id") id: string) {
+    return this.taxRatesService.findById(id);
+  }
+
   @Mutation(() => TaxRateModel)
   @Roles(Role.ADMIN)
   async createTaxRate(@Args("input") input: CreateTaxRateInput, @CurrentUser() actor: User) {

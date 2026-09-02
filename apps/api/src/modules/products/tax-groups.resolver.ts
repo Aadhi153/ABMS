@@ -24,6 +24,11 @@ export class TaxGroupsResolver {
     return this.taxGroupsService.findAll();
   }
 
+  @Query(() => TaxGroupModel, { nullable: true })
+  taxGroup(@Args("id") id: string) {
+    return this.taxGroupsService.findById(id);
+  }
+
   @Mutation(() => TaxGroupModel)
   @Roles(Role.ADMIN)
   async createTaxGroup(@Args("input") input: CreateTaxGroupInput, @CurrentUser() actor: User) {

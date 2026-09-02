@@ -8,7 +8,6 @@ import {
   ChevronsUpDown,
   ChevronUp,
   Download,
-  Eye,
   Group,
   Landmark,
   MoreHorizontal,
@@ -49,7 +48,6 @@ import {
 } from "@abms/ui";
 import { DIALOG_CONTENT_MOTION, DIALOG_OVERLAY_MOTION } from "./dialog-motion";
 import { BUTTON_PRESS, CARD_HOVER, LIST_ENTER, LIST_EXIT, usePageTransition } from "./form-motion";
-import { TaxGroupFormDialog, type TaxGroupFormRow, type TaxGroupFormValues } from "./tax-group-form-dialog";
 
 const TAX_GROUPS_QUERY = gql`
   query TaxGroups {
@@ -119,8 +117,6 @@ export default function TaxGroupsTab() {
   const [deleteTaxGroup] = useMutation(DELETE_TAX_GROUP_MUTATION);
 
   const [deleting, setDeleting] = useState<TaxGroupRow | null>(null);
-  const [editing, setEditing] = useState<TaxGroupFormRow | null>(null);
-  const [viewing, setViewing] = useState<TaxGroupRow | null>(null);
   const [search, setSearch] = useState("");
   const [showSummary, setShowSummary] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -194,18 +190,6 @@ export default function TaxGroupsTab() {
     } finally {
       setDeleting(null);
     }
-  }
-
-  async function handleSaveEdit(values: TaxGroupFormValues, id: string) {
-    const input = {
-      name: values.name,
-      code: values.code || undefined,
-      active: values.active,
-      taxRateIds: values.taxRateIds,
-    };
-    await updateTaxGroup({ variables: { id, input } });
-    toast.success(`${values.name} updated`);
-    await refetch();
   }
 
   async function handleToggleActive(row: TaxGroupRow) {
@@ -334,7 +318,11 @@ export default function TaxGroupsTab() {
                   </thead>
                   <tbody>
                     {paginated.map((g) => (
-                      <tr key={g.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors animate-in fade-in slide-in-from-top-1 duration-150 ease-out">
+                      <tr
+                        key={g.id}
+                        className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/40 transition-colors animate-in fade-in slide-in-from-top-1 duration-150 ease-out"
+                        onClick={() => goWithExit(`/products/taxgroups/edit/${g.id}`)}
+                      >
                         <td className="px-4 py-2.5 font-medium text-foreground">{g.name}</td>
                         {visibleCols.code && (
                           <td className="px-4 py-2.5">
@@ -368,14 +356,13 @@ export default function TaxGroupsTab() {
                             : <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">Inactive</span>}
                         </td>
                         {visibleCols.created && <td className="px-4 py-2.5 text-muted-foreground">{new Date(g.createdAt).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</td>}
-                        <td className="px-4 py-2.5 text-center">
+                        <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground"><MoreHorizontal className="h-3.5 w-3.5" /></Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setViewing(g)}><Eye className="h-3.5 w-3.5" /> View Details</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setEditing(g)}><Pencil className="h-3.5 w-3.5" /> Edit</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => goWithExit(`/products/taxgroups/edit/${g.id}`)}><Pencil className="h-3.5 w-3.5" /> Edit</DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleToggleActive(g)}>
                                 {g.active ? <PowerOff className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
                                 {g.active ? "Deactivate" : "Activate"}
@@ -413,52 +400,6 @@ export default function TaxGroupsTab() {
           )}
         </CardContent>
       </Card>
-
-      {/* Edit Dialog */}
-      <TaxGroupFormDialog
-        open={!!editing}
-        onOpenChange={(o) => !o && setEditing(null)}
-        taxGroup={editing}
-        taxRateOptions={taxRates}
-        onSave={handleSaveEdit}
-      />
-
-      {/* View Details Dialog */}
-      <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
-        <DialogContent className={DIALOG_CONTENT_MOTION} overlayClassName={DIALOG_OVERLAY_MOTION}>
-          <DialogHeader><DialogTitle>Tax group details</DialogTitle></DialogHeader>
-          {viewing && (
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              {[
-                ["Name", viewing.name],
-                ["Code", viewing.code || "—"],
-                ["Total Rate", `${viewing.totalRate.toFixed(2)}%`],
-                ["Status", viewing.active ? "Active" : "Inactive"],
-                ["Created", new Date(viewing.createdAt).toLocaleString()],
-                ["Updated", new Date(viewing.updatedAt).toLocaleString()],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-md border border-border px-3 py-2">
-                  <p className="text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
-                  <p className="mt-1 text-sm font-medium text-foreground">{value}</p>
-                </div>
-              ))}
-              <div className="col-span-2 rounded-md border border-border px-3 py-2">
-                <p className="text-[11px] font-medium uppercase text-muted-foreground">Tax Rates</p>
-                <div className="mt-1">
-                  {viewing.taxRates.length === 0 ? (
-                    <span className="text-sm text-muted-foreground">—</span>
-                  ) : (
-                    viewing.taxRates.map((r) => (
-                      <Badge key={r.id} tone="info" className="mr-1 mb-1">{r.name} ({r.rate}%)</Badge>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter><Button onClick={() => setViewing(null)} className={BUTTON_PRESS}>Close</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Dialog */}
       <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>

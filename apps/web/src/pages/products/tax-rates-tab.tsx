@@ -8,7 +8,6 @@ import {
   ChevronsUpDown,
   ChevronUp,
   Download,
-  Eye,
   Globe,
   Landmark,
   MoreHorizontal,
@@ -48,7 +47,6 @@ import {
 } from "@abms/ui";
 import { DIALOG_CONTENT_MOTION, DIALOG_OVERLAY_MOTION } from "./dialog-motion";
 import { BUTTON_PRESS, CARD_HOVER, LIST_ENTER, LIST_EXIT, usePageTransition } from "./form-motion";
-import { TaxRateFormDialog, type TaxRateFormRow, type TaxRateFormValues } from "./tax-rate-form-dialog";
 import { ImportGlobalTaxRatesDialog } from "./import-global-tax-rates-dialog";
 
 const TAX_RATES_QUERY = gql`
@@ -127,8 +125,6 @@ export default function TaxRatesTab() {
   const [deleteTaxRate] = useMutation(DELETE_TAX_RATE_MUTATION);
 
   const [deleting, setDeleting] = useState<TaxRateRow | null>(null);
-  const [editing, setEditing] = useState<TaxRateFormRow | null | undefined>(undefined);
-  const [viewing, setViewing] = useState<TaxRateRow | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [countryFilter, setCountryFilter] = useState("all");
@@ -222,27 +218,6 @@ export default function TaxRatesTab() {
     } finally {
       setDeleting(null);
     }
-  }
-
-  async function handleSaveEdit(values: TaxRateFormValues, id?: string) {
-    const input = {
-      name: values.name,
-      code: values.code || undefined,
-      rate: Number(values.rate),
-      taxType: values.taxType,
-      country: values.country || undefined,
-      state: values.state || undefined,
-      isDefault: values.isDefault,
-      active: values.active,
-    };
-    if (id) {
-      await updateTaxRate({ variables: { id, input } });
-      toast.success(`${values.name} updated`);
-    } else {
-      await createTaxRate({ variables: { input } });
-      toast.success(`${values.name} created`);
-    }
-    await refetch();
   }
 
   async function handleToggleActive(row: TaxRateRow) {
@@ -406,7 +381,11 @@ export default function TaxRatesTab() {
                   </thead>
                   <tbody>
                     {paginated.map((t) => (
-                      <tr key={t.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors animate-in fade-in slide-in-from-top-1 duration-150 ease-out">
+                      <tr
+                        key={t.id}
+                        className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/40 transition-colors animate-in fade-in slide-in-from-top-1 duration-150 ease-out"
+                        onClick={() => goWithExit(`/products/tax-rates/edit/${t.id}`)}
+                      >
                         <td className="px-4 py-2.5 font-medium text-foreground">{t.name}</td>
                         {visibleCols.code && <td className="px-4 py-2.5 font-mono text-muted-foreground">{t.code || "—"}</td>}
                         <td className="px-4 py-2.5 text-muted-foreground">{t.rate}%</td>
@@ -420,14 +399,13 @@ export default function TaxRatesTab() {
                           {t.isDefault && <Badge tone="info" className="ml-1">Default</Badge>}
                         </td>
                         {visibleCols.created && <td className="px-4 py-2.5 text-muted-foreground">{new Date(t.createdAt).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</td>}
-                        <td className="px-4 py-2.5 text-center">
+                        <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground"><MoreHorizontal className="h-3.5 w-3.5" /></Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setViewing(t)}><Eye className="h-3.5 w-3.5" /> View Details</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setEditing(t)}><Pencil className="h-3.5 w-3.5" /> Edit</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => goWithExit(`/products/tax-rates/edit/${t.id}`)}><Pencil className="h-3.5 w-3.5" /> Edit</DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleToggleActive(t)}>
                                 {t.active ? <PowerOff className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
                                 {t.active ? "Deactivate" : "Activate"}
@@ -465,38 +443,6 @@ export default function TaxRatesTab() {
           )}
         </CardContent>
       </Card>
-
-      {/* Edit Dialog */}
-      <TaxRateFormDialog open={editing !== undefined} onOpenChange={(o) => !o && setEditing(undefined)} taxRate={editing ?? null} onSave={handleSaveEdit} />
-
-      {/* View Details Dialog */}
-      <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
-        <DialogContent className={DIALOG_CONTENT_MOTION} overlayClassName={DIALOG_OVERLAY_MOTION}>
-          <DialogHeader><DialogTitle>Tax rate details</DialogTitle></DialogHeader>
-          {viewing && (
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              {[
-                ["Name", viewing.name],
-                ["Code", viewing.code || "—"],
-                ["Rate", `${viewing.rate}%`],
-                ["Type", TAX_TYPE_LABELS[viewing.taxType]],
-                ["Country", viewing.country || "—"],
-                ["State", viewing.state || "—"],
-                ["Status", viewing.active ? "Active" : "Inactive"],
-                ["Default", viewing.isDefault ? "Yes" : "No"],
-                ["Created", new Date(viewing.createdAt).toLocaleString()],
-                ["Updated", new Date(viewing.updatedAt).toLocaleString()],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-md border border-border px-3 py-2">
-                  <p className="text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
-                  <p className="mt-1 text-sm font-medium text-foreground">{value}</p>
-                </div>
-              ))}
-            </div>
-          )}
-          <DialogFooter><Button onClick={() => setViewing(null)} className={BUTTON_PRESS}>Close</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Import Global Tax Rates */}
       <ImportGlobalTaxRatesDialog
