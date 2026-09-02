@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
-import { ArrowLeft, ArrowRight, FileText, Plus, Printer, ShoppingCart, Trash2 } from "lucide-react";
+import { FileText, Plus, Printer, ShoppingCart, Trash2 } from "lucide-react";
 import {
   Button,
   Card,
@@ -154,13 +154,6 @@ const BASE_QUERY = gql`
   }
 `;
 
-const CREATE_ORDER = gql`
-  mutation CreateSalesOrder($input: CreateSalesOrderInput!) {
-    createSalesOrder(input: $input) {
-      id
-    }
-  }
-`;
 const CONFIRM_ORDER = gql`
   mutation ConfirmSalesOrder($id: String!, $warehouseId: String!) {
     confirmSalesOrder(id: $id, warehouseId: $warehouseId) {
@@ -188,8 +181,6 @@ const RECORD_PAYMENT = gql`
   }
 `;
 
-type WizardItem = { productId: string; quantity: number; unitPrice: number };
-
 const DEFERRED_SEGMENTS: Record<string, string> = {
   quotes: "Quotes",
   returns: "Returns / Credit Notes",
@@ -216,13 +207,11 @@ export default function SalesPage() {
     warehouses: Warehouse[];
   }>(BASE_QUERY);
 
-  const [createOrder] = useMutation(CREATE_ORDER);
   const [confirmOrder] = useMutation(CONFIRM_ORDER);
   const [deleteOrder] = useMutation(DELETE_ORDER);
   const [generateInvoice] = useMutation(GENERATE_INVOICE);
   const [recordPayment] = useMutation(RECORD_PAYMENT);
 
-  const [wizardOpen, setWizardOpen] = useState(false);
   const [orderDetail, setOrderDetail] = useState<SalesOrder | null>(null);
   const [invoiceDetail, setInvoiceDetail] = useState<Invoice | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SalesOrder | null>(null);
@@ -232,8 +221,6 @@ export default function SalesPage() {
 
   const orders = data?.salesOrders ?? [];
   const invoices = data?.invoices ?? [];
-  const customers = data?.customers ?? [];
-  const products = data?.products ?? [];
   const warehouses = data?.warehouses ?? [];
 
   async function handleConfirm() {
@@ -303,7 +290,7 @@ export default function SalesPage() {
           <p className="text-sm text-muted-foreground">Sales orders, stock-confirmed fulfillment, and invoicing.</p>
         </div>
         {tab === "orders" && (
-          <Button size="sm" onClick={() => setWizardOpen(true)}>
+          <Button size="sm" onClick={() => navigate("/sales/new")}>
             <Plus className="h-4 w-4" />
             New Order
           </Button>
@@ -320,7 +307,7 @@ export default function SalesPage() {
             {loading ? (
               <p className="text-sm text-muted-foreground">Loading…</p>
             ) : orders.length === 0 ? (
-              <EmptyState label="sales order" onAdd={() => setWizardOpen(true)} />
+              <EmptyState label="sales order" onAdd={() => navigate("/sales/new")} />
             ) : (
               <table className="w-full text-sm">
                 <thead>
@@ -425,44 +412,6 @@ export default function SalesPage() {
             )}
           </CardContent>
         </Card>
-      )}
-
-      {wizardOpen && (
-        <OrderWizard
-          customers={customers}
-          products={products}
-          warehouses={warehouses}
-          onClose={() => setWizardOpen(false)}
-          onSaveDraft={async (customerId, items) => {
-            setSubmitting(true);
-            try {
-              await createOrder({ variables: { input: { customerId, items } } });
-              toast.success("Order saved as draft");
-              setWizardOpen(false);
-              await refetch();
-            } catch (err) {
-              toast.error(err instanceof Error ? err.message : "Failed to save order");
-            } finally {
-              setSubmitting(false);
-            }
-          }}
-          onConfirmNow={async (customerId, warehouseId, items) => {
-            setSubmitting(true);
-            try {
-              const res = await createOrder({ variables: { input: { customerId, items } } });
-              const id = res.data?.createSalesOrder?.id;
-              if (id) await confirmOrder({ variables: { id, warehouseId } });
-              toast.success("Order created and confirmed — stock deducted");
-              setWizardOpen(false);
-              await refetch();
-            } catch (err) {
-              toast.error(err instanceof Error ? err.message : "Failed to confirm order");
-            } finally {
-              setSubmitting(false);
-            }
-          }}
-          submitting={submitting}
-        />
       )}
 
       {/* Order detail */}
@@ -612,194 +561,6 @@ export default function SalesPage() {
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-function OrderWizard({
-  customers,
-  products,
-  warehouses,
-  onClose,
-  onSaveDraft,
-  onConfirmNow,
-  submitting,
-}: {
-  customers: Customer[];
-  products: Product[];
-  warehouses: Warehouse[];
-  onClose: () => void;
-  onSaveDraft: (customerId: string, items: WizardItem[]) => void;
-  onConfirmNow: (customerId: string, warehouseId: string, items: WizardItem[]) => void;
-  submitting: boolean;
-}) {
-  const [step, setStep] = useState(1);
-  const [customerId, setCustomerId] = useState("");
-  const [warehouseId, setWarehouseId] = useState("");
-  const [items, setItems] = useState<WizardItem[]>([]);
-  const [productId, setProductId] = useState("");
-  const [quantity, setQuantity] = useState("1");
-
-  const selectedCustomer = customers.find((c) => c.id === customerId);
-  const total = items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
-
-  function addItem() {
-    const product = products.find((p) => p.id === productId);
-    if (!product || !quantity) return;
-    setItems((prev) => [...prev, { productId: product.id, quantity: Number(quantity), unitPrice: product.sellPrice }]);
-    setProductId("");
-    setQuantity("1");
-  }
-
-  function removeItem(idx: number) {
-    setItems((prev) => prev.filter((_, i) => i !== idx));
-  }
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-xl">
-        <DialogHeader>
-          <DialogTitle>New sales order — step {step} of 3</DialogTitle>
-        </DialogHeader>
-
-        {step === 1 && (
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Customer</Label>
-              <Select value={customerId} onValueChange={setCustomerId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select customer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Fulfillment warehouse (used only if you confirm immediately)</Label>
-              <Select value={warehouseId} onValueChange={setWarehouseId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select warehouse" />
-                </SelectTrigger>
-                <SelectContent>
-                  {warehouses.map((w) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      {w.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <DialogFooter>
-              <Button onClick={() => setStep(2)} disabled={!customerId}>
-                Next <ArrowRight className="h-4 w-4" />
-              </Button>
-            </DialogFooter>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="space-y-4">
-            <div className="flex items-end gap-2">
-              <div className="flex-1 space-y-1.5">
-                <Label>Product</Label>
-                <Select value={productId} onValueChange={setProductId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select product" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {products
-                      .filter((p) => p.active !== false)
-                      .map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.name} (${p.sellPrice.toFixed(2)}, {p.totalStock} in stock)
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="w-24 space-y-1.5">
-                <Label>Qty</Label>
-                <Input type="number" min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-              </div>
-              <Button type="button" onClick={addItem} disabled={!productId}>
-                Add
-              </Button>
-            </div>
-            {items.length > 0 && (
-              <table className="w-full text-sm">
-                <tbody>
-                  {items.map((it, idx) => {
-                    const p = products.find((pr) => pr.id === it.productId);
-                    return (
-                      <tr key={idx} className="border-b border-border last:border-0">
-                        <td className="py-1.5">{p?.name}</td>
-                        <td className="py-1.5 text-right">
-                          {it.quantity} × ${it.unitPrice.toFixed(2)}
-                        </td>
-                        <td className="py-1.5 text-right">${(it.quantity * it.unitPrice).toFixed(2)}</td>
-                        <td className="py-1.5 text-right">
-                          <Button variant="ghost" size="sm" onClick={() => removeItem(idx)}>
-                            <Trash2 className="h-4 w-4 text-danger" />
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setStep(1)}>
-                <ArrowLeft className="h-4 w-4" /> Back
-              </Button>
-              <Button onClick={() => setStep(3)} disabled={items.length === 0}>
-                Review <ArrowRight className="h-4 w-4" />
-              </Button>
-            </DialogFooter>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="space-y-4">
-            <div className="text-sm">
-              <p className="text-muted-foreground">Customer</p>
-              <p className="font-medium">{selectedCustomer?.name}</p>
-            </div>
-            <table className="w-full text-sm">
-              <tbody>
-                {items.map((it, idx) => {
-                  const p = products.find((pr) => pr.id === it.productId);
-                  return (
-                    <tr key={idx} className="border-b border-border last:border-0">
-                      <td className="py-1.5">{p?.name}</td>
-                      <td className="py-1.5 text-right">{it.quantity}</td>
-                      <td className="py-1.5 text-right">${(it.quantity * it.unitPrice).toFixed(2)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <div className="flex justify-end text-sm font-medium">Total: ${total.toFixed(2)}</div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setStep(2)}>
-                <ArrowLeft className="h-4 w-4" /> Back
-              </Button>
-              <Button variant="secondary" disabled={submitting} onClick={() => onSaveDraft(customerId, items)}>
-                Save as draft
-              </Button>
-              <Button disabled={submitting || !warehouseId} onClick={() => onConfirmNow(customerId, warehouseId, items)}>
-                {submitting ? "Confirming…" : "Confirm order"}
-              </Button>
-            </DialogFooter>
-            {!warehouseId && <p className="text-xs text-muted-foreground">Pick a warehouse in step 1 to confirm immediately.</p>}
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
   );
 }
 

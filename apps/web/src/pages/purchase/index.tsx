@@ -156,13 +156,6 @@ const BASE_QUERY = gql`
   }
 `;
 
-const CREATE_PO = gql`
-  mutation CreatePurchaseOrder($input: CreatePurchaseOrderInput!) {
-    createPurchaseOrder(input: $input) {
-      id
-    }
-  }
-`;
 const SEND_PO = gql`
   mutation SendPurchaseOrder($id: String!) {
     sendPurchaseOrder(id: $id) {
@@ -197,8 +190,6 @@ const UPDATE_BILL_STATUS = gql`
   }
 `;
 
-type WizardItem = { productId: string; quantity: number; unitCost: number };
-
 const DEFERRED_SEGMENTS: Record<string, string> = {
   requisitions: "Purchase Requisitions",
   debitnotes: "Debit Notes",
@@ -226,14 +217,12 @@ export default function PurchasePage() {
     warehouses: Warehouse[];
   }>(BASE_QUERY);
 
-  const [createPo] = useMutation(CREATE_PO);
   const [sendPo] = useMutation(SEND_PO);
   const [deletePo] = useMutation(DELETE_PO);
   const [createGrn] = useMutation(CREATE_GRN);
   const [createBill] = useMutation(CREATE_BILL);
   const [updateBillStatus] = useMutation(UPDATE_BILL_STATUS);
 
-  const [createOpen, setCreateOpen] = useState(false);
   const [poDetail, setPoDetail] = useState<PurchaseOrder | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PurchaseOrder | null>(null);
   const [receiveTarget, setReceiveTarget] = useState<PurchaseOrder | null>(null);
@@ -244,8 +233,6 @@ export default function PurchasePage() {
   const orders = data?.purchaseOrders ?? [];
   const grns = data?.goodsReceivedNotes ?? [];
   const bills = data?.supplierBills ?? [];
-  const suppliers = data?.suppliers ?? [];
-  const products = data?.products ?? [];
   const warehouses = data?.warehouses ?? [];
 
   async function handleSend(po: PurchaseOrder) {
@@ -297,7 +284,7 @@ export default function PurchasePage() {
           <p className="text-sm text-muted-foreground">Purchase orders, goods receipt, and supplier bills.</p>
         </div>
         {tab === "orders" && (
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
+          <Button size="sm" onClick={() => navigate("/purchase/new")}>
             <Plus className="h-4 w-4" />
             New Purchase Order
           </Button>
@@ -314,7 +301,7 @@ export default function PurchasePage() {
             {loading ? (
               <p className="text-sm text-muted-foreground">Loading…</p>
             ) : orders.length === 0 ? (
-              <EmptyState label="purchase order" onAdd={() => setCreateOpen(true)} />
+              <EmptyState label="purchase order" onAdd={() => navigate("/purchase/new")} />
             ) : (
               <table className="w-full text-sm">
                 <thead>
@@ -454,28 +441,6 @@ export default function PurchasePage() {
             )}
           </CardContent>
         </Card>
-      )}
-
-      {createOpen && (
-        <CreatePoDialog
-          suppliers={suppliers}
-          products={products}
-          submitting={submitting}
-          onClose={() => setCreateOpen(false)}
-          onCreate={async (supplierId, expectedDeliveryDate, items) => {
-            setSubmitting(true);
-            try {
-              await createPo({ variables: { input: { supplierId, expectedDeliveryDate: expectedDeliveryDate || undefined, items } } });
-              toast.success("Purchase order created");
-              setCreateOpen(false);
-              await refetch();
-            } catch (err) {
-              toast.error(err instanceof Error ? err.message : "Failed to create purchase order");
-            } finally {
-              setSubmitting(false);
-            }
-          }}
-        />
       )}
 
       {/* PO detail */}
@@ -675,122 +640,6 @@ export default function PurchasePage() {
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-function CreatePoDialog({
-  suppliers,
-  products,
-  onClose,
-  onCreate,
-  submitting,
-}: {
-  suppliers: Supplier[];
-  products: Product[];
-  onClose: () => void;
-  onCreate: (supplierId: string, expectedDeliveryDate: string, items: WizardItem[]) => void;
-  submitting: boolean;
-}) {
-  const [supplierId, setSupplierId] = useState("");
-  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("");
-  const [items, setItems] = useState<WizardItem[]>([]);
-  const [productId, setProductId] = useState("");
-  const [quantity, setQuantity] = useState("1");
-
-  function addItem() {
-    const product = products.find((p) => p.id === productId);
-    if (!product || !quantity) return;
-    setItems((prev) => [...prev, { productId: product.id, quantity: Number(quantity), unitCost: product.costPrice }]);
-    setProductId("");
-    setQuantity("1");
-  }
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-xl">
-        <DialogHeader>
-          <DialogTitle>New purchase order</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Supplier</Label>
-              <Select value={supplierId} onValueChange={setSupplierId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select supplier" />
-                </SelectTrigger>
-                <SelectContent>
-                  {suppliers.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Expected delivery</Label>
-              <Input type="date" value={expectedDeliveryDate} onChange={(e) => setExpectedDeliveryDate(e.target.value)} />
-            </div>
-          </div>
-          <div className="flex items-end gap-2">
-            <div className="flex-1 space-y-1.5">
-              <Label>Product</Label>
-              <Select value={productId} onValueChange={setProductId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select product" />
-                </SelectTrigger>
-                <SelectContent>
-                  {products.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name} (${p.costPrice.toFixed(2)})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="w-24 space-y-1.5">
-              <Label>Qty</Label>
-              <Input type="number" min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-            </div>
-            <Button type="button" onClick={addItem} disabled={!productId}>
-              Add
-            </Button>
-          </div>
-          {items.length > 0 && (
-            <table className="w-full text-sm">
-              <tbody>
-                {items.map((it, idx) => {
-                  const p = products.find((pr) => pr.id === it.productId);
-                  return (
-                    <tr key={idx} className="border-b border-border last:border-0">
-                      <td className="py-1.5">{p?.name}</td>
-                      <td className="py-1.5 text-right">
-                        {it.quantity} × ${it.unitCost.toFixed(2)}
-                      </td>
-                      <td className="py-1.5 text-right">${(it.quantity * it.unitCost).toFixed(2)}</td>
-                      <td className="py-1.5 text-right">
-                        <Button variant="ghost" size="sm" onClick={() => setItems((prev) => prev.filter((_, i) => i !== idx))}>
-                          <Trash2 className="h-4 w-4 text-danger" />
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-          <DialogFooter>
-            <Button
-              disabled={submitting || !supplierId || items.length === 0}
-              onClick={() => onCreate(supplierId, expectedDeliveryDate, items)}
-            >
-              {submitting ? "Creating…" : "Create purchase order"}
-            </Button>
-          </DialogFooter>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
 
