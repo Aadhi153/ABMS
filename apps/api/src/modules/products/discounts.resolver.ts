@@ -24,6 +24,11 @@ export class DiscountsResolver {
     return this.discountsService.findAll();
   }
 
+  @Query(() => DiscountModel, { nullable: true })
+  discount(@Args("id") id: string) {
+    return this.discountsService.findById(id);
+  }
+
   @Mutation(() => DiscountModel)
   @Roles(Role.ADMIN)
   async createDiscount(@Args("input") input: CreateDiscountInput, @CurrentUser() actor: User) {

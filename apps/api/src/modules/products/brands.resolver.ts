@@ -24,6 +24,11 @@ export class BrandsResolver {
     return this.brandsService.findAll();
   }
 
+  @Query(() => BrandModel, { nullable: true })
+  brand(@Args("id") id: string) {
+    return this.brandsService.findById(id);
+  }
+
   @Mutation(() => BrandModel)
   @Roles(Role.ADMIN, Role.PURCHASE)
   async createBrand(@Args("input") input: CreateBrandInput, @CurrentUser() actor: User) {

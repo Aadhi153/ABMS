@@ -7,7 +7,6 @@ import {
   ChevronsUpDown,
   ChevronUp,
   Clock,
-  Eye,
   MoreHorizontal,
   Package,
   Pencil,
@@ -43,7 +42,6 @@ import {
   cn,
   toast,
 } from "@abms/ui";
-import { BrandFormDialog, type BrandFormBrand, type BrandFormValues } from "./brand-form-dialog";
 import { BUTTON_PRESS, DIALOG_CONTENT_MOTION, DIALOG_OVERLAY_MOTION } from "./dialog-motion";
 import { CARD_HOVER, LIST_ENTER, LIST_EXIT, usePageTransition } from "./form-motion";
 
@@ -100,8 +98,6 @@ export default function BrandsTab() {
   const [updateBrand] = useMutation(UPDATE_BRAND_MUTATION);
   const [deleteBrand] = useMutation(DELETE_BRAND_MUTATION);
 
-  const [editing, setEditing] = useState<BrandFormBrand | null>(null);
-  const [viewing, setViewing] = useState<BrandRow | null>(null);
   const [deleting, setDeleting] = useState<BrandRow | null>(null);
   const [showSummary, setShowSummary] = useState(true);
   const [search, setSearch] = useState("");
@@ -166,23 +162,6 @@ export default function BrandsTab() {
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / rowsPerPage));
   const paginated = sorted.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
-
-  async function handleUpdate(values: BrandFormValues, id: string) {
-    await updateBrand({
-      variables: {
-        id,
-        input: {
-          name: values.name,
-          code: values.code.trim() || undefined,
-          description: values.description.trim() || undefined,
-          logoUrl: values.logoUrl || undefined,
-          active: values.active,
-        },
-      },
-    });
-    toast.success(`${values.name} updated`);
-    await refetch();
-  }
 
   async function handleToggleActive(row: BrandRow) {
     try {
@@ -311,7 +290,11 @@ export default function BrandsTab() {
                   </thead>
                   <tbody>
                     {paginated.map((b) => (
-                      <tr key={b.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors animate-in fade-in slide-in-from-top-1 duration-150 ease-out">
+                      <tr
+                        key={b.id}
+                        className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/40 transition-colors animate-in fade-in slide-in-from-top-1 duration-150 ease-out"
+                        onClick={() => goWithExit(`/products/brands/edit/${b.id}`)}
+                      >
                         <td className="px-4 py-2.5">
                           <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-md bg-muted">
                             {b.logoUrl ? <img src={b.logoUrl} alt="" className="h-full w-full object-cover" /> : <Tags className="h-4 w-4 text-muted-foreground" />}
@@ -336,15 +319,13 @@ export default function BrandsTab() {
                           }
                         </td>
                         {visibleCols.created && <td className="px-4 py-2.5 text-muted-foreground">{new Date(b.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</td>}
-                        <td className="px-4 py-2.5 text-center">
+                        <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground"><MoreHorizontal className="h-3.5 w-3.5" /></Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setViewing(b)}><Eye className="h-3.5 w-3.5" /> View Details</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setEditing(b)}><Pencil className="h-3.5 w-3.5" /> Edit Brand</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setViewing(b)}><Eye className="h-3.5 w-3.5" /> View Summary</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => goWithExit(`/products/brands/edit/${b.id}`)}><Pencil className="h-3.5 w-3.5" /> Edit Brand</DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleToggleActive(b)}>
                                 {b.active ? <PowerOff className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
                                 {b.active ? "Deactivate" : "Activate"}
@@ -381,33 +362,6 @@ export default function BrandsTab() {
           )}
         </CardContent>
       </Card>
-
-      <BrandFormDialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)} brand={editing} onSave={(values, id) => handleUpdate(values, id!)} />
-
-      {/* View Details / Summary Dialog */}
-      <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
-        <DialogContent className={DIALOG_CONTENT_MOTION} overlayClassName={DIALOG_OVERLAY_MOTION}>
-          <DialogHeader><DialogTitle>Brand details</DialogTitle></DialogHeader>
-          {viewing && (
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              {[
-                ["Name", viewing.name],
-                ["Code", viewing.code || "—"],
-                ["Description", viewing.description || "—"],
-                ["Products", String(viewing.productsCount)],
-                ["Status", viewing.active ? "Active" : "Inactive"],
-                ["Created", new Date(viewing.createdAt).toLocaleString()],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-md border border-border px-3 py-2">
-                  <p className="text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
-                  <p className="mt-1 text-sm font-medium text-foreground">{value}</p>
-                </div>
-              ))}
-            </div>
-          )}
-          <DialogFooter><Button onClick={() => setViewing(null)} className={BUTTON_PRESS}>Close</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <DialogContent className={DIALOG_CONTENT_MOTION} overlayClassName={DIALOG_OVERLAY_MOTION}>

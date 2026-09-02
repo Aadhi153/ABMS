@@ -8,7 +8,6 @@ import {
   ChevronUp,
   Copy,
   Download,
-  Eye,
   IndianRupee,
   MoreHorizontal,
   Pencil,
@@ -50,7 +49,6 @@ import {
 } from "@abms/ui";
 import { DIALOG_CONTENT_MOTION, DIALOG_OVERLAY_MOTION } from "./dialog-motion";
 import { BUTTON_PRESS, CARD_HOVER, LIST_ENTER, LIST_EXIT, usePageTransition } from "./form-motion";
-import { DiscountFormDialog, type DiscountFormRow, type DiscountFormValues } from "./discount-form-dialog";
 
 const DISCOUNTS_QUERY = gql`
   query Discounts {
@@ -148,8 +146,6 @@ export default function DiscountsTab() {
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("discounts");
   const [deleting, setDeleting] = useState<DiscountRow | null>(null);
-  const [editing, setEditing] = useState<DiscountFormRow | null>(null);
-  const [viewing, setViewing] = useState<DiscountRow | null>(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -233,31 +229,6 @@ export default function DiscountsTab() {
     } finally {
       setDeleting(null);
     }
-  }
-
-  async function handleSaveEdit(values: DiscountFormValues, id?: string) {
-    const base = {
-      name: values.name,
-      type: values.type,
-      value: Number(values.value),
-      appliesTo: values.appliesTo,
-      categoryId: values.appliesTo === "CATEGORY" ? values.categoryId || undefined : undefined,
-      brandId: values.appliesTo === "BRAND" ? values.brandId || undefined : undefined,
-      startDate: values.startDate || undefined,
-      endDate: values.endDate || undefined,
-      usageLimit: values.usageLimit ? Number(values.usageLimit) : undefined,
-      minPurchaseAmount: values.minPurchaseAmount ? Number(values.minPurchaseAmount) : undefined,
-      minQuantity: values.minQuantity ? Number(values.minQuantity) : undefined,
-      couponCode: values.couponCode || undefined,
-    };
-    if (id) {
-      await updateDiscount({ variables: { id, input: { ...base, active: values.active } } });
-      toast.success(`${values.name} updated`);
-    } else {
-      await createDiscount({ variables: { input: base } });
-      toast.success(`${values.name} created`);
-    }
-    await refetch();
   }
 
   async function handleToggleActive(row: DiscountRow) {
@@ -464,7 +435,11 @@ export default function DiscountsTab() {
                     {paginated.map((d) => {
                       const validity = validityInfo(d);
                       return (
-                        <tr key={d.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors animate-in fade-in slide-in-from-top-1 duration-150 ease-out">
+                        <tr
+                          key={d.id}
+                          className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/40 transition-colors animate-in fade-in slide-in-from-top-1 duration-150 ease-out"
+                          onClick={() => goWithExit(`/products/discounts/edit/${d.id}`)}
+                        >
                           <td className="px-4 py-2.5">
                             <div className="font-medium text-foreground">{d.name}</div>
                             <div className="text-[11px] text-muted-foreground">{appliesToLabel(d)}</div>
@@ -527,14 +502,13 @@ export default function DiscountsTab() {
                               ? <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-primary text-primary-foreground">Active</span>
                               : <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">Inactive</span>}
                           </td>
-                          <td className="px-4 py-2.5 text-center">
+                          <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground"><MoreHorizontal className="h-3.5 w-3.5" /></Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => setViewing(d)}><Eye className="h-3.5 w-3.5" /> View</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setEditing(d)}><Pencil className="h-3.5 w-3.5" /> Edit</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => goWithExit(`/products/discounts/edit/${d.id}`)}><Pencil className="h-3.5 w-3.5" /> Edit</DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleDuplicate(d)}><Copy className="h-3.5 w-3.5" /> Duplicate</DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleToggleActive(d)}>
                                   {d.active ? <PowerOff className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
@@ -574,42 +548,6 @@ export default function DiscountsTab() {
           )}
         </CardContent>
       </Card>
-
-      {/* Edit Dialog */}
-      <DiscountFormDialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)} discount={editing} onSave={handleSaveEdit} />
-
-      {/* View Details Dialog */}
-      <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
-        <DialogContent className={DIALOG_CONTENT_MOTION} overlayClassName={DIALOG_OVERLAY_MOTION}>
-          <DialogHeader><DialogTitle>Discount scheme details</DialogTitle></DialogHeader>
-          {viewing && (
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              {[
-                ["Name", viewing.name],
-                ["Code", viewing.couponCode || "—"],
-                ["Type", viewing.type === "PERCENTAGE" ? "Percentage" : "Fixed amount"],
-                ["Value", viewing.type === "PERCENTAGE" ? `${viewing.value}%` : `₹${viewing.value.toFixed(2)}`],
-                ["Applies to", appliesToLabel(viewing)],
-                ["Usage", `${viewing.usageCount} used`],
-                ["Usage limit", viewing.usageLimit != null ? String(viewing.usageLimit) : "Unlimited"],
-                ["Min purchase", viewing.minPurchaseAmount != null ? `₹${viewing.minPurchaseAmount.toFixed(2)}` : "—"],
-                ["Min quantity", viewing.minQuantity != null ? String(viewing.minQuantity) : "—"],
-                ["Start date", viewing.startDate ? new Date(viewing.startDate).toLocaleDateString() : "—"],
-                ["End date", viewing.endDate ? new Date(viewing.endDate).toLocaleDateString() : "No expiry"],
-                ["Status", viewing.active ? "Active" : "Inactive"],
-                ["Created", new Date(viewing.createdAt).toLocaleString()],
-                ["Updated", new Date(viewing.updatedAt).toLocaleString()],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-md border border-border px-3 py-2">
-                  <p className="text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
-                  <p className="mt-1 text-sm font-medium text-foreground">{value}</p>
-                </div>
-              ))}
-            </div>
-          )}
-          <DialogFooter><Button onClick={() => setViewing(null)} className={BUTTON_PRESS}>Close</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Dialog */}
       <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>

@@ -219,6 +219,18 @@ export function FormSubsection({
   );
 }
 
+/** Read-only label/value tile for stats that aren't editable on the form (counts, timestamps) —
+ * same visual language the old "View details" popups used, so merging them into the edit page
+ * doesn't lose information. */
+export function FormStat({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="rounded-md border border-border px-3 py-2">
+      <p className="text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-medium text-foreground">{value}</p>
+    </div>
+  );
+}
+
 /** Appended after a Label's text for required fields, e.g. `<Label>Brand name <RequiredMark /></Label>`. */
 export function RequiredMark() {
   return (

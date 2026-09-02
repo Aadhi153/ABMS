@@ -8,7 +8,6 @@ import {
   ChevronsUpDown,
   ChevronUp,
   Download,
-  Eye,
   Folder,
   Layers,
   MoreHorizontal,
@@ -48,7 +47,6 @@ import {
 } from "@abms/ui";
 import { DIALOG_CONTENT_MOTION, DIALOG_OVERLAY_MOTION } from "./dialog-motion";
 import { BUTTON_PRESS, CARD_HOVER, LIST_ENTER, LIST_EXIT, usePageTransition } from "./form-motion";
-import { CategoryFormDialog, type CategoryFormRow, type CategoryFormValues } from "./category-form-dialog";
 
 const CATEGORIES_QUERY = gql`
   query Categories {
@@ -69,14 +67,6 @@ const CATEGORIES_QUERY = gql`
       subcategoriesCount
       createdAt
       updatedAt
-    }
-  }
-`;
-
-const CREATE_CATEGORY_MUTATION = gql`
-  mutation CreateCategoryFromList($input: CreateCategoryInput!) {
-    createCategory(input: $input) {
-      id
     }
   }
 `;
@@ -118,13 +108,10 @@ type LevelFilter = "all" | "root" | "sub";
 export default function CategoriesTab() {
   const { leaving, goWithExit } = usePageTransition();
   const { data, loading, refetch } = useQuery<{ categories: CategoryRow[] }>(CATEGORIES_QUERY);
-  const [createCategory] = useMutation(CREATE_CATEGORY_MUTATION);
   const [updateCategory] = useMutation(UPDATE_CATEGORY_MUTATION);
   const [deleteCategory] = useMutation(DELETE_CATEGORY_MUTATION);
 
   const [deleting, setDeleting] = useState<CategoryRow | null>(null);
-  const [editing, setEditing] = useState<CategoryRow | null>(null);
-  const [viewing, setViewing] = useState<CategoryRow | null>(null);
   const [showSummary, setShowSummary] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -213,26 +200,6 @@ export default function CategoriesTab() {
     }
   }
 
-  async function handleSaveEdit(values: CategoryFormValues, id?: string) {
-    const input = {
-      name: values.name,
-      code: values.code || undefined,
-      description: values.description || undefined,
-      color: values.color || undefined,
-      parentId: values.parentId || undefined,
-      active: values.active,
-      sortOrder: values.sortOrder === "" ? undefined : Number(values.sortOrder),
-    };
-    if (id) {
-      await updateCategory({ variables: { id, input } });
-      toast.success(`${values.name} updated`);
-    } else {
-      await createCategory({ variables: { input } });
-      toast.success(`${values.name} created`);
-    }
-    await refetch();
-  }
-
   async function handleToggleActive(row: CategoryRow) {
     try {
       await updateCategory({ variables: { id: row.id, input: { active: !row.active } } });
@@ -242,19 +209,6 @@ export default function CategoriesTab() {
       toast.error(err instanceof Error ? err.message : "Failed to update category");
     }
   }
-
-  const editingFormRow: CategoryFormRow | null = editing
-    ? {
-        id: editing.id,
-        name: editing.name,
-        code: editing.code,
-        description: editing.description,
-        color: editing.color,
-        parentId: editing.parentId,
-        active: editing.active,
-        sortOrder: editing.sortOrder,
-      }
-    : null;
 
   return (
     <div className={cn("space-y-4", leaving ? LIST_EXIT : LIST_ENTER)}>
@@ -403,7 +357,11 @@ export default function CategoriesTab() {
                   </thead>
                   <tbody>
                     {paginated.map((c) => (
-                      <tr key={c.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors animate-in fade-in slide-in-from-top-1 duration-150 ease-out">
+                      <tr
+                        key={c.id}
+                        className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/40 transition-colors animate-in fade-in slide-in-from-top-1 duration-150 ease-out"
+                        onClick={() => goWithExit(`/products/categories/edit/${c.id}`)}
+                      >
                         <td className="px-4 py-2.5">
                           <div className="flex items-start gap-2">
                             <Folder className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-500" />
@@ -443,15 +401,13 @@ export default function CategoriesTab() {
                           <span className="inline-flex items-center gap-1"><Folder className="h-3 w-3" />{c.subcategoriesCount}</span>
                         </td>
                         {visibleCols.sortOrder && <td className="px-4 py-2.5 text-muted-foreground">{c.sortOrder}</td>}
-                        <td className="px-4 py-2.5 text-center">
+                        <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground"><MoreHorizontal className="h-3.5 w-3.5" /></Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setViewing(c)}><Eye className="h-3.5 w-3.5" /> View Details</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setEditing(c)}><Pencil className="h-3.5 w-3.5" /> Edit Category</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setViewing(c)}><BarChart3 className="h-3.5 w-3.5" /> View Summary</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => goWithExit(`/products/categories/edit/${c.id}`)}><Pencil className="h-3.5 w-3.5" /> Edit Category</DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleToggleActive(c)}>
                                 {c.active ? <PowerOff className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
                                 {c.active ? "Deactivate" : "Activate"}
@@ -489,45 +445,6 @@ export default function CategoriesTab() {
           )}
         </CardContent>
       </Card>
-
-      {/* Edit Dialog */}
-      <CategoryFormDialog
-        open={!!editing}
-        onOpenChange={(o) => !o && setEditing(null)}
-        category={editingFormRow}
-        parentOptions={categories.map((c) => ({ id: c.id, name: c.name }))}
-        onSave={handleSaveEdit}
-      />
-
-      {/* View Details / Summary Dialog */}
-      <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
-        <DialogContent className={DIALOG_CONTENT_MOTION} overlayClassName={DIALOG_OVERLAY_MOTION}>
-          <DialogHeader><DialogTitle>Category details</DialogTitle></DialogHeader>
-          {viewing && (
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              {[
-                ["Name", viewing.name],
-                ["Code", viewing.code || "—"],
-                ["Description", viewing.description || "—"],
-                ["Hierarchy", viewing.parentId === null ? "Root" : viewing.parent?.name ?? "—"],
-                ["Status", viewing.active ? "Active" : "Inactive"],
-                ["Products", String(viewing.productsCount)],
-                ["Subcategories", String(viewing.subcategoriesCount)],
-                ["Sort Order", String(viewing.sortOrder)],
-                ["Color", viewing.color || "—"],
-                ["Created", new Date(viewing.createdAt).toLocaleString()],
-                ["Updated", new Date(viewing.updatedAt).toLocaleString()],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-md border border-border px-3 py-2">
-                  <p className="text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
-                  <p className="mt-1 text-sm font-medium text-foreground">{value}</p>
-                </div>
-              ))}
-            </div>
-          )}
-          <DialogFooter><Button onClick={() => setViewing(null)} className={BUTTON_PRESS}>Close</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Dialog */}
       <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>

@@ -24,6 +24,11 @@ export class CategoriesResolver {
     return this.categoriesService.findAll();
   }
 
+  @Query(() => CategoryModel, { nullable: true })
+  category(@Args("id") id: string) {
+    return this.categoriesService.findById(id);
+  }
+
   @Mutation(() => CategoryModel)
   @Roles(Role.ADMIN, Role.PURCHASE)
   async createCategory(@Args("input") input: CreateCategoryInput, @CurrentUser() actor: User) {

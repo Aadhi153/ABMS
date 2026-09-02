@@ -100,11 +100,14 @@ export default function NewCategoryPage() {
     setSubmitError(null);
     setStatus("submitting");
     try {
+      const finalCode = form.code.trim()
+        ? form.code.trim()
+        : form.name.trim().toUpperCase().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "");
       await createCategory({
         variables: {
           input: {
             name: form.name,
-            code: form.code || undefined,
+            code: finalCode,
             description: form.description || undefined,
             color: form.color || undefined,
             parentId: form.parentId || undefined,
@@ -183,7 +186,10 @@ export default function NewCategoryPage() {
                     }
                     className={cn(FOCUS_GLOW, "uppercase")}
                   />
-                  <Button type="button" variant="outline" className={BUTTON_PRESS}>Auto</Button>
+                  <Button type="button" variant="outline" className={BUTTON_PRESS} onClick={() => {
+  const generated = form.name.trim().toUpperCase().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "");
+  setForm(f => ({ ...f, code: generated }));
+}}>Auto</Button>
                 </div>
                 <p className="text-[11px] text-muted-foreground">Code will be auto-generated from name if left empty</p>
               </div>

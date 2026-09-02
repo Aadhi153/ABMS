@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState } from "react";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import {
   CheckCircle2,
@@ -120,14 +120,6 @@ const PRODUCTS_QUERY = gql`
         }
       }
     }
-    categories {
-      id
-      name
-    }
-    brands {
-      id
-      name
-    }
   }
 `;
 
@@ -141,13 +133,9 @@ const UPDATE_PRODUCT_MUTATION = gql`
 
 export default function AllProductsTab() {
   const { leaving, goWithExit } = usePageTransition();
-  const { data, loading, refetch } = useQuery<{ products: Product[]; categories: Category[]; brands: Brand[] }>(
-    PRODUCTS_QUERY,
-  );
+  const { data, loading, refetch } = useQuery<{ products: Product[] }>(PRODUCTS_QUERY);
   const [updateProduct] = useMutation(UPDATE_PRODUCT_MUTATION);
 
-  const [editing, setEditing] = useState<Product | null>(null);
-  const [submitting, setSubmitting] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [showSummary, setShowSummary] = useState(true);
@@ -186,19 +174,6 @@ export default function AllProductsTab() {
     }
   };
 
-  const [form, setForm] = useState({
-    name: "",
-    categoryId: "",
-    brandId: "",
-    unitOfMeasure: "unit",
-    costPrice: "",
-    sellPrice: "",
-    reorderThreshold: "0",
-    maxStockLevel: "",
-  });
-
-  const categories = data?.categories ?? [];
-  const brands = data?.brands ?? [];
   const products = data?.products ?? [];
 
   function isLowStock(p: Product) {
@@ -233,50 +208,6 @@ export default function AllProductsTab() {
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / rowsPerPage));
   const paginatedProducts = filteredProducts.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
-
-  function openEdit(p: Product) {
-    setEditing(p);
-    setForm({
-      name: p.name,
-      categoryId: p.categoryId ?? "",
-      brandId: p.brandId ?? "",
-      unitOfMeasure: p.unitOfMeasure,
-      costPrice: String(p.costPrice),
-      sellPrice: String(p.sellPrice),
-      reorderThreshold: String(p.reorderThreshold),
-      maxStockLevel: p.maxStockLevel != null ? String(p.maxStockLevel) : "",
-    });
-  }
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!editing) return;
-    setSubmitting(true);
-    try {
-      await updateProduct({
-        variables: {
-          id: editing.id,
-          input: {
-            name: form.name,
-            categoryId: form.categoryId || undefined,
-            brandId: form.brandId || undefined,
-            unitOfMeasure: form.unitOfMeasure,
-            costPrice: Number(form.costPrice),
-            sellPrice: Number(form.sellPrice),
-            reorderThreshold: Number(form.reorderThreshold),
-            maxStockLevel: form.maxStockLevel ? Number(form.maxStockLevel) : undefined,
-          },
-        },
-      });
-      toast.success(`${form.name} updated`);
-      setEditing(null);
-      await refetch();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save product");
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   async function handleArchiveToggle(p: Product) {
     try {
@@ -588,7 +519,7 @@ export default function AllProductsTab() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => openEdit(p)}>
+                                <DropdownMenuItem onClick={() => goWithExit(`/products/edit/${p.id}`)}>
                                   <Pencil className="h-3.5 w-3.5" />
                                   Edit
                                 </DropdownMenuItem>
@@ -681,105 +612,6 @@ export default function AllProductsTab() {
           )}
         </CardContent>
       </Card>
-
-      {/* ── Edit Product Dialog ── */}
-      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent className={DIALOG_CONTENT_MOTION} overlayClassName={DIALOG_OVERLAY_MOTION}>
-          <DialogHeader>
-            <DialogTitle>Edit product</DialogTitle>
-          </DialogHeader>
-          <form className="grid gap-4 sm:grid-cols-2" onSubmit={handleSubmit}>
-            <div className="space-y-1.5">
-              <Label htmlFor="p-name">Name</Label>
-              <Input id="p-name" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Category</Label>
-              <Select value={form.categoryId} onValueChange={(v) => setForm((f) => ({ ...f, categoryId: v }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Brand</Label>
-              <Select value={form.brandId} onValueChange={(v) => setForm((f) => ({ ...f, brandId: v }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select brand" />
-                </SelectTrigger>
-                <SelectContent>
-                  {brands.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="uom">Unit of measure</Label>
-              <Input id="uom" value={form.unitOfMeasure} onChange={(e) => setForm((f) => ({ ...f, unitOfMeasure: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="cost">Cost price</Label>
-              <Input
-                id="cost"
-                type="number"
-                step="0.01"
-                min="0"
-                required
-                value={form.costPrice}
-                onChange={(e) => setForm((f) => ({ ...f, costPrice: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="sell">Sell price</Label>
-              <Input
-                id="sell"
-                type="number"
-                step="0.01"
-                min="0"
-                required
-                value={form.sellPrice}
-                onChange={(e) => setForm((f) => ({ ...f, sellPrice: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="reorder">Reorder threshold</Label>
-              <Input
-                id="reorder"
-                type="number"
-                min="0"
-                value={form.reorderThreshold}
-                onChange={(e) => setForm((f) => ({ ...f, reorderThreshold: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="max-stock">Max stock level</Label>
-              <Input
-                id="max-stock"
-                type="number"
-                min="0"
-                placeholder="No limit"
-                value={form.maxStockLevel}
-                onChange={(e) => setForm((f) => ({ ...f, maxStockLevel: e.target.value }))}
-              />
-            </div>
-            <DialogFooter className="sm:col-span-2">
-              <Button type="submit" disabled={submitting} className={BUTTON_PRESS}>
-                {submitting ? "Saving…" : "Save changes"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       {/* ── Product Documents Dialog ── */}
       <Dialog open={showDocumentsDialog} onOpenChange={setShowDocumentsDialog}>
