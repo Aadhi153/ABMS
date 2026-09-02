@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
-import { FileText, Plus, Printer, ShoppingCart, Trash2 } from "lucide-react";
+import { CheckCircle2, Clock, FileText, Plus, Printer, ShoppingCart, Trash2, Wallet } from "lucide-react";
 import {
   Button,
   Card,
@@ -22,11 +22,13 @@ import {
   SelectTrigger,
   SelectValue,
   StatusBadge,
+  cn,
   toast,
 } from "@abms/ui";
 import { ModulePlaceholder } from "../../components/module-placeholder";
+import { CARD_HOVER } from "../products/form-motion";
 
-const TABS = [{ key: "orders" }, { key: "invoices" }] as const;
+const TABS = [{ key: "orders" }, { key: "invoices" }, { key: "quotes" }] as const;
 interface Customer {
   id: string;
   name: string;
@@ -87,6 +89,84 @@ interface Invoice {
   dueDate: string;
   payments: Payment[];
   createdAt: string;
+}
+
+interface QuoteItem {
+  id: string;
+  productName: string;
+  sku: string;
+  quantity: number;
+  uom: string;
+  unitPrice: number;
+  lineTotal: number;
+}
+interface Quote {
+  id: string;
+  quoteNumber: string;
+  status: string;
+  customerId: string;
+  customerName: string;
+  validUntil: string | null;
+  reference: string | null;
+  paymentTerms: string | null;
+  taxMethod: string;
+  subtotal: number;
+  discountAmount: number;
+  taxAmount: number;
+  shippingAmount: number;
+  total: number;
+  createdByName: string;
+  items: QuoteItem[];
+  createdAt: string;
+}
+
+const QUOTES_QUERY = gql`
+  query QuotesPageData {
+    quotes {
+      id
+      quoteNumber
+      status
+      customerId
+      customerName
+      validUntil
+      reference
+      paymentTerms
+      taxMethod
+      subtotal
+      discountAmount
+      taxAmount
+      shippingAmount
+      total
+      createdByName
+      createdAt
+      items {
+        id
+        productName
+        sku
+        quantity
+        uom
+        unitPrice
+        lineTotal
+      }
+    }
+  }
+`;
+
+const SEND_QUOTE = gql`
+  mutation SendQuote($id: String!) {
+    sendQuote(id: $id) {
+      id
+    }
+  }
+`;
+const DELETE_QUOTE = gql`
+  mutation DeleteQuote($id: String!) {
+    deleteQuote(id: $id)
+  }
+`;
+
+function inr(n: number) {
+  return `₹${(Number.isFinite(n) ? n : 0).toFixed(2)}`;
 }
 
 const BASE_QUERY = gql`
@@ -182,7 +262,6 @@ const RECORD_PAYMENT = gql`
 `;
 
 const DEFERRED_SEGMENTS: Record<string, string> = {
-  quotes: "Quotes",
   returns: "Returns / Credit Notes",
 };
 
@@ -206,22 +285,58 @@ export default function SalesPage() {
     products: Product[];
     warehouses: Warehouse[];
   }>(BASE_QUERY);
+  const { data: quotesData, loading: quotesLoading, refetch: refetchQuotes } = useQuery<{ quotes: Quote[] }>(
+    QUOTES_QUERY,
+    { skip: tab !== "quotes" },
+  );
 
   const [confirmOrder] = useMutation(CONFIRM_ORDER);
   const [deleteOrder] = useMutation(DELETE_ORDER);
   const [generateInvoice] = useMutation(GENERATE_INVOICE);
   const [recordPayment] = useMutation(RECORD_PAYMENT);
+  const [sendQuote] = useMutation(SEND_QUOTE);
+  const [deleteQuote] = useMutation(DELETE_QUOTE);
 
   const [orderDetail, setOrderDetail] = useState<SalesOrder | null>(null);
   const [invoiceDetail, setInvoiceDetail] = useState<Invoice | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SalesOrder | null>(null);
+  const [deleteQuoteTarget, setDeleteQuoteTarget] = useState<Quote | null>(null);
   const [confirmPrompt, setConfirmPrompt] = useState<SalesOrder | null>(null);
   const [confirmWarehouseId, setConfirmWarehouseId] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const orders = data?.salesOrders ?? [];
   const invoices = data?.invoices ?? [];
+  const quotes = quotesData?.quotes ?? [];
   const warehouses = data?.warehouses ?? [];
+
+  async function handleSendQuote(quote: Quote) {
+    setSubmitting(true);
+    try {
+      await sendQuote({ variables: { id: quote.id } });
+      toast.success(`${quote.quoteNumber} sent`);
+      await refetchQuotes();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send quote");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDeleteQuote() {
+    if (!deleteQuoteTarget) return;
+    setSubmitting(true);
+    try {
+      await deleteQuote({ variables: { id: deleteQuoteTarget.id } });
+      toast.success(`${deleteQuoteTarget.quoteNumber} deleted`);
+      setDeleteQuoteTarget(null);
+      await refetchQuotes();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete quote");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   async function handleConfirm() {
     if (!confirmPrompt || !confirmWarehouseId) return;
@@ -293,6 +408,12 @@ export default function SalesPage() {
           <Button size="sm" onClick={() => navigate("/sales/new")}>
             <Plus className="h-4 w-4" />
             New Order
+          </Button>
+        )}
+        {tab === "quotes" && (
+          <Button size="sm" onClick={() => navigate("/sales/quotes/new")}>
+            <Plus className="h-4 w-4" />
+            New Quote
           </Button>
         )}
       </div>
@@ -412,6 +533,67 @@ export default function SalesPage() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {tab === "quotes" && (
+        <>
+          <QuotesDashboard quotes={quotes} loading={quotesLoading} />
+          <Card>
+            <CardHeader>
+              <CardTitle>Quotes</CardTitle>
+              <CardDescription>Draft, send, and track customer quotes before they become orders.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {quotesLoading ? (
+                <p className="text-sm text-muted-foreground">Loading…</p>
+              ) : quotes.length === 0 ? (
+                <EmptyState label="quote" onAdd={() => navigate("/sales/quotes/new")} />
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-muted-foreground">
+                      <th className="py-2 font-medium">Quote #</th>
+                      <th className="py-2 font-medium">Customer</th>
+                      <th className="py-2 font-medium">Items</th>
+                      <th className="py-2 font-medium">Total</th>
+                      <th className="py-2 font-medium">Status</th>
+                      <th className="py-2 font-medium text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {quotes.map((q) => (
+                      <tr
+                        key={q.id}
+                        className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/50"
+                        onClick={() => navigate(`/sales/quotes/edit/${q.id}`)}
+                      >
+                        <td className="py-2 font-mono text-xs">{q.quoteNumber}</td>
+                        <td className="py-2">{q.customerName}</td>
+                        <td className="py-2 text-muted-foreground">{q.items.length}</td>
+                        <td className="py-2">{inr(q.total)}</td>
+                        <td className="py-2">
+                          <StatusBadge status={q.status} />
+                        </td>
+                        <td className="py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                          {q.status === "DRAFT" && (
+                            <Button variant="ghost" size="sm" onClick={() => handleSendQuote(q)} disabled={submitting}>
+                              Send
+                            </Button>
+                          )}
+                          {q.status === "DRAFT" && (
+                            <Button variant="ghost" size="sm" onClick={() => setDeleteQuoteTarget(q)}>
+                              <Trash2 className="h-4 w-4 text-danger" />
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </CardContent>
+          </Card>
+        </>
       )}
 
       {/* Order detail */}
@@ -560,6 +742,24 @@ export default function SalesPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete quote */}
+      <Dialog open={!!deleteQuoteTarget} onOpenChange={(o) => !o && setDeleteQuoteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {deleteQuoteTarget?.quoteNumber}?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">This permanently removes the draft quote.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteQuoteTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteQuote} disabled={submitting}>
+              {submitting ? "Deleting…" : "Delete quote"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -696,6 +896,65 @@ function InvoiceDetail({
           Export PDF
         </Button>
       </DialogFooter>
+    </div>
+  );
+}
+
+function QuotesDashboard({ quotes, loading }: { quotes: Quote[]; loading: boolean }) {
+  const total = quotes.length;
+  const pending = quotes.filter((q) => q.status === "SENT").length;
+  const accepted = quotes.filter((q) => q.status === "ACCEPTED").length;
+  const decided = quotes.filter((q) => ["ACCEPTED", "REJECTED", "EXPIRED"].includes(q.status)).length;
+  const winRate = decided > 0 ? Math.round((accepted / decided) * 100) : null;
+  const pipelineValue = quotes
+    .filter((q) => q.status === "DRAFT" || q.status === "SENT")
+    .reduce((sum, q) => sum + q.total, 0);
+
+  const widgets = [
+    {
+      label: "Total Quotes",
+      value: loading ? "—" : String(total),
+      icon: FileText,
+      iconClass: "text-slate-500",
+      footer: "All time",
+    },
+    {
+      label: "Pending Response",
+      value: loading ? "—" : String(pending),
+      icon: Clock,
+      iconClass: "text-warning",
+      footer: "Awaiting customer",
+    },
+    {
+      label: "Accepted",
+      value: loading ? "—" : String(accepted),
+      icon: CheckCircle2,
+      iconClass: "text-success",
+      footer: winRate === null ? "No decisions yet" : `${winRate}% win rate`,
+    },
+    {
+      label: "Pipeline Value",
+      value: loading ? "—" : inr(pipelineValue),
+      icon: Wallet,
+      iconClass: "text-primary",
+      footer: "Draft + sent value",
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {widgets.map((w) => (
+        <Card key={w.label} className={CARD_HOVER}>
+          <CardContent className="p-4">
+            <div className="mb-2 flex items-start justify-between">
+              <span className="text-xs font-medium text-muted-foreground">{w.label}</span>
+              <w.icon className={cn("h-4 w-4", w.iconClass)} />
+            </div>
+            <div className="text-2xl font-bold tracking-tight text-foreground">{w.value}</div>
+            <div className="mt-1 text-[11px] text-muted-foreground">{w.footer}</div>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }
