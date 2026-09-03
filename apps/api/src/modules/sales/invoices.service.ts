@@ -69,10 +69,10 @@ export class InvoicesService {
     }
     if (order.invoice) throw new BadRequestException("This order already has an invoice");
 
-    const taxRate = await this.prisma.taxRate.findFirst({ where: { isDefault: true } });
-    const subtotal = order.items.reduce((sum, i) => sum + i.quantity * Number(i.unitPrice), 0);
-    const taxAmount = taxRate ? subtotal * (Number(taxRate.rate) / 100) : 0;
-    const total = subtotal + taxAmount;
+    const subtotal = Number(order.subtotal);
+    const discountAmount = Number(order.discountAmount);
+    const taxAmount = Number(order.taxAmount);
+    const total = Number(order.total);
     const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     const invoiceNumber = await this.nextInvoiceNumber();
 
@@ -84,6 +84,7 @@ export class InvoicesService {
         customerId: order.customerId,
         status: InvoiceStatus.UNPAID,
         subtotal,
+        discountAmount,
         taxAmount,
         total,
         dueDate,

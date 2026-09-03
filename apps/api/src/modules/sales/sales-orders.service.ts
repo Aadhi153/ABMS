@@ -1,37 +1,72 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { SalesOrderStatus, StockMovementType } from "@abms/database";
+
+import { SalesOrderStatus, SalesOrderTaxMethod, StockMovementType } from "@abms/database";
 import { SCOPED_PRISMA, type ScopedPrismaClient } from "../../common/tenancy/scoped-prisma.service";
-import type { CreateSalesOrderInput } from "./dto/sales-order.input";
+import type { CreateSalesOrderInput, SalesOrderItemInput } from "./dto/sales-order.input";
 
 const ORDER_INCLUDE = {
   customer: true,
   createdBy: true,
-  items: { include: { product: true } },
+  priceList: true,
+  items: { include: { product: true, warehouse: true }, orderBy: { sortOrder: "asc" as const } },
   invoice: true,
 } as const;
+
+function computeLine(item: { quantity: number; unitPrice: number; discountPct: number; taxPct: number }, taxMethod: SalesOrderTaxMethod) {
+  const gross = item.quantity * item.unitPrice;
+  const base = taxMethod === SalesOrderTaxMethod.INCLUSIVE ? gross / (1 + item.taxPct / 100) : gross;
+  const discountAmt = base * (item.discountPct / 100);
+  const afterDiscount = base - discountAmt;
+  const taxAmt = afterDiscount * (item.taxPct / 100);
+  return { base, discountAmt, taxAmt, lineTotal: afterDiscount + taxAmt };
+}
 
 function toModel<T extends {
   customer: { name: string };
   createdBy: { name: string };
-  items: Array<{ id: string; productId: string; quantity: number; unitPrice: unknown; product: { name: string; sku: string } }>;
+  priceList: { name: string } | null;
+  subtotal: unknown;
+  discountAmount: unknown;
+  taxAmount: unknown;
+  shippingAmount: unknown;
+  total: unknown;
   invoice: unknown;
+  items: Array<{
+    id: string;
+    productId: string;
+    hsnSac: string | null;
+    quantity: number;
+    uom: string;
+    unitPrice: unknown;
+    discountPct: unknown;
+    taxPct: unknown;
+    warehouseId: string | null;
+    warehouse: { name: string } | null;
+    lineTotal: unknown;
+    product: { name: string; sku: string };
+  }>;
 }>(row: T) {
   const items = row.items.map((i) => ({
-    id: i.id,
-    productId: i.productId,
+    ...i,
     productName: i.product.name,
     sku: i.product.sku,
-    quantity: i.quantity,
+    warehouseName: i.warehouse?.name ?? null,
     unitPrice: Number(i.unitPrice),
-    lineTotal: i.quantity * Number(i.unitPrice),
+    discountPct: Number(i.discountPct),
+    taxPct: Number(i.taxPct),
+    lineTotal: Number(i.lineTotal),
   }));
-  const subtotal = items.reduce((sum, i) => sum + i.lineTotal, 0);
   return {
     ...row,
     customerName: row.customer.name,
     createdByName: row.createdBy.name,
+    priceListName: row.priceList?.name ?? null,
     items,
-    subtotal,
+    subtotal: Number(row.subtotal),
+    discountAmount: Number(row.discountAmount),
+    taxAmount: Number(row.taxAmount),
+    shippingAmount: Number(row.shippingAmount),
+    total: Number(row.total),
     hasInvoice: !!row.invoice,
   };
 }
@@ -60,35 +95,92 @@ export class SalesOrdersService {
       const product = await this.prisma.product.findUnique({ where: { id: item.productId } });
       if (!product) throw new NotFoundException(`Product ${item.productId} not found`);
     }
+    const taxMethod = input.taxMethod ?? SalesOrderTaxMethod.EXCLUSIVE;
+    const lines = input.items.map((i: SalesOrderItemInput) => {
+      const normalized = {
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        discountPct: i.discountPct ?? 0,
+        taxPct: i.taxPct ?? 0,
+      };
+      return { input: i, ...computeLine(normalized, taxMethod) };
+    });
+    const subtotal = lines.reduce((sum, l) => sum + l.base, 0);
+    const discountAmount = lines.reduce((sum, l) => sum + l.discountAmt, 0);
+    const taxAmount = lines.reduce((sum, l) => sum + l.taxAmt, 0);
+    const shippingAmount = input.shippingAmount ?? 0;
+    const total = subtotal - discountAmount + taxAmount + shippingAmount;
+
     const orderNumber = await this.nextOrderNumber();
     const row = await this.prisma.salesOrder.create({
       data: {
         orderNumber,
         customerId: input.customerId,
         dealId: input.dealId,
+        promisedDate: input.promisedDate,
+        reference: input.reference,
+        paymentTerms: input.paymentTerms,
+        priceListId: input.priceListId,
+        taxMethod,
+        customerNotes: input.customerNotes,
+        termsConditions: input.termsConditions,
+        internalNotes: input.internalNotes,
+        shippingAmount,
+        subtotal,
+        discountAmount,
+        taxAmount,
+        total,
         createdById: actorId,
         organizationId,
-        items: { create: input.items.map((i) => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.unitPrice })) },
+        items: {
+          create: lines.map((l, idx) => ({
+            productId: l.input.productId,
+            hsnSac: l.input.hsnSac,
+            quantity: l.input.quantity,
+            uom: l.input.uom ?? "unit",
+            unitPrice: l.input.unitPrice,
+            discountPct: l.input.discountPct ?? 0,
+            taxPct: l.input.taxPct ?? 0,
+            warehouseId: l.input.warehouseId,
+            lineTotal: l.lineTotal,
+            sortOrder: idx,
+          })),
+        },
       },
       include: ORDER_INCLUDE,
     });
     return toModel(row);
   }
 
-  async confirm(id: string, warehouseId: string, actorId: string, organizationId: string) {
+  async confirm(id: string, fallbackWarehouseId: string | undefined, actorId: string, organizationId: string) {
     const order = await this.prisma.salesOrder.findUnique({ where: { id }, include: { items: { include: { product: true } } } });
     if (!order) throw new NotFoundException("Sales order not found");
     if (order.status !== SalesOrderStatus.DRAFT) throw new BadRequestException("Only draft orders can be confirmed");
-    const warehouse = await this.prisma.warehouse.findUnique({ where: { id: warehouseId } });
-    if (!warehouse) throw new NotFoundException("Warehouse not found");
+
+    const resolved = order.items.map((item) => {
+      const warehouseId = item.warehouseId ?? fallbackWarehouseId;
+      if (!warehouseId) throw new BadRequestException(`No warehouse specified for ${item.product.name}`);
+      return { item, warehouseId };
+    });
+
+    const warehouseIds = [...new Set(resolved.map((r) => r.warehouseId))];
+    const warehouses = await this.prisma.warehouse.findMany({ where: { id: { in: warehouseIds } } });
+    const warehouseById = new Map(warehouses.map((w) => [w.id, w]));
+    for (const id of warehouseIds) {
+      if (!warehouseById.has(id)) throw new NotFoundException("Warehouse not found");
+    }
 
     const levels = await this.prisma.stockLevel.findMany({
-      where: { warehouseId, productId: { in: order.items.map((i) => i.productId) } },
+      where: {
+        productId: { in: order.items.map((i) => i.productId) },
+        warehouseId: { in: warehouseIds },
+      },
     });
-    const levelByProduct = new Map(levels.map((l) => [l.productId, l.quantity]));
-    for (const item of order.items) {
-      const available = levelByProduct.get(item.productId) ?? 0;
+    const levelByKey = new Map(levels.map((l) => [`${l.productId}:${l.warehouseId}`, l.quantity]));
+    for (const { item, warehouseId } of resolved) {
+      const available = levelByKey.get(`${item.productId}:${warehouseId}`) ?? 0;
       if (available < item.quantity) {
+        const warehouse = warehouseById.get(warehouseId)!;
         throw new BadRequestException(
           `Insufficient stock for ${item.product.name} at ${warehouse.name} (have ${available}, need ${item.quantity})`,
         );
@@ -96,7 +188,7 @@ export class SalesOrdersService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      for (const item of order.items) {
+      for (const { item, warehouseId } of resolved) {
         await tx.stockLevel.update({
           where: { productId_warehouseId: { productId: item.productId, warehouseId } },
           data: { quantity: { decrement: item.quantity } },

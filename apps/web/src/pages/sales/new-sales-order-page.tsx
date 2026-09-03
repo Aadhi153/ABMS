@@ -1,93 +1,52 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { gql, useMutation, useQuery } from "@apollo/client";
-import { Check, ChevronLeft, ChevronRight, ShoppingCart, Trash2 } from "lucide-react";
-import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, cn, toast } from "@abms/ui";
 import {
-  FormPage,
-  FormScrollArea,
-  FormPageHeader,
-  FormSection,
-  FormSubsection,
-  FormFooter,
-  FormErrorBanner,
-  FormCancelButton,
-  FieldError,
-  RequiredMark,
-  useDiscardGuard,
-} from "../products/form-page";
+  ArrowLeft,
+  Building2,
+  Package,
+  Plus,
+  Save,
+  Search,
+  Send,
+  StickyNote,
+  Trash2,
+  Wallet,
+} from "lucide-react";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  StatusBadge,
+  Textarea,
+  cn,
+  toast,
+} from "@abms/ui";
+import { FormPage, FormScrollArea, useDiscardGuard } from "../products/form-page";
 import { BUTTON_PRESS, FOCUS_GLOW, holdSuccessThen } from "../products/form-motion";
 
 const ORDERS_LIST_ROUTE = "/sales/orders";
-
-const STEPS = [
-  { key: "details", label: "Order Details" },
-  { key: "items", label: "Items" },
-  { key: "review", label: "Review" },
-] as const;
-
-function OrderStepIndicator({
-  currentStep,
-  maxVisitedStep,
-  onStepClick,
-}: {
-  currentStep: number;
-  maxVisitedStep: number;
-  onStepClick: (index: number) => void;
-}) {
-  return (
-    <nav aria-label="Form steps" className="flex items-center">
-      {STEPS.map((s, i) => {
-        const done = i < currentStep;
-        const current = i === currentStep;
-        const reachable = i <= maxVisitedStep;
-        return (
-          <div key={s.key} className="flex items-center">
-            {i > 0 && (
-              <div className="relative h-px w-6 overflow-hidden bg-border sm:w-10">
-                <div
-                  className={cn(
-                    "absolute inset-y-0 left-0 bg-foreground/30 transition-all duration-[250ms] ease-out",
-                    i <= maxVisitedStep ? "w-full" : "w-0",
-                  )}
-                />
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => reachable && onStepClick(i)}
-              disabled={!reachable}
-              className={cn(
-                "flex items-center gap-2 rounded-full px-2 py-1.5 text-sm transition-colors duration-150 ease-out",
-                reachable && !current && "cursor-pointer hover:bg-muted",
-                !reachable && "cursor-not-allowed opacity-50",
-              )}
-            >
-              <span
-                className={cn(
-                  "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold",
-                  current && "bg-foreground text-background",
-                  done && "border border-foreground/40 text-foreground",
-                  !current && !done && "border border-border text-muted-foreground",
-                )}
-              >
-                {done ? <Check className="h-3 w-3" /> : i + 1}
-              </span>
-              <span className={cn("font-medium", current ? "text-foreground" : "text-muted-foreground")}>
-                {s.label}
-              </span>
-            </button>
-          </div>
-        );
-      })}
-    </nav>
-  );
-}
 
 const OPTIONS_QUERY = gql`
   query NewSalesOrderOptions {
     customers {
       id
       name
+      code
+      email
+      phone
       active
     }
     products {
@@ -103,6 +62,11 @@ const OPTIONS_QUERY = gql`
       name
       active
     }
+    priceLists {
+      id
+      name
+      active
+    }
   }
 `;
 
@@ -114,20 +78,104 @@ const CREATE_ORDER = gql`
   }
 `;
 const CONFIRM_ORDER = gql`
-  mutation ConfirmSalesOrder($id: String!, $warehouseId: String!) {
-    confirmSalesOrder(id: $id, warehouseId: $warehouseId) {
+  mutation ConfirmSalesOrder($id: String!) {
+    confirmSalesOrder(id: $id) {
       id
     }
   }
 `;
 
-type Item = { productId: string; quantity: number; unitPrice: number };
+interface CustomerOption {
+  id: string;
+  name: string;
+  code: string;
+  email?: string | null;
+  phone?: string | null;
+  active: boolean;
+}
+interface ProductOption {
+  id: string;
+  sku: string;
+  name: string;
+  sellPrice: number;
+  totalStock: number;
+  active: boolean;
+}
+interface WarehouseOption {
+  id: string;
+  name: string;
+  active: boolean;
+}
+interface PriceListOption {
+  id: string;
+  name: string;
+  active: boolean;
+}
+
+type TaxMethod = "EXCLUSIVE" | "INCLUSIVE";
+
+interface OrderItem {
+  key: string;
+  productId: string;
+  hsnSac: string;
+  quantity: number;
+  uom: string;
+  unitPrice: number;
+  discountPct: number;
+  taxPct: number;
+  warehouseId: string;
+}
+
+const UOM_OPTIONS = ["unit", "pcs", "box", "kg", "gram", "ltr", "ml", "dozen", "meter", "set"];
+
+const PAYMENT_TERMS_OPTIONS = [
+  { value: "DUE_ON_RECEIPT", label: "Due on Receipt" },
+  { value: "NET_15", label: "Net 15" },
+  { value: "NET_30", label: "Net 30" },
+  { value: "NET_45", label: "Net 45" },
+  { value: "NET_60", label: "Net 60" },
+  { value: "CUSTOM", label: "Custom" },
+];
+
+function inr(n: number) {
+  return `₹${(Number.isFinite(n) ? n : 0).toFixed(2)}`;
+}
+
+function computeLine(item: OrderItem, taxMethod: TaxMethod) {
+  const qty = item.quantity || 0;
+  const price = item.unitPrice || 0;
+  const gross = qty * price;
+  const taxPct = item.taxPct || 0;
+  const base = taxMethod === "INCLUSIVE" ? gross / (1 + taxPct / 100) : gross;
+  const discountAmt = base * ((item.discountPct || 0) / 100);
+  const afterDiscount = base - discountAmt;
+  const taxAmt = afterDiscount * (taxPct / 100);
+  const total = afterDiscount + taxAmt;
+  return { base, discountAmt, taxAmt, total };
+}
+
+let itemSeq = 0;
+function newItem(): OrderItem {
+  itemSeq += 1;
+  return {
+    key: `item-${itemSeq}`,
+    productId: "",
+    hsnSac: "",
+    quantity: 1,
+    uom: "unit",
+    unitPrice: 0,
+    discountPct: 0,
+    taxPct: 0,
+    warehouseId: "",
+  };
+}
 
 export default function NewSalesOrderPage() {
   const { data } = useQuery<{
-    customers: Array<{ id: string; name: string; active: boolean }>;
-    products: Array<{ id: string; sku: string; name: string; sellPrice: number; totalStock: number; active: boolean }>;
-    warehouses: Array<{ id: string; name: string; active: boolean }>;
+    customers: CustomerOption[];
+    products: ProductOption[];
+    warehouses: WarehouseOption[];
+    priceLists: PriceListOption[];
   }>(OPTIONS_QUERY);
   const [createOrder] = useMutation(CREATE_ORDER, { refetchQueries: ["SalesPageData"] });
   const [confirmOrder] = useMutation(CONFIRM_ORDER, { refetchQueries: ["SalesPageData"] });
@@ -135,78 +183,105 @@ export default function NewSalesOrderPage() {
   const customers = (data?.customers ?? []).filter((c) => c.active !== false);
   const products = (data?.products ?? []).filter((p) => p.active !== false);
   const warehouses = data?.warehouses ?? [];
+  const priceLists = (data?.priceLists ?? []).filter((p) => p.active !== false);
 
+  const [items, setItems] = useState<OrderItem[]>([]);
   const [customerId, setCustomerId] = useState("");
-  const [warehouseId, setWarehouseId] = useState("");
-  const [items, setItems] = useState<Item[]>([]);
-  const [productId, setProductId] = useState("");
-  const [quantity, setQuantity] = useState("1");
+  const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState("");
 
-  const [customerError, setCustomerError] = useState<string | null>(null);
-  const [itemsError, setItemsError] = useState<string | null>(null);
+  const [promisedDate, setPromisedDate] = useState("");
+  const [reference, setReference] = useState("");
+  const [paymentTerms, setPaymentTerms] = useState("NET_30");
+  const [priceListId, setPriceListId] = useState("");
+
+  const [taxMethod, setTaxMethod] = useState<TaxMethod>("EXCLUSIVE");
+  const [shippingAmount, setShippingAmount] = useState("");
+
+  const [customerNotes, setCustomerNotes] = useState("");
+  const [terms, setTerms] = useState("");
+  const [internalNotes, setInternalNotes] = useState("");
+
+  const [busy, setBusy] = useState<"idle" | "draft" | "send">("idle");
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"idle" | "draft" | "confirm">("idle");
-  const [step, setStep] = useState(0);
-  const [maxVisitedStep, setMaxVisitedStep] = useState(0);
-
-  const dirty = !!customerId || items.length > 0;
-  const { goBack, requestNavigate, leaving, exitTo, discardDialog } = useDiscardGuard(
-    ORDERS_LIST_ROUTE,
-    dirty,
-  );
 
   const selectedCustomer = customers.find((c) => c.id === customerId);
-  const total = items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
 
-  function validateDetails(): boolean {
-    const invalid = !customerId;
-    setCustomerError(invalid ? "Select a customer" : null);
-    return !invalid;
-  }
+  const dirty =
+    !!customerId ||
+    items.length > 0 ||
+    !!customerNotes ||
+    !!terms ||
+    !!internalNotes ||
+    !!reference;
+  const { goBack, leaving, exitTo, discardDialog } = useDiscardGuard(ORDERS_LIST_ROUTE, dirty);
 
-  function validateItems(): boolean {
-    const invalid = items.length === 0;
-    setItemsError(invalid ? "Add at least one item" : null);
-    return !invalid;
-  }
+  const totals = useMemo(() => {
+    const lines = items.map((it) => computeLine(it, taxMethod));
+    const subtotal = lines.reduce((sum, l) => sum + l.base, 0);
+    const discountAmount = lines.reduce((sum, l) => sum + l.discountAmt, 0);
+    const tax = lines.reduce((sum, l) => sum + l.taxAmt, 0);
+    const shipping = Number(shippingAmount) || 0;
+    const total = subtotal - discountAmount + tax + shipping;
+    return { subtotal, discountAmount, tax, shipping, total };
+  }, [items, taxMethod, shippingAmount]);
 
   function addItem() {
+    setItems((prev) => [...prev, newItem()]);
+  }
+
+  function updateItem(key: string, patch: Partial<OrderItem>) {
+    setItems((prev) => prev.map((it) => (it.key === key ? { ...it, ...patch } : it)));
+  }
+
+  function removeItem(key: string) {
+    setItems((prev) => prev.filter((it) => it.key !== key));
+  }
+
+  function pickProduct(key: string, productId: string) {
     const product = products.find((p) => p.id === productId);
-    if (!product || !quantity) return;
-    setItems((prev) => [...prev, { productId: product.id, quantity: Number(quantity), unitPrice: product.sellPrice }]);
-    setProductId("");
-    setQuantity("1");
-    setItemsError(null);
+    updateItem(key, { productId, unitPrice: product?.sellPrice ?? 0 });
   }
 
-  function removeItem(idx: number) {
-    setItems((prev) => prev.filter((_, i) => i !== idx));
-  }
-
-  function goToStep(index: number) {
-    if (index > maxVisitedStep || busy !== "idle") return;
-    setStep(index);
-  }
-
-  function handleNext() {
-    if (step === 0 && !validateDetails()) return;
-    if (step === 1 && !validateItems()) return;
-    const next = step + 1;
-    setStep(next);
-    setMaxVisitedStep((m) => Math.max(m, next));
-  }
-
-  function handleBack() {
-    setStep((s) => Math.max(0, s - 1));
+  function buildInput() {
+    return {
+      customerId,
+      promisedDate: promisedDate || undefined,
+      reference: reference || undefined,
+      paymentTerms: paymentTerms || undefined,
+      priceListId: priceListId || undefined,
+      taxMethod,
+      customerNotes: customerNotes || undefined,
+      termsConditions: terms || undefined,
+      internalNotes: internalNotes || undefined,
+      shippingAmount: Number(shippingAmount) || 0,
+      items: items.map((it) => ({
+        productId: it.productId,
+        hsnSac: it.hsnSac || undefined,
+        quantity: it.quantity,
+        uom: it.uom,
+        unitPrice: it.unitPrice,
+        discountPct: it.discountPct,
+        taxPct: it.taxPct,
+        warehouseId: it.warehouseId || undefined,
+      })),
+    };
   }
 
   async function handleSaveDraft() {
-    if (!validateDetails() || !validateItems()) return;
+    if (!customerId) {
+      setSubmitError("Select a customer");
+      return;
+    }
+    if (items.length === 0 || items.some((it) => !it.productId)) {
+      setSubmitError("Add at least one item with a product selected");
+      return;
+    }
     setSubmitError(null);
     setBusy("draft");
     try {
-      await createOrder({ variables: { input: { customerId, items } } });
-      toast.success("Order saved as draft");
+      await createOrder({ variables: { input: buildInput() } });
+      toast.success("Order saved as a draft");
       holdSuccessThen(() => exitTo(ORDERS_LIST_ROUTE));
     } catch (err) {
       setBusy("idle");
@@ -216,15 +291,26 @@ export default function NewSalesOrderPage() {
     }
   }
 
-  async function handleConfirmNow() {
-    if (!validateDetails() || !validateItems() || !warehouseId) return;
+  async function handleSendOrder() {
+    if (!customerId) {
+      setSubmitError("Select a customer");
+      return;
+    }
+    if (items.length === 0 || items.some((it) => !it.productId)) {
+      setSubmitError("Add at least one item with a product selected");
+      return;
+    }
+    if (items.some((it) => !it.warehouseId)) {
+      setSubmitError("Select a fulfillment warehouse for every item to confirm immediately");
+      return;
+    }
     setSubmitError(null);
-    setBusy("confirm");
+    setBusy("send");
     try {
-      const res = await createOrder({ variables: { input: { customerId, items } } });
+      const res = await createOrder({ variables: { input: buildInput() } });
       const id = res.data?.createSalesOrder?.id;
-      if (id) await confirmOrder({ variables: { id, warehouseId } });
-      toast.success("Order created and confirmed — stock deducted");
+      if (id) await confirmOrder({ variables: { id } });
+      toast.success("Order confirmed — stock deducted");
       holdSuccessThen(() => exitTo(ORDERS_LIST_ROUTE));
     } catch (err) {
       setBusy("idle");
@@ -234,182 +320,475 @@ export default function NewSalesOrderPage() {
     }
   }
 
+  const filteredCustomers = customers.filter((c) => {
+    const q = customerSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      c.name.toLowerCase().includes(q) ||
+      c.code.toLowerCase().includes(q) ||
+      (c.email ?? "").toLowerCase().includes(q)
+    );
+  });
+
   return (
     <FormPage leaving={leaving}>
       <FormScrollArea>
-        <FormPageHeader
-          breadcrumb={[{ label: "Sales", to: ORDERS_LIST_ROUTE }, { label: "Orders", to: ORDERS_LIST_ROUTE }, { label: "New Order" }]}
-          title="Create Sales Order"
-          subtitle="Build an order for a customer"
-          backLabel="Back to Sales"
-          onBack={goBack}
-          onNavigate={requestNavigate}
-        />
-        <OrderStepIndicator currentStep={step} maxVisitedStep={maxVisitedStep} onStepClick={goToStep} />
-        <FormErrorBanner message={submitError} />
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={goBack}
+              className={cn("-ml-2 mb-1 gap-1.5 px-2 text-xs text-muted-foreground hover:bg-transparent", BUTTON_PRESS)}
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back
+            </Button>
+            <h1 className="text-2xl font-bold tracking-tight">Create New Sales Order</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Create a new sales order for your customer</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              title="Save as draft"
+              disabled={busy !== "idle" || leaving}
+              onClick={handleSaveDraft}
+              className={BUTTON_PRESS}
+            >
+              <Save className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              disabled={busy !== "idle" || leaving}
+              onClick={handleSendOrder}
+              className={BUTTON_PRESS}
+            >
+              <Send className="h-4 w-4" />
+              {busy === "send" ? "Confirming…" : "Send Order"}
+            </Button>
+          </div>
+        </div>
 
-        {step === 0 && (
-          <FormSection title="Order Details" description="Customer and fulfillment warehouse" icon={<ShoppingCart className="h-5 w-5" />} index={0}>
-            <FormSubsection title="Details" description="Warehouse is only needed if you confirm immediately">
-              <div className="space-y-1.5">
-                <Label>
-                  Customer
-                  <RequiredMark />
-                </Label>
-                <Select value={customerId} onValueChange={setCustomerId}>
-                  <SelectTrigger className={FOCUS_GLOW}>
-                    <SelectValue placeholder="Select customer" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customers.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FieldError message={customerError} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Fulfillment warehouse</Label>
-                <Select value={warehouseId} onValueChange={setWarehouseId}>
-                  <SelectTrigger className={FOCUS_GLOW}>
-                    <SelectValue placeholder="Select warehouse" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {warehouses.map((w) => (
-                      <SelectItem key={w.id} value={w.id}>
-                        {w.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </FormSubsection>
-          </FormSection>
+        {submitError && (
+          <div
+            role="alert"
+            className="rounded-lg border border-danger/30 bg-danger-bg px-4 py-3 text-sm text-danger"
+          >
+            {submitError}
+          </div>
         )}
 
-        {step === 1 && (
-          <FormSection title="Items" description="Products and quantities for this order" icon={<ShoppingCart className="h-5 w-5" />} index={0}>
-            <FormSubsection title="Line Items" description="Add each product line to the order" className="sm:grid-cols-1">
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="min-w-[200px] flex-1 space-y-1.5">
-                  <Label>Product</Label>
-                  <Select value={productId} onValueChange={setProductId}>
-                    <SelectTrigger className={FOCUS_GLOW}>
-                      <SelectValue placeholder="Select product" />
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Main column */}
+          <div className="space-y-6 lg:col-span-2">
+            <Card>
+              <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 pb-3">
+                <div className="flex items-center gap-2">
+                  <Package className="h-5 w-5 text-muted-foreground" />
+                  <CardTitle>Order Items</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                        <th className="min-w-[180px] py-2 font-medium">Product</th>
+                        <th className="min-w-[90px] py-2 font-medium">HSN/SAC</th>
+                        <th className="min-w-[64px] py-2 font-medium">Qty</th>
+                        <th className="min-w-[84px] py-2 font-medium">UOM</th>
+                        <th className="min-w-[96px] py-2 font-medium">Unit Price</th>
+                        <th className="min-w-[80px] py-2 font-medium">Discount</th>
+                        <th className="min-w-[72px] py-2 font-medium">Tax %</th>
+                        <th className="min-w-[140px] py-2 font-medium">Warehouse</th>
+                        <th className="min-w-[96px] py-2 text-right font-medium">Total</th>
+                        <th className="w-8 py-2" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="py-10 text-center text-sm text-muted-foreground">
+                            No items added yet. Click &ldquo;Add Another Item&rdquo; below to start.
+                          </td>
+                        </tr>
+                      ) : (
+                        items.map((it) => {
+                          const line = computeLine(it, taxMethod);
+                          return (
+                            <tr key={it.key} className="border-b border-border last:border-0">
+                              <td className="py-1.5 pr-2">
+                                <Select value={it.productId} onValueChange={(v) => pickProduct(it.key, v)}>
+                                  <SelectTrigger className={cn("h-8 text-xs", FOCUS_GLOW)}>
+                                    <SelectValue placeholder="Select product" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {products.map((p) => (
+                                      <SelectItem key={p.id} value={p.id}>
+                                        {p.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                              <td className="py-1.5 pr-2">
+                                <Input
+                                  value={it.hsnSac}
+                                  onChange={(e) => updateItem(it.key, { hsnSac: e.target.value })}
+                                  className={cn("h-8 text-xs", FOCUS_GLOW)}
+                                />
+                              </td>
+                              <td className="py-1.5 pr-2">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={it.quantity}
+                                  onChange={(e) => updateItem(it.key, { quantity: Number(e.target.value) })}
+                                  className={cn("h-8 text-xs", FOCUS_GLOW)}
+                                />
+                              </td>
+                              <td className="py-1.5 pr-2">
+                                <Select value={it.uom} onValueChange={(v) => updateItem(it.key, { uom: v })}>
+                                  <SelectTrigger className={cn("h-8 text-xs", FOCUS_GLOW)}>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {UOM_OPTIONS.map((u) => (
+                                      <SelectItem key={u} value={u}>
+                                        {u}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                              <td className="py-1.5 pr-2">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={it.unitPrice}
+                                  onChange={(e) => updateItem(it.key, { unitPrice: Number(e.target.value) })}
+                                  className={cn("h-8 text-xs", FOCUS_GLOW)}
+                                />
+                              </td>
+                              <td className="py-1.5 pr-2">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={it.discountPct}
+                                  onChange={(e) => updateItem(it.key, { discountPct: Number(e.target.value) })}
+                                  className={cn("h-8 text-xs", FOCUS_GLOW)}
+                                />
+                              </td>
+                              <td className="py-1.5 pr-2">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={it.taxPct}
+                                  onChange={(e) => updateItem(it.key, { taxPct: Number(e.target.value) })}
+                                  className={cn("h-8 text-xs", FOCUS_GLOW)}
+                                />
+                              </td>
+                              <td className="py-1.5 pr-2">
+                                <Select value={it.warehouseId} onValueChange={(v) => updateItem(it.key, { warehouseId: v })}>
+                                  <SelectTrigger className={cn("h-8 text-xs", FOCUS_GLOW)}>
+                                    <SelectValue placeholder="Warehouse" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {warehouses.map((w) => (
+                                      <SelectItem key={w.id} value={w.id}>
+                                        {w.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                              <td className="py-1.5 text-right font-medium">{inr(line.total)}</td>
+                              <td className="py-1.5 text-right">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => removeItem(it.key)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5 text-danger" />
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-3 flex items-center justify-between">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={addItem}
+                    className={cn("gap-1.5 px-2 text-primary hover:bg-primary/5 hover:text-primary", BUTTON_PRESS)}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Another Item
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    {items.length} item{items.length === 1 ? "" : "s"} added
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex-row items-center gap-2 space-y-0 pb-3">
+                <StickyNote className="h-5 w-5 text-muted-foreground" />
+                <CardTitle>Notes &amp; Terms</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-0">
+                <div className="space-y-1.5">
+                  <Label>Customer Notes</Label>
+                  <p className="text-xs text-muted-foreground">Notes visible to customer</p>
+                  <Textarea
+                    value={customerNotes}
+                    onChange={(e) => setCustomerNotes(e.target.value)}
+                    placeholder="Enter any notes that will be visible to the customer on the order…"
+                    className={FOCUS_GLOW}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Terms &amp; Conditions</Label>
+                  <p className="text-xs text-muted-foreground">Visible to customer</p>
+                  <Textarea
+                    value={terms}
+                    onChange={(e) => setTerms(e.target.value)}
+                    placeholder="Payment is due within 30 days of order confirmation…"
+                    className={FOCUS_GLOW}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Internal Notes</Label>
+                  <p className="text-xs text-muted-foreground">Only visible to your team</p>
+                  <Textarea
+                    value={internalNotes}
+                    onChange={(e) => setInternalNotes(e.target.value)}
+                    placeholder="Add internal notes for your team…"
+                    className={cn("border-warning/30 bg-warning-bg/40 placeholder:text-warning/70", FOCUS_GLOW)}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 pb-3">
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-sm">Customer Info</CardTitle>
+                </div>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  onClick={() => setCustomerPickerOpen(true)}
+                  className="h-auto p-0 text-xs"
+                >
+                  Select
+                </Button>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <p className="text-xs text-muted-foreground">Company</p>
+                <p className={cn("mt-0.5 text-sm font-medium", !selectedCustomer && "text-muted-foreground")}>
+                  {selectedCustomer ? selectedCustomer.name : "No customer selected"}
+                </p>
+                {selectedCustomer?.email && (
+                  <p className="mt-1 text-xs text-muted-foreground">{selectedCustomer.email}</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Status Overview</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0">
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-xs text-muted-foreground">Status</Label>
+                  <StatusBadge status="DRAFT" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Promised Date</Label>
+                  <Input
+                    type="date"
+                    value={promisedDate}
+                    onChange={(e) => setPromisedDate(e.target.value)}
+                    className={cn("h-8 text-xs", FOCUS_GLOW)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Reference</Label>
+                  <Input
+                    value={reference}
+                    onChange={(e) => setReference(e.target.value)}
+                    placeholder="-"
+                    className={cn("h-8 text-xs", FOCUS_GLOW)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Payment Terms</Label>
+                  <Select value={paymentTerms} onValueChange={setPaymentTerms}>
+                    <SelectTrigger className={cn("h-8 text-xs", FOCUS_GLOW)}>
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {products.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.name} (${p.sellPrice.toFixed(2)}, {p.totalStock} in stock)
+                      {PAYMENT_TERMS_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="w-24 space-y-1.5">
-                  <Label>Qty</Label>
-                  <Input type="number" min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} className={FOCUS_GLOW} />
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Price List</Label>
+                  <Select value={priceListId} onValueChange={setPriceListId}>
+                    <SelectTrigger className={cn("h-8 text-xs", FOCUS_GLOW)}>
+                      <SelectValue placeholder="Standard prices" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {priceLists.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Button type="button" variant="outline" onClick={addItem} disabled={!productId} className={BUTTON_PRESS}>
-                  Add
-                </Button>
-              </div>
-              <FieldError message={itemsError} />
-              {items.length > 0 && (
-                <table className="w-full text-sm">
-                  <tbody>
-                    {items.map((it, idx) => {
-                      const p = products.find((pr) => pr.id === it.productId);
-                      return (
-                        <tr key={idx} className="border-b border-border last:border-0">
-                          <td className="py-1.5">{p?.name}</td>
-                          <td className="py-1.5 text-right">
-                            {it.quantity} × ${it.unitPrice.toFixed(2)}
-                          </td>
-                          <td className="py-1.5 text-right">${(it.quantity * it.unitPrice).toFixed(2)}</td>
-                          <td className="py-1.5 text-right">
-                            <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(idx)}>
-                              <Trash2 className="h-4 w-4 text-danger" />
-                            </Button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </FormSubsection>
-          </FormSection>
-        )}
+              </CardContent>
+            </Card>
 
-        {step === 2 && (
-          <FormSection title="Review" description="Confirm the order before saving" icon={<ShoppingCart className="h-5 w-5" />} index={0}>
-            <FormSubsection title="Customer" className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-md border border-border px-3 py-2">
-                <p className="text-[11px] font-medium uppercase text-muted-foreground">Customer</p>
-                <p className="mt-1 min-h-5 truncate text-sm font-medium text-foreground">{selectedCustomer?.name || "-"}</p>
-              </div>
-              <div className="rounded-md border border-border px-3 py-2">
-                <p className="text-[11px] font-medium uppercase text-muted-foreground">Warehouse</p>
-                <p className="mt-1 min-h-5 truncate text-sm font-medium text-foreground">
-                  {warehouses.find((w) => w.id === warehouseId)?.name || "Not selected"}
-                </p>
-              </div>
-            </FormSubsection>
-            <FormSubsection title="Items" className="sm:grid-cols-1">
-              <table className="w-full text-sm">
-                <tbody>
-                  {items.map((it, idx) => {
-                    const p = products.find((pr) => pr.id === it.productId);
-                    return (
-                      <tr key={idx} className="border-b border-border last:border-0">
-                        <td className="py-1.5">{p?.name}</td>
-                        <td className="py-1.5 text-right">{it.quantity}</td>
-                        <td className="py-1.5 text-right">${(it.quantity * it.unitPrice).toFixed(2)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              <div className="flex justify-end text-sm font-medium">Total: ${total.toFixed(2)}</div>
-              {!warehouseId && <p className="text-xs text-muted-foreground">Pick a warehouse in step 1 to confirm immediately.</p>}
-            </FormSubsection>
-          </FormSection>
-        )}
+            <Card>
+              <CardHeader className="flex-row items-center gap-2 space-y-0 pb-3">
+                <Wallet className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm">Financial Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-0">
+                <div className="space-y-1.5 rounded-lg border border-border p-2.5">
+                  <p className="text-xs font-medium text-foreground">Tax Method</p>
+                  {(
+                    [
+                      { value: "EXCLUSIVE", label: "Exclusive", hint: "Tax added on top" },
+                      { value: "INCLUSIVE", label: "Inclusive", hint: "Tax included in price" },
+                    ] as const
+                  ).map((opt) => (
+                    <label
+                      key={opt.value}
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-muted"
+                    >
+                      <input
+                        type="radio"
+                        name="taxMethod"
+                        value={opt.value}
+                        checked={taxMethod === opt.value}
+                        onChange={() => setTaxMethod(opt.value)}
+                        className="h-3.5 w-3.5 accent-primary"
+                      />
+                      <span className="text-foreground">
+                        {opt.label} <span className="text-muted-foreground">({opt.hint})</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span>{inr(totals.subtotal)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Discount Amount</span>
+                    <span className="text-danger">{inr(totals.discountAmount)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Tax</span>
+                    <span>{inr(totals.tax)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="shrink-0 text-muted-foreground">Shipping Amount</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={shippingAmount}
+                      onChange={(e) => setShippingAmount(e.target.value)}
+                      placeholder="0.00"
+                      className={cn("h-7 w-24 text-right text-xs", FOCUS_GLOW)}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-border pt-3">
+                  <span className="text-sm font-semibold">Total Amount</span>
+                  <span className="text-lg font-bold text-primary">{inr(totals.total)}</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </FormScrollArea>
 
-      <FormFooter>
-        <FormCancelButton onClick={goBack} disabled={busy !== "idle" || leaving} size="xs" />
-        {step > 0 && (
-          <Button type="button" variant="outline" size="xs" onClick={handleBack} disabled={busy !== "idle" || leaving} className={BUTTON_PRESS}>
-            <ChevronLeft className="h-4 w-4" />
-            Back
-          </Button>
-        )}
-        {step < STEPS.length - 1 ? (
-          <Button type="button" variant="outline" size="xs" onClick={handleNext} disabled={busy !== "idle" || leaving} className={BUTTON_PRESS}>
-            Next
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        ) : (
-          <>
-            <Button type="button" variant="outline" size="xs" onClick={handleSaveDraft} disabled={busy !== "idle" || leaving} className={BUTTON_PRESS}>
-              {busy === "draft" ? "Saving…" : "Save as Draft"}
-            </Button>
-            <Button
-              type="button"
-              size="xs"
-              onClick={handleConfirmNow}
-              disabled={busy !== "idle" || leaving || !warehouseId}
-              className={BUTTON_PRESS}
-            >
-              {busy === "confirm" ? "Confirming…" : "Confirm & Deduct Stock"}
-            </Button>
-          </>
-        )}
-      </FormFooter>
+      <Dialog open={customerPickerOpen} onOpenChange={setCustomerPickerOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select customer</DialogTitle>
+          </DialogHeader>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              autoFocus
+              value={customerSearch}
+              onChange={(e) => setCustomerSearch(e.target.value)}
+              placeholder="Search by name, code, or email"
+              className={cn("pl-8", FOCUS_GLOW)}
+            />
+          </div>
+          <div className="max-h-72 space-y-1 overflow-y-auto">
+            {filteredCustomers.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">No customers found.</p>
+            ) : (
+              filteredCustomers.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => {
+                    setCustomerId(c.id);
+                    setCustomerPickerOpen(false);
+                    setCustomerSearch("");
+                  }}
+                  className={cn(
+                    "flex w-full flex-col items-start rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted",
+                    c.id === customerId && "bg-primary/5",
+                  )}
+                >
+                  <span className="font-medium text-foreground">{c.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {c.code}
+                    {c.email ? ` · ${c.email}` : ""}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {discardDialog}
     </FormPage>
   );

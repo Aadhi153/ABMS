@@ -39,7 +39,11 @@ export class SalesOrdersResolver {
 
   @Mutation(() => SalesOrderModel)
   @Roles(Role.ADMIN, Role.SALES)
-  async confirmSalesOrder(@Args("id") id: string, @Args("warehouseId") warehouseId: string, @CurrentUser() actor: User) {
+  async confirmSalesOrder(
+    @Args("id") id: string,
+    @Args("warehouseId", { type: () => String, nullable: true }) warehouseId: string | undefined,
+    @CurrentUser() actor: User,
+  ) {
     const before = await this.salesOrdersService.findById(id);
     const order = await this.salesOrdersService.confirm(id, warehouseId, actor.id, actor.organizationId);
     await this.audit.logUpdate(actor, "SalesOrder", id, before, order);
