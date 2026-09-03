@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import {
+  AlertCircle,
   ArrowLeft,
   Building2,
+  Loader2,
   Package,
   Plus,
   Save,
@@ -10,6 +12,7 @@ import {
   Send,
   StickyNote,
   Trash2,
+  UserPlus,
   Wallet,
 } from "lucide-react";
 import {
@@ -34,7 +37,7 @@ import {
   cn,
   toast,
 } from "@abms/ui";
-import { FormPage, FormScrollArea, useDiscardGuard } from "../products/form-page";
+import { FormPage, useDiscardGuard } from "../products/form-page";
 import { BUTTON_PRESS, FOCUS_GLOW, holdSuccessThen } from "../products/form-motion";
 
 const QUOTES_LIST_ROUTE = "/sales/quotes";
@@ -171,7 +174,7 @@ function newItem(): QuoteItem {
 }
 
 export default function NewQuotePage() {
-  const { data } = useQuery<{
+  const { data, loading: optionsLoading, error: optionsError } = useQuery<{
     customers: CustomerOption[];
     products: ProductOption[];
     warehouses: WarehouseOption[];
@@ -328,7 +331,7 @@ export default function NewQuotePage() {
 
   return (
     <FormPage leaving={leaving}>
-      <FormScrollArea>
+      <div className="w-full space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <Button
@@ -379,35 +382,35 @@ export default function NewQuotePage() {
 
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Main column */}
-          <div className="space-y-6 lg:col-span-2">
+          <div className="min-w-0 space-y-6 lg:col-span-2">
             <Card>
-              <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 pb-3">
+              <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 p-4 pb-2.5">
                 <div className="flex items-center gap-2">
                   <Package className="h-5 w-5 text-muted-foreground" />
                   <CardTitle>Quote Items</CardTitle>
                 </div>
               </CardHeader>
-              <CardContent className="pt-0">
+              <CardContent className="p-4 pt-0">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                        <th className="min-w-[180px] py-2 font-medium">Product</th>
-                        <th className="min-w-[90px] py-2 font-medium">HSN/SAC</th>
-                        <th className="min-w-[64px] py-2 font-medium">Qty</th>
-                        <th className="min-w-[84px] py-2 font-medium">UOM</th>
-                        <th className="min-w-[96px] py-2 font-medium">Unit Price</th>
-                        <th className="min-w-[80px] py-2 font-medium">Discount</th>
-                        <th className="min-w-[72px] py-2 font-medium">Tax %</th>
-                        <th className="min-w-[140px] py-2 font-medium">Warehouse</th>
-                        <th className="min-w-[96px] py-2 text-right font-medium">Total</th>
-                        <th className="w-8 py-2" />
+                        <th className="min-w-[180px] py-1.5 font-medium">Product</th>
+                        <th className="min-w-[90px] py-1.5 font-medium">HSN/SAC</th>
+                        <th className="min-w-[64px] py-1.5 font-medium">Qty</th>
+                        <th className="min-w-[84px] py-1.5 font-medium">UOM</th>
+                        <th className="min-w-[96px] py-1.5 font-medium">Unit Price</th>
+                        <th className="min-w-[80px] py-1.5 font-medium">Discount</th>
+                        <th className="min-w-[72px] py-1.5 font-medium">Tax %</th>
+                        <th className="min-w-[140px] py-1.5 font-medium">Warehouse</th>
+                        <th className="min-w-[96px] py-1.5 text-right font-medium">Total</th>
+                        <th className="w-8 py-1.5" />
                       </tr>
                     </thead>
                     <tbody>
                       {items.length === 0 ? (
                         <tr>
-                          <td colSpan={10} className="py-10 text-center text-sm text-muted-foreground">
+                          <td colSpan={10} className="py-6 text-center text-sm text-muted-foreground">
                             No items added yet. Click &ldquo;Add Another Item&rdquo; below to start.
                           </td>
                         </tr>
@@ -416,7 +419,7 @@ export default function NewQuotePage() {
                           const line = computeLine(it, taxMethod);
                           return (
                             <tr key={it.key} className="border-b border-border last:border-0">
-                              <td className="py-1.5 pr-2">
+                              <td className="py-1 pr-2">
                                 <Select value={it.productId} onValueChange={(v) => pickProduct(it.key, v)}>
                                   <SelectTrigger className={cn("h-8 text-xs", FOCUS_GLOW)}>
                                     <SelectValue placeholder="Select product" />
@@ -430,14 +433,14 @@ export default function NewQuotePage() {
                                   </SelectContent>
                                 </Select>
                               </td>
-                              <td className="py-1.5 pr-2">
+                              <td className="py-1 pr-2">
                                 <Input
                                   value={it.hsnSac}
                                   onChange={(e) => updateItem(it.key, { hsnSac: e.target.value })}
                                   className={cn("h-8 text-xs", FOCUS_GLOW)}
                                 />
                               </td>
-                              <td className="py-1.5 pr-2">
+                              <td className="py-1 pr-2">
                                 <Input
                                   type="number"
                                   min="0"
@@ -446,7 +449,7 @@ export default function NewQuotePage() {
                                   className={cn("h-8 text-xs", FOCUS_GLOW)}
                                 />
                               </td>
-                              <td className="py-1.5 pr-2">
+                              <td className="py-1 pr-2">
                                 <Select value={it.uom} onValueChange={(v) => updateItem(it.key, { uom: v })}>
                                   <SelectTrigger className={cn("h-8 text-xs", FOCUS_GLOW)}>
                                     <SelectValue />
@@ -460,7 +463,7 @@ export default function NewQuotePage() {
                                   </SelectContent>
                                 </Select>
                               </td>
-                              <td className="py-1.5 pr-2">
+                              <td className="py-1 pr-2">
                                 <Input
                                   type="number"
                                   min="0"
@@ -470,7 +473,7 @@ export default function NewQuotePage() {
                                   className={cn("h-8 text-xs", FOCUS_GLOW)}
                                 />
                               </td>
-                              <td className="py-1.5 pr-2">
+                              <td className="py-1 pr-2">
                                 <Input
                                   type="number"
                                   min="0"
@@ -480,7 +483,7 @@ export default function NewQuotePage() {
                                   className={cn("h-8 text-xs", FOCUS_GLOW)}
                                 />
                               </td>
-                              <td className="py-1.5 pr-2">
+                              <td className="py-1 pr-2">
                                 <Input
                                   type="number"
                                   min="0"
@@ -490,7 +493,7 @@ export default function NewQuotePage() {
                                   className={cn("h-8 text-xs", FOCUS_GLOW)}
                                 />
                               </td>
-                              <td className="py-1.5 pr-2">
+                              <td className="py-1 pr-2">
                                 <Select value={it.warehouseId} onValueChange={(v) => updateItem(it.key, { warehouseId: v })}>
                                   <SelectTrigger className={cn("h-8 text-xs", FOCUS_GLOW)}>
                                     <SelectValue placeholder="Warehouse" />
@@ -504,8 +507,8 @@ export default function NewQuotePage() {
                                   </SelectContent>
                                 </Select>
                               </td>
-                              <td className="py-1.5 text-right font-medium">{inr(line.total)}</td>
-                              <td className="py-1.5 text-right">
+                              <td className="py-1 text-right font-medium">{inr(line.total)}</td>
+                              <td className="py-1 text-right">
                                 <Button
                                   type="button"
                                   variant="ghost"
@@ -523,7 +526,7 @@ export default function NewQuotePage() {
                     </tbody>
                   </table>
                 </div>
-                <div className="mt-3 flex items-center justify-between">
+                <div className="mt-2.5 flex items-center justify-between">
                   <Button
                     type="button"
                     variant="ghost"
@@ -542,39 +545,39 @@ export default function NewQuotePage() {
             </Card>
 
             <Card>
-              <CardHeader className="flex-row items-center gap-2 space-y-0 pb-3">
+              <CardHeader className="flex-row items-center gap-2 space-y-0 p-4 pb-2.5">
                 <StickyNote className="h-5 w-5 text-muted-foreground" />
                 <CardTitle>Notes &amp; Terms</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4 pt-0">
-                <div className="space-y-1.5">
+              <CardContent className="space-y-3 p-4 pt-0">
+                <div className="space-y-1">
                   <Label>Customer Notes</Label>
                   <p className="text-xs text-muted-foreground">Notes visible to customer</p>
                   <Textarea
                     value={customerNotes}
                     onChange={(e) => setCustomerNotes(e.target.value)}
                     placeholder="Enter any notes that will be visible to the customer on the quote…"
-                    className={FOCUS_GLOW}
+                    className={cn("min-h-[64px]", FOCUS_GLOW)}
                   />
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <Label>Terms &amp; Conditions</Label>
                   <p className="text-xs text-muted-foreground">Visible to customer</p>
                   <Textarea
                     value={terms}
                     onChange={(e) => setTerms(e.target.value)}
                     placeholder="Payment is due within 30 days of quote acceptance…"
-                    className={FOCUS_GLOW}
+                    className={cn("min-h-[64px]", FOCUS_GLOW)}
                   />
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <Label>Internal Notes</Label>
                   <p className="text-xs text-muted-foreground">Only visible to your team</p>
                   <Textarea
                     value={internalNotes}
                     onChange={(e) => setInternalNotes(e.target.value)}
                     placeholder="Add internal notes for your team…"
-                    className={cn("border-warning/30 bg-warning-bg/40 placeholder:text-warning/70", FOCUS_GLOW)}
+                    className={cn("min-h-[64px] border-warning/30 bg-warning-bg/40 placeholder:text-warning/70", FOCUS_GLOW)}
                   />
                 </div>
               </CardContent>
@@ -582,7 +585,7 @@ export default function NewQuotePage() {
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-6">
+          <div className="min-w-0 space-y-6">
             <Card>
               <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 pb-3">
                 <div className="flex items-center gap-2">
@@ -738,14 +741,17 @@ export default function NewQuotePage() {
             </Card>
           </div>
         </div>
-      </FormScrollArea>
+      </div>
 
       <Dialog open={customerPickerOpen} onOpenChange={setCustomerPickerOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Select customer</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-4.5 w-4.5 text-muted-foreground" />
+              Select Customer
+            </DialogTitle>
           </DialogHeader>
-          <div className="relative">
+          <div className="relative pt-4">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               autoFocus
@@ -755,9 +761,40 @@ export default function NewQuotePage() {
               className={cn("pl-8", FOCUS_GLOW)}
             />
           </div>
-          <div className="max-h-72 space-y-1 overflow-y-auto">
-            {filteredCustomers.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">No customers found.</p>
+          <div className="mt-3 max-h-72 space-y-1 overflow-y-auto">
+            {optionsLoading ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin motion-reduce:animate-none" />
+                Loading customers…
+              </div>
+            ) : optionsError ? (
+              <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-danger">
+                <AlertCircle className="h-5 w-5" />
+                Couldn&rsquo;t load customers. Please try again.
+              </div>
+            ) : filteredCustomers.length === 0 ? (
+              <div className="flex flex-col items-center gap-1.5 py-10 text-center">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <Building2 className="h-5 w-5" />
+                </div>
+                <p className="mt-1 text-sm font-medium text-foreground">No customers found</p>
+                <p className="text-xs text-muted-foreground">
+                  {customerSearch.trim()
+                    ? "Try a different search term."
+                    : "You haven't added any customers yet."}
+                </p>
+                {!customerSearch.trim() && (
+                  <a
+                    href="/customers/new"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+                  >
+                    <UserPlus className="h-3.5 w-3.5" />
+                    Add a customer
+                  </a>
+                )}
+              </div>
             ) : (
               filteredCustomers.map((c) => (
                 <button
@@ -769,15 +806,20 @@ export default function NewQuotePage() {
                     setCustomerSearch("");
                   }}
                   className={cn(
-                    "flex w-full flex-col items-start rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted",
+                    "flex w-full items-start gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted",
                     c.id === customerId && "bg-primary/5",
                   )}
                 >
-                  <span className="font-medium text-foreground">{c.name}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {c.code}
-                    {c.email ? ` · ${c.email}` : ""}
-                  </span>
+                  <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                    <Building2 className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="block truncate font-medium text-foreground">{c.name}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {c.code}
+                      {c.email ? ` · ${c.email}` : ""}
+                    </span>
+                  </div>
                 </button>
               ))
             )}
