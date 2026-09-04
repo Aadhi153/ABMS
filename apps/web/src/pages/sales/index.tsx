@@ -2,22 +2,31 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import {
+  AlertTriangle,
   Check,
   CheckCircle2,
   ChevronDown,
   ChevronsUpDown,
   ChevronUp,
   Clock,
+  Copy,
   Download,
+  Eye,
   FileText,
+  LayoutGrid,
+  List,
   MoreHorizontal,
+  Pencil,
   Plus,
   Printer,
   RefreshCw,
   Search,
+  Send,
   Settings2,
   ShoppingCart,
   Trash2,
+  TrendingUp,
+  Trophy,
   Upload,
   Wallet,
 } from "lucide-react";
@@ -138,6 +147,7 @@ interface Quote {
   status: string;
   customerId: string;
   customerName: string;
+  customerCode: string;
   validUntil: string | null;
   reference: string | null;
   paymentTerms: string | null;
@@ -160,6 +170,7 @@ const QUOTES_QUERY = gql`
       status
       customerId
       customerName
+      customerCode
       validUntil
       reference
       paymentTerms
@@ -196,6 +207,35 @@ const DELETE_QUOTE = gql`
     deleteQuote(id: $id)
   }
 `;
+const UPDATE_QUOTE_STATUS = gql`
+  mutation UpdateQuoteStatusFromList($id: String!, $status: String!) {
+    updateQuoteStatus(id: $id, status: $status) {
+      id
+      status
+    }
+  }
+`;
+const DUPLICATE_QUOTE = gql`
+  mutation DuplicateQuoteFromList($id: String!) {
+    duplicateQuote(id: $id) {
+      id
+    }
+  }
+`;
+
+const EXPIRING_SOON_DAYS = 7;
+const ACTIVE_QUOTE_STATUSES = ["SENT", "PENDING", "APPROVED"];
+
+const QUOTE_STAGES = ["DRAFT", "SENT", "PENDING", "APPROVED", "WON", "LOST", "EXPIRED"] as const;
+const QUOTE_STAGE_LABELS: Record<string, string> = {
+  DRAFT: "Draft",
+  SENT: "Sent",
+  PENDING: "Pending",
+  APPROVED: "Approved",
+  WON: "Won",
+  LOST: "Lost",
+  EXPIRED: "Expired",
+};
 
 function inr(n: number) {
   return `₹${(Number.isFinite(n) ? n : 0).toFixed(2)}`;
@@ -328,13 +368,10 @@ export default function SalesPage() {
   const [deleteOrder] = useMutation(DELETE_ORDER);
   const [generateInvoice] = useMutation(GENERATE_INVOICE);
   const [recordPayment] = useMutation(RECORD_PAYMENT);
-  const [sendQuote] = useMutation(SEND_QUOTE);
-  const [deleteQuote] = useMutation(DELETE_QUOTE);
 
   const [orderDetail, setOrderDetail] = useState<SalesOrder | null>(null);
   const [invoiceDetail, setInvoiceDetail] = useState<Invoice | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SalesOrder | null>(null);
-  const [deleteQuoteTarget, setDeleteQuoteTarget] = useState<Quote | null>(null);
   const [confirmPrompt, setConfirmPrompt] = useState<SalesOrder | null>(null);
   const [confirmWarehouseId, setConfirmWarehouseId] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -359,34 +396,6 @@ export default function SalesPage() {
     .filter((inv) => inv.remaining > 0.005)
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
   const totalOutstanding = outstandingInvoices.reduce((sum, inv) => sum + inv.remaining, 0);
-
-  async function handleSendQuote(quote: Quote) {
-    setSubmitting(true);
-    try {
-      await sendQuote({ variables: { id: quote.id } });
-      toast.success(`${quote.quoteNumber} sent`);
-      await refetchQuotes();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to send quote");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleDeleteQuote() {
-    if (!deleteQuoteTarget) return;
-    setSubmitting(true);
-    try {
-      await deleteQuote({ variables: { id: deleteQuoteTarget.id } });
-      toast.success(`${deleteQuoteTarget.quoteNumber} deleted`);
-      setDeleteQuoteTarget(null);
-      await refetchQuotes();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete quote");
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   async function handleConfirm() {
     if (!confirmPrompt || !confirmWarehouseId) return;
@@ -449,18 +458,12 @@ export default function SalesPage() {
 
   return (
     <div className="space-y-6">
-      {tab !== "orders" && tab !== "invoices" && (
+      {tab !== "orders" && tab !== "invoices" && tab !== "quotes" && (
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Sales</h1>
             <p className="text-sm text-muted-foreground">Sales orders, stock-confirmed fulfillment, and invoicing.</p>
           </div>
-          {tab === "quotes" && (
-            <Button size="sm" onClick={() => navigate("/sales/quotes/new")}>
-              <Plus className="h-4 w-4" />
-              New Quote
-            </Button>
-          )}
         </div>
       )}
 
@@ -588,64 +591,7 @@ export default function SalesPage() {
       )}
 
       {tab === "quotes" && (
-        <>
-          <QuotesDashboard quotes={quotes} loading={quotesLoading} />
-          <Card>
-            <CardHeader>
-              <CardTitle>Quotes</CardTitle>
-              <CardDescription>Draft, send, and track customer quotes before they become orders.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {quotesLoading ? (
-                <p className="text-sm text-muted-foreground">Loading…</p>
-              ) : quotes.length === 0 ? (
-                <EmptyState label="quote" onAdd={() => navigate("/sales/quotes/new")} />
-              ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-left text-muted-foreground">
-                      <th className="py-2 font-medium">Quote #</th>
-                      <th className="py-2 font-medium">Customer</th>
-                      <th className="py-2 font-medium">Items</th>
-                      <th className="py-2 font-medium">Total</th>
-                      <th className="py-2 font-medium">Status</th>
-                      <th className="py-2 font-medium text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {quotes.map((q) => (
-                      <tr
-                        key={q.id}
-                        className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/50"
-                        onClick={() => navigate(`/sales/quotes/edit/${q.id}`)}
-                      >
-                        <td className="py-2 font-mono text-xs">{q.quoteNumber}</td>
-                        <td className="py-2">{q.customerName}</td>
-                        <td className="py-2 text-muted-foreground">{q.items.length}</td>
-                        <td className="py-2">{inr(q.total)}</td>
-                        <td className="py-2">
-                          <StatusBadge status={q.status} />
-                        </td>
-                        <td className="py-2 text-right" onClick={(e) => e.stopPropagation()}>
-                          {q.status === "DRAFT" && (
-                            <Button variant="ghost" size="sm" onClick={() => handleSendQuote(q)} disabled={submitting}>
-                              Send
-                            </Button>
-                          )}
-                          {q.status === "DRAFT" && (
-                            <Button variant="ghost" size="sm" onClick={() => setDeleteQuoteTarget(q)}>
-                              <Trash2 className="h-4 w-4 text-danger" />
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </CardContent>
-          </Card>
-        </>
+        <QuotesTab quotes={quotes} loading={quotesLoading} onRefetch={refetchQuotes} onNew={() => navigate("/sales/quotes/new")} />
       )}
 
       {/* Order detail */}
@@ -795,23 +741,6 @@ export default function SalesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete quote */}
-      <Dialog open={!!deleteQuoteTarget} onOpenChange={(o) => !o && setDeleteQuoteTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete {deleteQuoteTarget?.quoteNumber}?</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">This permanently removes the draft quote.</p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteQuoteTarget(null)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteQuote} disabled={submitting}>
-              {submitting ? "Deleting…" : "Delete quote"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -952,61 +881,451 @@ function InvoiceDetail({
   );
 }
 
-function QuotesDashboard({ quotes, loading }: { quotes: Quote[]; loading: boolean }) {
+type QuotesSortKey = "quoteNumber" | "customerName" | "createdAt" | "validUntil" | "total" | "status";
+
+function isExpiringSoon(q: Quote) {
+  if (!q.validUntil || !ACTIVE_QUOTE_STATUSES.includes(q.status)) return false;
+  const daysLeft = (new Date(q.validUntil).getTime() - Date.now()) / 86_400_000;
+  return daysLeft >= 0 && daysLeft <= EXPIRING_SOON_DAYS;
+}
+
+function isPastDue(q: Quote) {
+  if (!q.validUntil || !ACTIVE_QUOTE_STATUSES.includes(q.status)) return false;
+  return new Date(q.validUntil).getTime() < Date.now();
+}
+
+function QuotesTab({
+  quotes,
+  loading,
+  onNew,
+  onRefetch,
+}: {
+  quotes: Quote[];
+  loading: boolean;
+  onNew: () => void;
+  onRefetch: () => void;
+}) {
+  const navigate = useNavigate();
+  const [sendQuote] = useMutation(SEND_QUOTE);
+  const [deleteQuote] = useMutation(DELETE_QUOTE);
+  const [updateQuoteStatus] = useMutation(UPDATE_QUOTE_STATUS);
+  const [duplicateQuote] = useMutation(DUPLICATE_QUOTE);
+
+  const [view, setView] = useState<"list" | "kanban">("list");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortKey, setSortKey] = useState<QuotesSortKey>("createdAt");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [visibleCols, setVisibleCols] = useState({ date: true, validUntil: true });
+  const [deleteQuoteTarget, setDeleteQuoteTarget] = useState<Quote | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<string | null>(null);
+
   const total = quotes.length;
-  const pending = quotes.filter((q) => q.status === "SENT").length;
-  const accepted = quotes.filter((q) => q.status === "ACCEPTED").length;
-  const decided = quotes.filter((q) => ["ACCEPTED", "REJECTED", "EXPIRED"].includes(q.status)).length;
-  const winRate = decided > 0 ? Math.round((accepted / decided) * 100) : null;
-  const pipelineValue = quotes
-    .filter((q) => q.status === "DRAFT" || q.status === "SENT")
-    .reduce((sum, q) => sum + q.total, 0);
+  const pending = quotes.filter((q) => q.status === "PENDING").length;
+  const won = quotes.filter((q) => q.status === "WON").length;
+  const lost = quotes.filter((q) => q.status === "LOST").length;
+  const totalValue = quotes.reduce((sum, q) => sum + q.total, 0);
+  const expiringSoon = quotes.filter(isExpiringSoon).length;
+  const decided = won + lost;
+  const winRate = decided > 0 ? Math.round((won / decided) * 100) : 0;
 
   const widgets = [
-    {
-      label: "Total Quotes",
-      value: loading ? "—" : String(total),
-      icon: FileText,
-      iconClass: "text-slate-500",
-      footer: "All time",
-    },
-    {
-      label: "Pending Response",
-      value: loading ? "—" : String(pending),
-      icon: Clock,
-      iconClass: "text-warning",
-      footer: "Awaiting customer",
-    },
-    {
-      label: "Accepted",
-      value: loading ? "—" : String(accepted),
-      icon: CheckCircle2,
-      iconClass: "text-success",
-      footer: winRate === null ? "No decisions yet" : `${winRate}% win rate`,
-    },
-    {
-      label: "Pipeline Value",
-      value: loading ? "—" : inr(pipelineValue),
-      icon: Wallet,
-      iconClass: "text-primary",
-      footer: "Draft + sent value",
-    },
+    { label: "Total Quotes", value: loading ? "—" : String(total), icon: FileText, borderClass: "border-l-blue-500", iconBg: "bg-blue-500/10 text-blue-500" },
+    { label: "Pending", value: loading ? "—" : String(pending), icon: Clock, borderClass: "border-l-warning", iconBg: "bg-warning-bg text-warning" },
+    { label: "Won", value: loading ? "—" : String(won), icon: Trophy, borderClass: "border-l-success", iconBg: "bg-success-bg text-success" },
+    { label: "Total Value", value: loading ? "—" : inr(totalValue), icon: Wallet, borderClass: "border-l-primary", iconBg: "bg-primary/10 text-primary" },
+    { label: "Expiring Soon", value: loading ? "—" : String(expiringSoon), icon: AlertTriangle, borderClass: "border-l-danger", iconBg: "bg-danger-bg text-danger" },
+    { label: "Win Rate", value: loading ? "—" : `${winRate}%`, icon: TrendingUp, borderClass: "border-l-violet-500", iconBg: "bg-violet-500/10 text-violet-500" },
   ];
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return quotes.filter((quote) => {
+      if (statusFilter !== "all" && quote.status !== statusFilter) return false;
+      if (!q) return true;
+      return (
+        quote.quoteNumber.toLowerCase().includes(q) ||
+        quote.customerName.toLowerCase().includes(q) ||
+        quote.customerCode.toLowerCase().includes(q)
+      );
+    });
+  }, [quotes, search, statusFilter]);
+
+  const sorted = useMemo(() => {
+    const dirMul = sortDir === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      switch (sortKey) {
+        case "quoteNumber":
+          return a.quoteNumber.localeCompare(b.quoteNumber) * dirMul;
+        case "customerName":
+          return a.customerName.localeCompare(b.customerName) * dirMul;
+        case "createdAt":
+          return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * dirMul;
+        case "validUntil":
+          return ((a.validUntil ? new Date(a.validUntil).getTime() : 0) - (b.validUntil ? new Date(b.validUntil).getTime() : 0)) * dirMul;
+        case "total":
+          return (a.total - b.total) * dirMul;
+        case "status":
+          return a.status.localeCompare(b.status) * dirMul;
+        default:
+          return 0;
+      }
+    });
+  }, [filtered, sortKey, sortDir]);
+
+  function handleSort(k: string) {
+    if (k === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(k as QuotesSortKey);
+      setSortDir("asc");
+    }
+  }
+
+  const quotesByStage = useMemo(() => {
+    const map: Record<string, Quote[]> = Object.fromEntries(QUOTE_STAGES.map((s) => [s, []]));
+    for (const q of filtered) map[q.status]?.push(q);
+    return map;
+  }, [filtered]);
+
+  async function handleSendQuote(quote: Quote) {
+    setBusyId(quote.id);
+    try {
+      await sendQuote({ variables: { id: quote.id } });
+      toast.success(`${quote.quoteNumber} sent`);
+      await onRefetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send quote");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleDeleteQuote() {
+    if (!deleteQuoteTarget) return;
+    setBusyId(deleteQuoteTarget.id);
+    try {
+      await deleteQuote({ variables: { id: deleteQuoteTarget.id } });
+      toast.success(`${deleteQuoteTarget.quoteNumber} deleted`);
+      setDeleteQuoteTarget(null);
+      await onRefetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete quote");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleDrop(target: string) {
+    const draggedId = dragging;
+    setDragging(null);
+    if (!draggedId) return;
+    const quote = quotes.find((q) => q.id === draggedId);
+    if (!quote || quote.status === target) return;
+
+    setBusyId(quote.id);
+    try {
+      if (quote.status === "DRAFT" && target === "SENT") {
+        await sendQuote({ variables: { id: quote.id } });
+      } else {
+        await updateQuoteStatus({ variables: { id: quote.id, status: target } });
+      }
+      toast.success(`${quote.quoteNumber} moved to ${QUOTE_STAGE_LABELS[target]}`);
+      await onRefetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to move quote");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleDuplicate(quote: Quote) {
+    setBusyId(quote.id);
+    try {
+      const res = await duplicateQuote({ variables: { id: quote.id } });
+      toast.success(`${quote.quoteNumber} duplicated as a new draft`);
+      const newId = res.data?.duplicateQuote?.id;
+      await onRefetch();
+      if (newId) navigate(`/sales/quotes/edit/${newId}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to duplicate quote");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function handleDownloadPdf(quote: Quote) {
+    const win = window.open("", "_blank", "width=700,height=900");
+    if (!win) return;
+    const rows = quote.items
+      .map(
+        (i) =>
+          `<tr><td>${i.productName}</td><td class="right">${i.quantity} ${i.uom}</td><td class="right">${inr(i.unitPrice)}</td><td class="right">${inr(i.lineTotal)}</td></tr>`,
+      )
+      .join("");
+    win.document.write(`
+      <html><head><title>${quote.quoteNumber}</title>
+      <style>body{font-family:sans-serif;padding:32px;color:#1C1917} h1{margin-bottom:4px} table{width:100%;border-collapse:collapse;margin-top:16px} td,th{padding:6px 0;text-align:left;border-bottom:1px solid #E7E5E4} .right{text-align:right}</style>
+      </head><body>
+      <h1>Quote ${quote.quoteNumber}</h1>
+      <p>Customer: ${quote.customerName} (${quote.customerCode})</p>
+      <p>Date: ${new Date(quote.createdAt).toLocaleDateString()}</p>
+      <p>Valid until: ${quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : "—"}</p>
+      <table>
+        <tr><th>Product</th><th class="right">Qty</th><th class="right">Unit Price</th><th class="right">Line Total</th></tr>
+        ${rows}
+        <tr><td colspan="3"><strong>Total</strong></td><td class="right"><strong>${inr(quote.total)}</strong></td></tr>
+      </table>
+      </body></html>
+    `);
+    win.document.close();
+    win.focus();
+    win.print();
+  }
+
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      {widgets.map((w) => (
-        <Card key={w.label} className={CARD_HOVER}>
-          <CardContent className="p-4">
-            <div className="mb-2 flex items-start justify-between">
-              <span className="text-xs font-medium text-muted-foreground">{w.label}</span>
-              <w.icon className={cn("h-4 w-4", w.iconClass)} />
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Quotes</h1>
+          <p className="text-sm text-muted-foreground">Draft, send, and track customer quotes before they become orders.</p>
+        </div>
+        <Button size="sm" onClick={onNew} className="gap-1.5 text-xs">
+          <Plus className="h-3.5 w-3.5" /> New Quote
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {widgets.map((w) => (
+          <Card key={w.label} className={cn(CARD_HOVER, "border-l-4", w.borderClass)}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">{w.label}</p>
+                  <p className="text-2xl font-bold tracking-tight text-foreground">{w.value}</p>
+                </div>
+                <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-full", w.iconBg)}>
+                  <w.icon className="h-4 w-4" />
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Card>
+        <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-3">
+          <div className="relative min-w-[200px] flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="h-8 pl-8 text-xs"
+              placeholder="Search quotes by number, customer…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="All Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              {QUOTE_STAGES.map((s) => (
+                <SelectItem key={s} value={s}>{QUOTE_STAGE_LABELS[s]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="ml-auto flex items-center gap-1 rounded-md border border-border p-0.5">
+            <Button
+              type="button"
+              size="sm"
+              variant={view === "list" ? "default" : "ghost"}
+              className="h-7 gap-1.5 px-2 text-xs"
+              onClick={() => setView("list")}
+            >
+              <List className="h-3.5 w-3.5" /> List
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={view === "kanban" ? "default" : "ghost"}
+              className="h-7 gap-1.5 px-2 text-xs"
+              onClick={() => setView("kanban")}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" /> Kanban
+            </Button>
+          </div>
+          <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground" onClick={onRefetch}>
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+
+        <CardContent className={view === "list" ? "p-0" : "p-4"}>
+          {loading ? (
+            <p className="py-16 text-center text-sm text-muted-foreground">Loading…</p>
+          ) : quotes.length === 0 ? (
+            <EmptyState label="quote" onAdd={onNew} />
+          ) : filtered.length === 0 ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">No quotes match your search.</p>
+          ) : view === "list" ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/30 text-left text-muted-foreground">
+                    <SortHeader label="Quote #" k="quoteNumber" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                    <SortHeader label="Customer" k="customerName" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                    {visibleCols.date && <SortHeader label="Date" k="createdAt" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />}
+                    {visibleCols.validUntil && (
+                      <SortHeader label="Valid Until" k="validUntil" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                    )}
+                    <SortHeader label="Status" k="status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                    <SortHeader label="Total" k="total" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                    <th className="w-10 px-4 py-2.5 text-center">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="text-muted-foreground transition-colors hover:text-foreground"><Settings2 className="h-3.5 w-3.5" /></button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {(["date", "validUntil"] as const).map((col) => (
+                            <DropdownMenuItem key={col} onSelect={(e) => { e.preventDefault(); setVisibleCols((v) => ({ ...v, [col]: !v[col] })); }}>
+                              <Check className={cn("h-3.5 w-3.5", !visibleCols[col] && "opacity-0")} />
+                              {col === "date" ? "Date" : "Valid Until"}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.map((q) => (
+                    <tr
+                      key={q.id}
+                      className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/40"
+                      onClick={() => navigate(`/sales/quotes/edit/${q.id}`)}
+                    >
+                      <td className="px-4 py-2.5 font-mono text-xs text-primary">{q.quoteNumber}</td>
+                      <td className="px-4 py-2.5">
+                        <p>{q.customerName}</p>
+                        <p className="text-xs text-muted-foreground">{q.customerCode}</p>
+                      </td>
+                      {visibleCols.date && (
+                        <td className="px-4 py-2.5 text-muted-foreground">
+                          {new Date(q.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
+                        </td>
+                      )}
+                      {visibleCols.validUntil && (
+                        <td className="px-4 py-2.5">
+                          <span className={cn("inline-flex items-center gap-1", isPastDue(q) ? "text-danger" : "text-muted-foreground")}>
+                            {q.validUntil ? new Date(q.validUntil).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—"}
+                            {isPastDue(q) && <AlertTriangle className="h-3.5 w-3.5" />}
+                          </span>
+                        </td>
+                      )}
+                      <td className="px-4 py-2.5">
+                        <StatusBadge status={q.status} />
+                      </td>
+                      <td className="px-4 py-2.5 font-medium">{inr(q.total)}</td>
+                      <td className="px-4 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground" disabled={busyId === q.id}>
+                              <MoreHorizontal className="h-3.5 w-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => navigate(`/sales/quotes/edit/${q.id}`)}>
+                              <Eye className="h-3.5 w-3.5" /> View
+                            </DropdownMenuItem>
+                            {q.status === "DRAFT" && (
+                              <DropdownMenuItem onClick={() => navigate(`/sales/quotes/edit/${q.id}`)}>
+                                <Pencil className="h-3.5 w-3.5" /> Edit
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onClick={() => handleDuplicate(q)}>
+                              <Copy className="h-3.5 w-3.5" /> Duplicate
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDownloadPdf(q)}>
+                              <Download className="h-3.5 w-3.5" /> Download PDF
+                            </DropdownMenuItem>
+                            {q.status === "DRAFT" && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => handleSendQuote(q)}>
+                                  <Send className="h-3.5 w-3.5" /> Send
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="text-danger focus:text-danger" onClick={() => setDeleteQuoteTarget(q)}>
+                                  <Trash2 className="h-3.5 w-3.5" /> Delete
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div className="text-2xl font-bold tracking-tight text-foreground">{w.value}</div>
-            <div className="mt-1 text-[11px] text-muted-foreground">{w.footer}</div>
-          </CardContent>
-        </Card>
-      ))}
+          ) : (
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {QUOTE_STAGES.map((stage) => {
+                const droppable = stage !== "DRAFT" && stage !== "WON";
+                return (
+                  <div
+                    key={stage}
+                    onDragOver={(e) => droppable && e.preventDefault()}
+                    onDrop={() => droppable && handleDrop(stage)}
+                    className="flex min-h-[240px] w-[220px] shrink-0 flex-col gap-2 rounded-md border border-border bg-muted/30 p-2"
+                  >
+                    <p className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {QUOTE_STAGE_LABELS[stage]} · {quotesByStage[stage]?.length ?? 0}
+                    </p>
+                    {stage === "WON" && (
+                      <p className="px-1 text-[11px] text-muted-foreground">Convert from the quote page to mark Won.</p>
+                    )}
+                    {quotesByStage[stage]?.map((q) => {
+                      const draggable = stage !== "WON" && stage !== "LOST" && stage !== "EXPIRED";
+                      return (
+                        <div
+                          key={q.id}
+                          draggable={draggable}
+                          onDragStart={() => draggable && setDragging(q.id)}
+                          onClick={() => navigate(`/sales/quotes/edit/${q.id}`)}
+                          className={cn(
+                            "space-y-1 rounded-md border border-border bg-card p-2.5 text-sm shadow-sm",
+                            draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
+                            busyId === q.id && "opacity-50",
+                          )}
+                        >
+                          <p className="font-mono text-xs font-medium">{q.quoteNumber}</p>
+                          <p className="truncate text-muted-foreground">{q.customerName}</p>
+                          <p className="font-medium">{inr(q.total)}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={!!deleteQuoteTarget} onOpenChange={(o) => !o && setDeleteQuoteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {deleteQuoteTarget?.quoteNumber}?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">This permanently removes the draft quote.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteQuoteTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteQuote} disabled={busyId === deleteQuoteTarget?.id}>
+              {busyId === deleteQuoteTarget?.id ? "Deleting…" : "Delete quote"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

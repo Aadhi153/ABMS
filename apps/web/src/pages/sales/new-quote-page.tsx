@@ -392,7 +392,7 @@ export default function NewQuotePage() {
               </CardHeader>
               <CardContent className="p-4 pt-0">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full min-w-[950px] text-sm">
                     <thead>
                       <tr className="border-b border-border text-left text-xs text-muted-foreground">
                         <th className="min-w-[180px] py-1.5 font-medium">Product</th>

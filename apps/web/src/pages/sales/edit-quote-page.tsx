@@ -1,12 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import {
   ArrowLeft,
+  ArrowRightLeft,
   Building2,
+  Copy,
+  Download,
+  Eye,
   Lock,
+  Mail,
+  MoreHorizontal,
   Package,
   Plus,
+  Printer,
   Save,
   Search,
   Send,
@@ -24,6 +31,11 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Input,
   Label,
   Select,
@@ -36,8 +48,9 @@ import {
   cn,
   toast,
 } from "@abms/ui";
-import { FormPage, FormScrollArea, useDiscardGuard } from "../products/form-page";
+import { FormPage, useDiscardGuard } from "../products/form-page";
 import { BUTTON_PRESS, FOCUS_GLOW, holdSuccessThen } from "../products/form-motion";
+import { QuotePrintDocument, QuotePrintPortal, type PrintQuoteData } from "./quote-print-view";
 
 const QUOTES_LIST_ROUTE = "/sales/quotes";
 
@@ -57,6 +70,7 @@ const EDIT_QUOTE_QUERY = gql`
       termsConditions
       internalNotes
       shippingAmount
+      updatedAt
       items {
         id
         productId
@@ -110,6 +124,39 @@ const SEND_QUOTE = gql`
     sendQuote(id: $id) {
       id
     }
+  }
+`;
+const DUPLICATE_QUOTE = gql`
+  mutation DuplicateQuote($id: String!) {
+    duplicateQuote(id: $id) {
+      id
+    }
+  }
+`;
+const CONVERT_QUOTE_TO_SALES_ORDER = gql`
+  mutation ConvertQuoteToSalesOrder($id: String!) {
+    convertQuoteToSalesOrder(id: $id) {
+      id
+      orderNumber
+    }
+  }
+`;
+const UPDATE_QUOTE_STATUS = gql`
+  mutation UpdateQuoteStatus($id: String!, $status: String!) {
+    updateQuoteStatus(id: $id, status: $status) {
+      id
+      status
+    }
+  }
+`;
+const SEND_QUOTE_FOLLOWUP = gql`
+  mutation SendQuoteFollowup($id: String!) {
+    sendQuoteFollowup(id: $id)
+  }
+`;
+const EMAIL_QUOTE = gql`
+  mutation EmailQuote($id: String!) {
+    emailQuote(id: $id)
   }
 `;
 
@@ -168,6 +215,7 @@ interface ServerQuote {
   termsConditions: string | null;
   internalNotes: string | null;
   shippingAmount: number;
+  updatedAt: string;
   items: Array<{
     id: string;
     productId: string;
@@ -182,6 +230,23 @@ interface ServerQuote {
 }
 
 const UOM_OPTIONS = ["unit", "pcs", "box", "kg", "gram", "ltr", "ml", "dozen", "meter", "set"];
+
+const STATUS_TRANSITIONS: Record<string, { value: string; label: string }[]> = {
+  SENT: [
+    { value: "PENDING", label: "Mark as Pending" },
+    { value: "LOST", label: "Mark as Lost" },
+    { value: "EXPIRED", label: "Mark as Expired" },
+  ],
+  PENDING: [
+    { value: "APPROVED", label: "Approve Quote" },
+    { value: "LOST", label: "Mark as Lost" },
+    { value: "EXPIRED", label: "Mark as Expired" },
+  ],
+  APPROVED: [
+    { value: "LOST", label: "Mark as Lost" },
+    { value: "EXPIRED", label: "Mark as Expired" },
+  ],
+};
 
 const PAYMENT_TERMS_OPTIONS = [
   { value: "DUE_ON_RECEIPT", label: "Due on Receipt" },
@@ -247,8 +312,23 @@ function toDateInput(iso: string | null) {
   return d.toISOString().slice(0, 10);
 }
 
+function formatRelativeTime(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const diffMs = Date.now() - d.getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} day${days === 1 ? "" : "s"} ago`;
+  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
 export default function EditQuotePage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { data, loading } = useQuery<{
     quote: ServerQuote | null;
     customers: CustomerOption[];
@@ -258,6 +338,11 @@ export default function EditQuotePage() {
   }>(EDIT_QUOTE_QUERY, { variables: { id }, skip: !id });
   const [updateQuote] = useMutation(UPDATE_QUOTE, { refetchQueries: ["QuotesPageData"] });
   const [sendQuote] = useMutation(SEND_QUOTE, { refetchQueries: ["QuotesPageData"] });
+  const [duplicateQuote] = useMutation(DUPLICATE_QUOTE, { refetchQueries: ["QuotesPageData"] });
+  const [convertQuoteToSalesOrder] = useMutation(CONVERT_QUOTE_TO_SALES_ORDER, { refetchQueries: ["QuotesPageData"] });
+  const [updateQuoteStatus] = useMutation(UPDATE_QUOTE_STATUS, { refetchQueries: ["QuotesPageData"] });
+  const [sendQuoteFollowup] = useMutation(SEND_QUOTE_FOLLOWUP);
+  const [emailQuote] = useMutation(EMAIL_QUOTE);
 
   const customers = (data?.customers ?? []).filter((c) => c.active !== false);
   const products = (data?.products ?? []).filter((p) => p.active !== false);
@@ -286,6 +371,8 @@ export default function EditQuotePage() {
   const [busy, setBusy] = useState<"idle" | "draft" | "send">("idle");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [initialSnapshot, setInitialSnapshot] = useState<string | null>(null);
+  const [actionBusy, setActionBusy] = useState<"idle" | "duplicate" | "convert" | "followup" | "email" | "status">("idle");
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     if (data?.quote && !hydrated) {
@@ -362,6 +449,43 @@ export default function EditQuotePage() {
     const total = subtotal - discountAmount + tax + shipping;
     return { subtotal, discountAmount, tax, shipping, total };
   }, [items, taxMethod, shippingAmount]);
+
+  const printData: PrintQuoteData = useMemo(
+    () => ({
+      quoteNumber: data?.quote?.quoteNumber ?? "",
+      status,
+      validUntil: validUntil || null,
+      reference: reference || null,
+      paymentTerms: PAYMENT_TERMS_OPTIONS.find((o) => o.value === paymentTerms)?.label ?? paymentTerms,
+      taxMethod,
+      customerNotes: customerNotes || null,
+      termsConditions: terms || null,
+      customerName: selectedCustomer?.name ?? "—",
+      customerEmail: selectedCustomer?.email,
+      customerPhone: selectedCustomer?.phone,
+      items: items.map((it) => {
+        const product = products.find((p) => p.id === it.productId);
+        const line = computeLine(it, taxMethod);
+        return {
+          productName: product?.name ?? "—",
+          sku: product?.sku ?? "",
+          hsnSac: it.hsnSac || null,
+          quantity: it.quantity,
+          uom: it.uom,
+          unitPrice: it.unitPrice,
+          discountPct: it.discountPct,
+          taxPct: it.taxPct,
+          lineTotal: line.total,
+        };
+      }),
+      subtotal: totals.subtotal,
+      discountAmount: totals.discountAmount,
+      tax: totals.tax,
+      shippingAmount: totals.shipping,
+      total: totals.total,
+    }),
+    [data, status, validUntil, reference, paymentTerms, taxMethod, customerNotes, terms, selectedCustomer, items, products, totals],
+  );
 
   function addItem() {
     setItems((prev) => [...prev, newItem()]);
@@ -454,6 +578,85 @@ export default function EditQuotePage() {
     }
   }
 
+  async function handleDuplicate() {
+    if (!id) return;
+    setActionBusy("duplicate");
+    try {
+      const res = await duplicateQuote({ variables: { id } });
+      const newId = res.data?.duplicateQuote?.id;
+      toast.success("Quote duplicated as a new draft");
+      if (newId) navigate(`/sales/quotes/edit/${newId}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to duplicate quote";
+      toast.error(message);
+    } finally {
+      setActionBusy("idle");
+    }
+  }
+
+  async function handleConvertToSalesOrder() {
+    if (!id) return;
+    setActionBusy("convert");
+    try {
+      const res = await convertQuoteToSalesOrder({ variables: { id } });
+      const orderNumber = res.data?.convertQuoteToSalesOrder?.orderNumber;
+      toast.success(orderNumber ? `Converted to sales order ${orderNumber}` : "Converted to sales order");
+      navigate("/sales");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to convert quote to a sales order";
+      toast.error(message);
+    } finally {
+      setActionBusy("idle");
+    }
+  }
+
+  async function handleUpdateStatus(newStatus: string) {
+    if (!id) return;
+    setActionBusy("status");
+    try {
+      await updateQuoteStatus({ variables: { id, status: newStatus } });
+      setStatus(newStatus);
+      toast.success(`Quote marked as ${newStatus.toLowerCase()}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to update quote status";
+      toast.error(message);
+    } finally {
+      setActionBusy("idle");
+    }
+  }
+
+  async function handleSendFollowup() {
+    if (!id) return;
+    setActionBusy("followup");
+    try {
+      await sendQuoteFollowup({ variables: { id } });
+      toast.success("Follow-up email sent");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to send follow-up";
+      toast.error(message);
+    } finally {
+      setActionBusy("idle");
+    }
+  }
+
+  async function handleEmailQuote() {
+    if (!id) return;
+    setActionBusy("email");
+    try {
+      await emailQuote({ variables: { id } });
+      toast.success("Quote emailed to customer");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to email quote";
+      toast.error(message);
+    } finally {
+      setActionBusy("idle");
+    }
+  }
+
+  function handlePrint() {
+    window.print();
+  }
+
   const filteredCustomers = customers.filter((c) => {
     const q = customerSearch.trim().toLowerCase();
     if (!q) return true;
@@ -467,9 +670,9 @@ export default function EditQuotePage() {
   if (loading && !hydrated) {
     return (
       <FormPage>
-        <FormScrollArea>
+        <div className="w-full space-y-6">
           <p className="text-sm text-muted-foreground">Loading…</p>
-        </FormScrollArea>
+        </div>
       </FormPage>
     );
   }
@@ -477,7 +680,7 @@ export default function EditQuotePage() {
   if (!loading && !data?.quote) {
     return (
       <FormPage>
-        <FormScrollArea>
+        <div className="w-full space-y-6">
           <Button
             type="button"
             variant="ghost"
@@ -489,14 +692,14 @@ export default function EditQuotePage() {
             Back
           </Button>
           <h1 className="text-2xl font-bold tracking-tight">Quote not found</h1>
-        </FormScrollArea>
+        </div>
       </FormPage>
     );
   }
 
   return (
     <FormPage leaving={leaving}>
-      <FormScrollArea>
+      <div className="w-full space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <Button
@@ -517,11 +720,11 @@ export default function EditQuotePage() {
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               {readOnly
-                ? "This quote has already been sent and can no longer be edited."
+                ? `Last updated ${data?.quote ? formatRelativeTime(data.quote.updatedAt) : ""}`
                 : "Update the quote details for your customer"}
             </p>
           </div>
-          {!readOnly && (
+          {!readOnly ? (
             <div className="flex items-center gap-2">
               <Button
                 type="button"
@@ -544,6 +747,75 @@ export default function EditQuotePage() {
                 {busy === "send" ? "Sending…" : "Save & Send Quote"}
               </Button>
             </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={actionBusy !== "idle"}
+                onClick={handleDuplicate}
+                className={BUTTON_PRESS}
+              >
+                <Copy className="h-4 w-4" />
+                {actionBusy === "duplicate" ? "Duplicating…" : "Duplicate"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={actionBusy !== "idle" || status !== "APPROVED"}
+                title={status === "WON" ? "This quote has already been converted" : status !== "APPROVED" ? "Approve the quote before converting it to a sales order" : undefined}
+                onClick={handleConvertToSalesOrder}
+                className={BUTTON_PRESS}
+              >
+                <ArrowRightLeft className="h-4 w-4" />
+                {actionBusy === "convert" ? "Converting…" : "Convert to Sales Order"}
+              </Button>
+              <Button
+                type="button"
+                disabled={actionBusy !== "idle"}
+                onClick={handleSendFollowup}
+                className={BUTTON_PRESS}
+              >
+                <Send className="h-4 w-4" />
+                {actionBusy === "followup" ? "Sending…" : "Send Followup"}
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="outline" size="icon" className={BUTTON_PRESS}>
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setPreviewOpen(true)}>
+                    <Eye className="h-4 w-4" />
+                    Preview
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={actionBusy !== "idle"} onClick={handleEmailQuote}>
+                    <Mail className="h-4 w-4" />
+                    Send Quote Email
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handlePrint}>
+                    <Download className="h-4 w-4" />
+                    Download PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handlePrint}>
+                    <Printer className="h-4 w-4" />
+                    Print
+                  </DropdownMenuItem>
+                  {STATUS_TRANSITIONS[status]?.length > 0 && <DropdownMenuSeparator />}
+                  {STATUS_TRANSITIONS[status]?.map((t) => (
+                    <DropdownMenuItem
+                      key={t.value}
+                      disabled={actionBusy !== "idle"}
+                      className={cn((t.value === "LOST" || t.value === "EXPIRED") && "text-danger focus:text-danger")}
+                      onClick={() => handleUpdateStatus(t.value)}
+                    >
+                      {t.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           )}
         </div>
 
@@ -565,7 +837,7 @@ export default function EditQuotePage() {
 
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Main column */}
-          <div className="space-y-6 lg:col-span-2">
+          <div className="min-w-0 space-y-6 lg:col-span-2">
             <Card>
               <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 pb-3">
                 <div className="flex items-center gap-2">
@@ -575,7 +847,7 @@ export default function EditQuotePage() {
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full min-w-[950px] text-sm">
                     <thead>
                       <tr className="border-b border-border text-left text-xs text-muted-foreground">
                         <th className="min-w-[180px] py-2 font-medium">Product</th>
@@ -790,7 +1062,7 @@ export default function EditQuotePage() {
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-6">
+          <div className="min-w-0 space-y-6">
             <Card>
               <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 pb-3">
                 <div className="flex items-center gap-2">
@@ -955,7 +1227,7 @@ export default function EditQuotePage() {
             </Card>
           </div>
         </div>
-      </FormScrollArea>
+      </div>
 
       <Dialog open={customerPickerOpen} onOpenChange={setCustomerPickerOpen}>
         <DialogContent>
@@ -1001,6 +1273,25 @@ export default function EditQuotePage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-3xl p-0">
+          <DialogHeader className="px-6 pt-6">
+            <DialogTitle>Quote Preview</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[70vh] overflow-y-auto border-y border-border">
+            <QuotePrintDocument quote={printData} />
+          </div>
+          <div className="flex justify-end gap-2 p-4">
+            <Button type="button" variant="outline" onClick={handlePrint} className={BUTTON_PRESS}>
+              <Printer className="h-4 w-4" />
+              Print
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {hydrated && <QuotePrintPortal quote={printData} />}
 
       {discardDialog}
     </FormPage>
