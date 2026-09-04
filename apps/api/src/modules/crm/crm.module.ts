@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { NotificationsModule } from "../notifications/notifications.module";
 import { CompaniesService } from "./companies.service";
 import { CompaniesResolver } from "./companies.resolver";
 import { ContactsService } from "./contacts.service";
@@ -9,6 +10,7 @@ import { TasksService } from "./tasks.service";
 import { TasksResolver } from "./tasks.resolver";
 
 @Module({
+  imports: [NotificationsModule],
   providers: [
     CompaniesService,
     CompaniesResolver,

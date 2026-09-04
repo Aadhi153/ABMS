@@ -1,6 +1,9 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { QuoteStatus, QuoteTaxMethod } from "@abms/database";
+import { QuoteStatus, QuoteTaxMethod, type SalesOrderTaxMethod } from "@abms/database";
 import { SCOPED_PRISMA, type ScopedPrismaClient } from "../../common/tenancy/scoped-prisma.service";
+import { MailerService } from "../../common/mailer/mailer.service";
+import { SalesOrdersService } from "./sales-orders.service";
+import type { CreateSalesOrderInput } from "./dto/sales-order.input";
 import type { CreateQuoteInput, QuoteItemInput } from "./dto/quote.input";
 
 const QUOTE_INCLUDE = {
@@ -20,7 +23,7 @@ function computeLine(item: { quantity: number; unitPrice: number; discountPct: n
 }
 
 function toModel<T extends {
-  customer: { name: string };
+  customer: { name: string; code: string };
   createdBy: { name: string };
   priceList: { name: string } | null;
   subtotal: unknown;
@@ -56,6 +59,7 @@ function toModel<T extends {
   return {
     ...row,
     customerName: row.customer.name,
+    customerCode: row.customer.code,
     createdByName: row.createdBy.name,
     priceListName: row.priceList?.name ?? null,
     items,
@@ -69,7 +73,11 @@ function toModel<T extends {
 
 @Injectable()
 export class QuotesService {
-  constructor(@Inject(SCOPED_PRISMA) private readonly prisma: ScopedPrismaClient) {}
+  constructor(
+    @Inject(SCOPED_PRISMA) private readonly prisma: ScopedPrismaClient,
+    private readonly mailer: MailerService,
+    private readonly salesOrders: SalesOrdersService,
+  ) {}
 
   async findAll() {
     const rows = await this.prisma.quote.findMany({ include: QUOTE_INCLUDE, orderBy: { createdAt: "desc" } });
@@ -218,11 +226,127 @@ export class QuotesService {
     return this.findById(id);
   }
 
+  /**
+   * Manual pipeline moves (Sent/Pending/Approved -> Pending/Approved/Lost/Expired).
+   * Won is reached only via convertToSalesOrder; Draft/Sent-in are handled by
+   * create()/send() so they aren't in this table.
+   */
+  async updateStatus(id: string, status: QuoteStatus) {
+    const quote = await this.prisma.quote.findUnique({ where: { id } });
+    if (!quote) throw new NotFoundException("Quote not found");
+
+    const allowedFrom: Partial<Record<QuoteStatus, QuoteStatus[]>> = {
+      [QuoteStatus.SENT]: [QuoteStatus.PENDING, QuoteStatus.LOST, QuoteStatus.EXPIRED],
+      [QuoteStatus.PENDING]: [QuoteStatus.APPROVED, QuoteStatus.LOST, QuoteStatus.EXPIRED],
+      [QuoteStatus.APPROVED]: [QuoteStatus.LOST, QuoteStatus.EXPIRED],
+    };
+    const allowed = allowedFrom[quote.status as QuoteStatus] ?? [];
+    if (!allowed.includes(status)) {
+      throw new BadRequestException(`Cannot move a quote from ${quote.status} to ${status}`);
+    }
+
+    await this.prisma.quote.update({ where: { id }, data: { status } });
+    return this.findById(id);
+  }
+
   async delete(id: string) {
     const quote = await this.prisma.quote.findUnique({ where: { id } });
     if (!quote) throw new NotFoundException("Quote not found");
     if (quote.status !== QuoteStatus.DRAFT) throw new BadRequestException("Only draft quotes can be deleted");
     await this.prisma.quote.delete({ where: { id } });
     return quote;
+  }
+
+  async duplicate(id: string, actorId: string, organizationId: string) {
+    const existing = await this.prisma.quote.findUnique({ where: { id }, include: { items: true } });
+    if (!existing) throw new NotFoundException("Quote not found");
+
+    const quoteNumber = await this.nextQuoteNumber();
+    const row = await this.prisma.quote.create({
+      data: {
+        quoteNumber,
+        customerId: existing.customerId,
+        reference: existing.reference,
+        paymentTerms: existing.paymentTerms,
+        priceListId: existing.priceListId,
+        taxMethod: existing.taxMethod,
+        customerNotes: existing.customerNotes,
+        termsConditions: existing.termsConditions,
+        internalNotes: existing.internalNotes,
+        shippingAmount: existing.shippingAmount,
+        subtotal: existing.subtotal,
+        discountAmount: existing.discountAmount,
+        taxAmount: existing.taxAmount,
+        total: existing.total,
+        createdById: actorId,
+        organizationId,
+        items: {
+          create: existing.items.map((i, idx) => ({
+            productId: i.productId,
+            hsnSac: i.hsnSac,
+            quantity: i.quantity,
+            uom: i.uom,
+            unitPrice: i.unitPrice,
+            discountPct: i.discountPct,
+            taxPct: i.taxPct,
+            warehouseId: i.warehouseId,
+            lineTotal: i.lineTotal,
+            sortOrder: idx,
+          })),
+        },
+      },
+      include: QUOTE_INCLUDE,
+    });
+    return toModel(row);
+  }
+
+  async convertToSalesOrder(id: string, actorId: string, organizationId: string) {
+    const quote = await this.prisma.quote.findUnique({ where: { id }, include: { items: true } });
+    if (!quote) throw new NotFoundException("Quote not found");
+    if (quote.status !== QuoteStatus.APPROVED) {
+      throw new BadRequestException("Only approved quotes can be converted to a sales order");
+    }
+
+    const input: CreateSalesOrderInput = {
+      customerId: quote.customerId,
+      reference: quote.reference ?? quote.quoteNumber,
+      paymentTerms: quote.paymentTerms ?? undefined,
+      priceListId: quote.priceListId ?? undefined,
+      taxMethod: quote.taxMethod as unknown as SalesOrderTaxMethod,
+      customerNotes: quote.customerNotes ?? undefined,
+      termsConditions: quote.termsConditions ?? undefined,
+      internalNotes: quote.internalNotes ?? undefined,
+      shippingAmount: Number(quote.shippingAmount),
+      items: quote.items.map((i) => ({
+        productId: i.productId,
+        hsnSac: i.hsnSac ?? undefined,
+        quantity: i.quantity,
+        uom: i.uom,
+        unitPrice: Number(i.unitPrice),
+        discountPct: Number(i.discountPct),
+        taxPct: Number(i.taxPct),
+        warehouseId: i.warehouseId ?? undefined,
+      })),
+    };
+
+    const order = await this.salesOrders.create(input, actorId, organizationId);
+    await this.prisma.quote.update({ where: { id }, data: { status: QuoteStatus.WON } });
+    return order;
+  }
+
+  async sendFollowup(id: string) {
+    const quote = await this.prisma.quote.findUnique({ where: { id }, include: { customer: true } });
+    if (!quote) throw new NotFoundException("Quote not found");
+    if (!quote.customer.email) throw new BadRequestException("This customer has no email on file");
+    await this.mailer.sendQuoteFollowup(quote.customer.email, quote.quoteNumber, quote.customer.name, quote.id);
+    return true;
+  }
+
+  async emailQuote(id: string) {
+    const quote = await this.prisma.quote.findUnique({ where: { id }, include: { customer: true } });
+    if (!quote) throw new NotFoundException("Quote not found");
+    if (!quote.customer.email) throw new BadRequestException("This customer has no email on file");
+    await this.mailer.sendQuoteToCustomer(quote.customer.email, quote.quoteNumber, quote.customer.name, Number(quote.total), quote.id);
+    return true;
   }
 }

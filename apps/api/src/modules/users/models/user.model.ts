@@ -20,6 +20,24 @@ export class UserModel {
   @Field(() => Boolean)
   active!: boolean;
 
+  @Field(() => String, { nullable: true })
+  avatarUrl!: string | null;
+
+  @Field(() => String, { nullable: true })
+  phone!: string | null;
+
+  @Field(() => String, { nullable: true })
+  jobTitle!: string | null;
+
+  @Field(() => String, { nullable: true })
+  bio!: string | null;
+
+  @Field(() => Boolean)
+  notifyEmailEnabled!: boolean;
+
+  @Field(() => Boolean)
+  notifyInAppEnabled!: boolean;
+
   @Field(() => Date)
   createdAt!: Date;
 }

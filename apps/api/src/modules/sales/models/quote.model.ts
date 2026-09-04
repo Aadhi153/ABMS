@@ -59,6 +59,9 @@ export class QuoteModel {
   @Field(() => String)
   customerName!: string;
 
+  @Field(() => String)
+  customerCode!: string;
+
   @Field(() => Date, { nullable: true })
   validUntil?: Date | null;
 
@@ -109,4 +112,7 @@ export class QuoteModel {
 
   @Field(() => Date)
   createdAt!: Date;
+
+  @Field(() => Date)
+  updatedAt!: Date;
 }

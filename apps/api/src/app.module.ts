@@ -10,8 +10,11 @@ import { AuditModule } from "./common/audit/audit.module";
 import { TenancyModule } from "./common/tenancy/tenancy.module";
 import { TenantContextInterceptor } from "./common/tenancy/tenant.interceptor";
 import { MailerModule } from "./common/mailer/mailer.module";
+import { StorageModule } from "./common/storage/storage.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { UsersModule } from "./modules/users/users.module";
+import { SessionsModule } from "./modules/sessions/sessions.module";
+import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { SettingsModule } from "./modules/settings/settings.module";
 import { ProductsModule } from "./modules/products/products.module";
 import { InventoryModule } from "./modules/inventory/inventory.module";
@@ -37,10 +40,13 @@ import { AccountsModule } from "./modules/accounts/accounts.module";
     PrismaModule,
     TenancyModule,
     MailerModule,
+    StorageModule,
     SessionModule,
     AuditModule,
     AuthModule,
     UsersModule,
+    SessionsModule,
+    NotificationsModule,
     SettingsModule,
     ProductsModule,
     InventoryModule,

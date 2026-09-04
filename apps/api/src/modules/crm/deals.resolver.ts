@@ -1,12 +1,13 @@
 import { UseGuards } from "@nestjs/common";
 import { Args, Mutation, Query, Resolver } from "@nestjs/graphql";
 import type { User } from "@abms/database";
-import { Role } from "@abms/shared";
+import { DealStage, NotificationType, Role } from "@abms/shared";
 import { SessionAuthGuard } from "../../common/guards/session-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { AuditService } from "../../common/audit/audit.service";
+import { NotificationsService } from "../notifications/notifications.service";
 import { DealsService } from "./deals.service";
 import { DealModel } from "./models/deal.model";
 import { CreateDealInput, UpdateDealInput } from "./dto/deal.input";
@@ -17,6 +18,7 @@ export class DealsResolver {
   constructor(
     private readonly dealsService: DealsService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   @Query(() => [DealModel])
@@ -43,6 +45,15 @@ export class DealsResolver {
     const before = await this.dealsService.findById(id);
     const deal = await this.dealsService.update(id, input);
     await this.audit.logUpdate(actor, "Deal", id, before, deal);
+    if (before?.stage !== DealStage.WON && deal.stage === DealStage.WON) {
+      await this.notifications.notify(
+        deal.ownerId,
+        NotificationType.DEAL_WON,
+        "Deal won 🎉",
+        `${deal.title} was marked as won.`,
+        `/crm/deals/${deal.id}`,
+      );
+    }
     return deal;
   }
 

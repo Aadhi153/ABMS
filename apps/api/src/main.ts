@@ -1,12 +1,19 @@
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Off by default: only enable when actually behind a reverse proxy, so
+  // req.ip reflects the real client instead of trusting a spoofable header.
+  if (process.env.TRUST_PROXY === "true") {
+    app.set("trust proxy", 1);
+  }
 
   app.use(
     helmet({

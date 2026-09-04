@@ -28,6 +28,14 @@ export class AuditService {
     return this.write(actor, AuditAction.DELETE, entityType, entityId, before, null);
   }
 
+  findMine(userId: string, limit: number) {
+    return this.prisma.auditLog.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: Math.min(limit, 200),
+    });
+  }
+
   private write(
     actor: AuditActor,
     action: AuditAction,
