@@ -70,10 +70,12 @@ export const NAV_MODULES: NavModule[] = [
     icon: "ShoppingCart",
     roles: [Role.ADMIN, Role.SALES],
     children: [
-      { id: "quotes", label: "Quotes", path: "/sales/quotes" },
+      { id: "quotes", label: "Sales Quotes", path: "/sales/quotes" },
       { id: "orders", label: "Sales Orders", path: "/sales/orders" },
-      { id: "invoices", label: "Invoices", path: "/sales/invoices" },
-      { id: "returns", label: "Returns / Credit Notes", path: "/sales/returns" },
+      { id: "invoices", label: "Sales Invoices", path: "/sales/invoices" },
+      { id: "collections", label: "Customer Collections", path: "/sales/collections" },
+      { id: "returns", label: "Credit Notes", path: "/sales/returns" },
+      { id: "outstanding", label: "Sales Outstanding", path: "/sales/outstanding" },
     ],
   },
   {
@@ -150,14 +152,5 @@ export const NAV_MODULES: NavModule[] = [
     path: "/settings",
     icon: "Settings",
     roles: [Role.ADMIN],
-    children: [
-      { id: "org", label: "Organization Settings", path: "/settings/org" },
-      { id: "users", label: "Users & Teams", path: "/settings/users" },
-      { id: "permissions", label: "Roles & Permissions", path: "/settings/permissions" },
-      { id: "warehouses", label: "Warehouses config", path: "/settings/warehouses" },
-      { id: "bankaccounts", label: "Bank Accounts", path: "/settings/bankaccounts" },
-      { id: "notifications", label: "Notifications", path: "/settings/notifications" },
-      { id: "security", label: "Security", path: "/settings/security" },
-    ],
   },
 ];

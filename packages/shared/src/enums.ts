@@ -60,6 +60,26 @@ export enum SalesOrderStatus {
   CANCELLED = "CANCELLED",
 }
 
+export enum QuoteStatus {
+  DRAFT = "DRAFT",
+  SENT = "SENT",
+  PENDING = "PENDING",
+  APPROVED = "APPROVED",
+  WON = "WON",
+  LOST = "LOST",
+  EXPIRED = "EXPIRED",
+}
+
+export enum QuoteTaxMethod {
+  EXCLUSIVE = "EXCLUSIVE",
+  INCLUSIVE = "INCLUSIVE",
+}
+
+export enum SalesOrderTaxMethod {
+  EXCLUSIVE = "EXCLUSIVE",
+  INCLUSIVE = "INCLUSIVE",
+}
+
 export enum InvoiceStatus {
   DRAFT = "DRAFT",
   UNPAID = "UNPAID",
@@ -106,6 +126,31 @@ export enum AgingBucket {
   DAYS_60_PLUS = "60_PLUS",
 }
 
+// --- Customers & Suppliers ---
+export enum BusinessType {
+  BUSINESS = "BUSINESS",
+  INDIVIDUAL = "INDIVIDUAL",
+}
+
+export enum ContactMethodType {
+  PHONE = "PHONE",
+  EMAIL = "EMAIL",
+  WHATSAPP = "WHATSAPP",
+  FAX = "FAX",
+  OTHER = "OTHER",
+}
+
+export enum AddressType {
+  BILLING = "BILLING",
+  SHIPPING = "SHIPPING",
+  OTHER = "OTHER",
+}
+
+export enum BankAccountType {
+  SAVINGS = "SAVINGS",
+  CURRENT = "CURRENT",
+}
+
 // --- Approvals ---
 export enum ApprovalStatus {
   PENDING = "PENDING",
@@ -138,6 +183,7 @@ export const STATUS_TONE: Record<string, StatusTone> = {
   DELIVERED: "success",
   RECEIVED: "success",
   APPROVED: "success",
+  ACCEPTED: "success",
   // warning
   PENDING: "warning",
   PARTIAL: "warning",
@@ -148,6 +194,7 @@ export const STATUS_TONE: Record<string, StatusTone> = {
   OVERDUE: "danger",
   CANCELLED: "danger",
   REJECTED: "danger",
+  EXPIRED: "danger",
   // info
   DRAFT: "info",
   QUALIFIED: "info",
