@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
 import * as bcrypt from "bcryptjs";
 import * as crypto from "node:crypto";
-import type { Response } from "express";
+import type { Request, Response } from "express";
 import { Role } from "@abms/shared";
 import { PrismaService } from "../../common/prisma/prisma.service";
 import { SessionService } from "../../common/session/session.service";
@@ -21,6 +21,10 @@ function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
+function sessionMeta(req: Request) {
+  return { userAgent: req.get("user-agent") ?? undefined, ipAddress: req.ip };
+}
+
 /**
  * signup/acceptInvite/requestPasswordReset/resetPassword all use the raw
  * (unscoped) PrismaService, not ScopedPrismaClient: none of them run inside an
@@ -38,7 +42,7 @@ export class AuthService {
     private readonly mailer: MailerService,
   ) {}
 
-  async login(email: string, password: string, res: Response) {
+  async login(email: string, password: string, req: Request, res: Response) {
     const user = await this.users.findByEmail(email);
     if (!user || !user.active) {
       throw new UnauthorizedException("Invalid email or password");
@@ -48,7 +52,7 @@ export class AuthService {
       throw new UnauthorizedException("Invalid email or password");
     }
 
-    const session = await this.sessions.createSession(user.id);
+    const session = await this.sessions.createSession(user.id, sessionMeta(req));
     this.sessions.setCookie(res, session.id);
     return user;
   }
@@ -61,7 +65,7 @@ export class AuthService {
     return true;
   }
 
-  async signup(input: SignupInput, res: Response) {
+  async signup(input: SignupInput, req: Request, res: Response) {
     const existing = await this.users.findByEmail(input.email);
     if (existing) throw new ConflictException("A user with this email already exists");
 
@@ -80,7 +84,7 @@ export class AuthService {
       });
     });
 
-    const session = await this.sessions.createSession(user.id);
+    const session = await this.sessions.createSession(user.id, sessionMeta(req));
     this.sessions.setCookie(res, session.id);
     return user;
   }
@@ -103,7 +107,7 @@ export class AuthService {
     };
   }
 
-  async acceptInvite(input: AcceptInviteInput, res: Response) {
+  async acceptInvite(input: AcceptInviteInput, req: Request, res: Response) {
     const invite = await this.prisma.inviteToken.findUnique({ where: { tokenHash: hashToken(input.token) } });
     if (!invite || invite.revokedAt || invite.acceptedAt) {
       throw new BadRequestException("This invite link is invalid.");
@@ -129,7 +133,7 @@ export class AuthService {
       return created;
     });
 
-    const session = await this.sessions.createSession(user.id);
+    const session = await this.sessions.createSession(user.id, sessionMeta(req));
     this.sessions.setCookie(res, session.id);
     return user;
   }
@@ -144,6 +148,17 @@ export class AuthService {
       await this.mailer.sendPasswordReset(user.email, token);
     }
     // Always return true — anti-enumeration: don't reveal whether the email exists.
+    return true;
+  }
+
+  async changeMyPassword(userId: string, currentPassword: string, newPassword: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) {
+      throw new UnauthorizedException("Current password is incorrect");
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
     return true;
   }
 

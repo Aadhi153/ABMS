@@ -14,9 +14,11 @@ export class SessionService {
     return Number.isFinite(raw) && raw > 0 ? raw : 120;
   }
 
-  async createSession(userId: string) {
+  async createSession(userId: string, meta?: { userAgent?: string; ipAddress?: string }) {
     const expiresAt = new Date(Date.now() + this.timeoutMins * 60_000);
-    return this.prisma.session.create({ data: { userId, expiresAt } });
+    return this.prisma.session.create({
+      data: { userId, expiresAt, userAgent: meta?.userAgent, ipAddress: meta?.ipAddress, lastActiveAt: new Date() },
+    });
   }
 
   async destroySession(sessionId: string) {
@@ -32,7 +34,14 @@ export class SessionService {
       return null;
     }
     if (!session.user.active) return null;
+    this.touch(session.id, session.lastActiveAt);
     return session.user;
+  }
+
+  /** Fire-and-forget, throttled to avoid a write on every single request. */
+  private touch(sessionId: string, lastActiveAt: Date) {
+    if (Date.now() - lastActiveAt.getTime() < 5 * 60_000) return;
+    void this.prisma.session.update({ where: { id: sessionId }, data: { lastActiveAt: new Date() } }).catch(() => {});
   }
 
   setCookie(res: Response, sessionId: string) {

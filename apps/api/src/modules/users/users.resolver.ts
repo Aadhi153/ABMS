@@ -1,12 +1,13 @@
 import { UseGuards } from "@nestjs/common";
 import { Args, Mutation, Query, Resolver } from "@nestjs/graphql";
 import type { User } from "@abms/database";
-import { Role } from "@abms/shared";
+import { NotificationType, Role } from "@abms/shared";
 import { SessionAuthGuard } from "../../common/guards/session-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { AuditService } from "../../common/audit/audit.service";
+import { NotificationsService } from "../notifications/notifications.service";
 import { UsersService } from "./users.service";
 import { UserModel } from "./models/user.model";
 import { CreateUserInput, UpdateUserInput } from "./dto/create-user.input";
@@ -18,6 +19,7 @@ export class UsersResolver {
   constructor(
     private readonly usersService: UsersService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   @Query(() => [UserModel])
@@ -41,6 +43,14 @@ export class UsersResolver {
     const before = await this.usersService.findById(id, actor.organizationId);
     const user = await this.usersService.update(id, input, actor.organizationId);
     await this.audit.logUpdate(actor, "User", id, before, user);
+    if (input.role && before?.role !== user.role) {
+      await this.notifications.notify(
+        user.id,
+        NotificationType.GENERIC,
+        "Your role changed",
+        `Your role is now ${user.role}.`,
+      );
+    }
     return user;
   }
 }

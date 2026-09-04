@@ -40,6 +40,40 @@ export class MailerService {
     );
   }
 
+  async sendQuoteToCustomer(to: string, quoteNumber: string, customerName: string, total: number, quoteId: string) {
+    const link = `${this.webAppUrl}/sales/quotes/edit/${quoteId}`;
+    await this.send(
+      to,
+      `Quote ${quoteNumber}`,
+      `<p>Dear ${customerName},</p>
+       <p>Please find your quote <strong>${quoteNumber}</strong> for <strong>₹${total.toFixed(2)}</strong>.</p>
+       <p><a href="${link}">View the quote</a></p>`,
+    );
+  }
+
+  async sendQuoteFollowup(to: string, quoteNumber: string, customerName: string, quoteId: string) {
+    const link = `${this.webAppUrl}/sales/quotes/edit/${quoteId}`;
+    await this.send(
+      to,
+      `Following up on Quote ${quoteNumber}`,
+      `<p>Dear ${customerName},</p>
+       <p>Just following up on quote <strong>${quoteNumber}</strong> we sent earlier. Let us know if you have any questions or would like to proceed.</p>
+       <p><a href="${link}">View the quote</a></p>`,
+    );
+  }
+
+  async sendNotificationEmail(to: string, title: string, message: string, link?: string) {
+    const cta = link
+      ? `<p><a href="${this.webAppUrl}${link}">View details</a></p>`
+      : "";
+    await this.send(
+      to,
+      title,
+      `<p>${message}</p>
+       ${cta}`,
+    );
+  }
+
   private async send(to: string, subject: string, html: string) {
     try {
       await this.transporter.sendMail({ from: this.from, to, subject, html });

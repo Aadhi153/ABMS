@@ -8,6 +8,12 @@ export interface AuthUser {
   name: string;
   role: Role;
   active: boolean;
+  avatarUrl: string | null;
+  phone: string | null;
+  jobTitle: string | null;
+  bio: string | null;
+  notifyEmailEnabled: boolean;
+  notifyInAppEnabled: boolean;
 }
 
 const ME_QUERY = gql`
@@ -18,6 +24,12 @@ const ME_QUERY = gql`
       name
       role
       active
+      avatarUrl
+      phone
+      jobTitle
+      bio
+      notifyEmailEnabled
+      notifyInAppEnabled
     }
   }
 `;
