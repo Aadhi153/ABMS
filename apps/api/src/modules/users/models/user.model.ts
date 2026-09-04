@@ -38,6 +38,10 @@ export class UserModel {
   @Field(() => Boolean)
   notifyInAppEnabled!: boolean;
 
+  /** JSON-encoded — see NotificationsService for category keys. Resolved by UserFieldsResolver. */
+  @Field(() => String, { nullable: true })
+  notificationCategoryPrefs!: string | null;
+
   @Field(() => Date)
   createdAt!: Date;
 }

@@ -78,7 +78,14 @@ export class AuthResolver {
   @UseGuards(SessionAuthGuard)
   async updateMyProfile(@Args("input") input: UpdateProfileInput, @CurrentUser() actor: User) {
     const before = await this.usersService.findById(actor.id, actor.organizationId);
-    const user = await this.usersService.update(actor.id, input, actor.organizationId);
+    const { notificationCategoryPrefs, ...rest } = input;
+    const data = {
+      ...rest,
+      ...(notificationCategoryPrefs !== undefined
+        ? { notificationCategoryPrefs: JSON.parse(notificationCategoryPrefs) }
+        : {}),
+    };
+    const user = await this.usersService.update(actor.id, data, actor.organizationId);
     await this.audit.logUpdate(actor, "User", actor.id, before, user);
     return user;
   }

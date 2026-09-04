@@ -1,7 +1,22 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
-import { Camera, Laptop, LogOut, Smartphone } from "lucide-react";
+import {
+  Bell,
+  Calendar,
+  Camera,
+  ChevronDown,
+  History,
+  KeyRound,
+  Laptop,
+  Loader2,
+  LogOut,
+  Mail,
+  MonitorSmartphone,
+  Smartphone,
+  User,
+  type LucideIcon,
+} from "lucide-react";
 import {
   Avatar,
   AvatarFallback,
@@ -22,10 +37,16 @@ import {
   TabsList,
   TabsTrigger,
   Textarea,
+  cn,
   toast,
 } from "@abms/ui";
-import { ROLE_LABELS } from "@abms/shared";
-import { useAuth, type AuthUser } from "../../providers/auth-provider";
+import {
+  hasModuleAccess,
+  NOTIFICATION_CATEGORIES,
+  ROLE_LABELS,
+  type NotificationCategoryPrefs,
+} from "@abms/shared";
+import { useAuth } from "../../providers/auth-provider";
 
 const UPDATE_MY_PROFILE_MUTATION = gql`
   mutation UpdateMyProfile($input: UpdateProfileInput!) {
@@ -38,6 +59,7 @@ const UPDATE_MY_PROFILE_MUTATION = gql`
       bio
       notifyEmailEnabled
       notifyInAppEnabled
+      notificationCategoryPrefs
     }
   }
 `;
@@ -63,6 +85,7 @@ const MY_SESSIONS_QUERY = gql`
       id
       userAgent
       ipAddress
+      location
       createdAt
       lastActiveAt
       isCurrent
@@ -83,21 +106,38 @@ const REVOKE_OTHER_SESSIONS_MUTATION = gql`
 `;
 
 const MY_AUDIT_ACTIVITY_QUERY = gql`
-  query MyAuditActivity($limit: Int) {
-    myAuditActivity(limit: $limit) {
-      id
-      action
-      entityType
-      entityId
-      before
-      after
-      createdAt
+  query MyAuditActivity($limit: Int, $offset: Int, $action: AuditAction, $from: DateTime, $to: DateTime) {
+    myAuditActivity(limit: $limit, offset: $offset, action: $action, from: $from, to: $to) {
+      items {
+        id
+        action
+        entityType
+        entityId
+        entityName
+        before
+        after
+        createdAt
+      }
+      hasMore
     }
   }
 `;
 
+const ACTIVITY_PAGE_SIZE = 25;
+
 const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+function IconTitle({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
+  return (
+    <CardTitle className="flex items-center gap-2.5">
+      <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary-bg text-primary">
+        <Icon className="h-4 w-4" />
+      </span>
+      {children}
+    </CardTitle>
+  );
+}
 
 function initials(name: string) {
   return name
@@ -120,8 +160,22 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-function browserLabel(userAgent: string | null): string {
-  if (!userAgent) return "Unknown device";
+function exactDateTime(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+function shortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" });
+}
+
+/** Returns null when the user-agent is missing entirely — legacy sessions
+ * created before this column existed have no UA to parse, ever, so callers
+ * fall back to location/first-seen context instead of a bare "Unknown device". */
+function browserLabel(userAgent: string | null): string | null {
+  if (!userAgent) return null;
   const browser = /Edg\//.test(userAgent)
     ? "Edge"
     : /Chrome\//.test(userAgent)
@@ -149,8 +203,17 @@ function isMobileUserAgent(userAgent: string | null): boolean {
   return !!userAgent && /Mobile|Android|iPhone/.test(userAgent);
 }
 
-const TABS = ["overview", "security", "notifications", "activity"] as const;
-type TabKey = (typeof TABS)[number];
+const TAB_ITEMS = [
+  { key: "overview", label: "Overview", icon: User },
+  { key: "security", label: "Security", icon: KeyRound },
+  { key: "notifications", label: "Notifications", icon: Bell },
+  { key: "activity", label: "Activity", icon: History },
+] as const satisfies ReadonlyArray<{ key: string; label: string; icon: LucideIcon }>;
+
+const TABS = TAB_ITEMS.map((t) => t.key);
+type TabKey = (typeof TAB_ITEMS)[number]["key"];
+
+const TAB_CONTENT_ANIMATION = "animate-in fade-in-0 slide-in-from-bottom-1 duration-300";
 
 export default function ProfilePage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -163,30 +226,36 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Profile</h1>
         <p className="text-sm text-muted-foreground">Manage your account, security, notifications, and activity.</p>
       </div>
+      <ProfileHeroCard />
       <Tabs value={tab} onValueChange={handleTabChange}>
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="security">Security</TabsTrigger>
-          <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
+        <TabsList className="h-auto w-full flex-wrap gap-1 rounded-xl border-0 bg-muted/60 p-1.5 sm:w-fit sm:flex-nowrap">
+          {TAB_ITEMS.map(({ key, label, icon: Icon }) => (
+            <TabsTrigger
+              key={key}
+              value={key}
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-muted-foreground after:hidden data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </TabsTrigger>
+          ))}
         </TabsList>
-        <TabsContent value="overview" className="space-y-6">
-          <AvatarUploadCard />
+        <TabsContent value="overview" className={cn("space-y-6", TAB_CONTENT_ANIMATION)}>
           <ProfileDetailsCard />
         </TabsContent>
-        <TabsContent value="security" className="space-y-6">
+        <TabsContent value="security" className={cn("space-y-6", TAB_CONTENT_ANIMATION)}>
           <ChangePasswordCard />
           <SessionsCard />
         </TabsContent>
-        <TabsContent value="notifications" className="space-y-6">
+        <TabsContent value="notifications" className={cn("space-y-6", TAB_CONTENT_ANIMATION)}>
           <NotificationPrefsCard />
         </TabsContent>
-        <TabsContent value="activity" className="space-y-6">
+        <TabsContent value="activity" className={cn("space-y-6", TAB_CONTENT_ANIMATION)}>
           <MyActivityCard />
         </TabsContent>
       </Tabs>
@@ -194,7 +263,7 @@ export default function ProfilePage() {
   );
 }
 
-function AvatarUploadCard() {
+function ProfileHeroCard() {
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -240,46 +309,70 @@ function AvatarUploadCard() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Photo</CardTitle>
-        <CardDescription>Shown across the app in the sidebar, topbar, and anywhere your name appears.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="group relative rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed"
-            aria-label="Change profile photo"
-          >
-            <Avatar className="h-16 w-16">
-              {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
-              <AvatarFallback className="text-base font-semibold">{initials(user.name)}</AvatarFallback>
-            </Avatar>
-            <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100">
-              <Camera className="h-5 w-5" />
-            </span>
-          </button>
+    <Card className="overflow-hidden py-0 transition-shadow duration-200 hover:shadow-md">
+      <div className="h-20 bg-gradient-to-r from-primary via-primary/85 to-info sm:h-24" />
+      <CardContent className="relative px-6 pb-6 pt-0">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div className="-mt-10 flex items-end gap-4 sm:-mt-12">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="group relative shrink-0 rounded-full outline-none ring-4 ring-card transition-transform duration-200 hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed"
+              aria-label="Change profile photo"
+            >
+              <Avatar className="h-20 w-20 shadow-lg sm:h-24 sm:w-24">
+                {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
+                <AvatarFallback className="text-xl font-semibold sm:text-2xl">{initials(user.name)}</AvatarFallback>
+              </Avatar>
+              <span
+                className={cn(
+                  "absolute inset-0 flex items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100",
+                  uploading && "opacity-100",
+                )}
+              >
+                {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
+              </span>
+            </button>
+            <div className="pb-1 sm:pb-2">
+              <h2 className="text-xl font-bold leading-tight sm:text-2xl">{user.name}</h2>
+              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+                <Mail className="h-3.5 w-3.5 shrink-0" />
+                {user.email}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 sm:pb-2">
+            <Badge tone="info">{ROLE_LABELS[user.role]}</Badge>
+            {user.jobTitle && <Badge tone="muted">{user.jobTitle}</Badge>}
+          </div>
+        </div>
+        <Separator className="my-4" />
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
               {uploading ? "Uploading…" : "Change photo"}
             </Button>
             <p className="mt-1.5 text-xs text-muted-foreground">PNG, JPEG, or WEBP. Max 5MB.</p>
           </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            className="hidden"
-            onChange={handleFileChange}
-          />
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Calendar className="h-3.5 w-3.5" />
+            Member since {shortDate(user.createdAt)}
+          </p>
         </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          className="hidden"
+          onChange={handleFileChange}
+        />
       </CardContent>
     </Card>
   );
 }
+
+const BIO_MAX_LENGTH = 280;
 
 function ProfileDetailsCard() {
   const { user } = useAuth();
@@ -291,6 +384,12 @@ function ProfileDetailsCard() {
   const [updateMyProfile] = useMutation(UPDATE_MY_PROFILE_MUTATION);
 
   if (!user) return null;
+
+  const isDirty =
+    name !== (user.name ?? "") ||
+    phone !== (user.phone ?? "") ||
+    jobTitle !== (user.jobTitle ?? "") ||
+    bio !== (user.bio ?? "");
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
@@ -308,16 +407,12 @@ function ProfileDetailsCard() {
   }
 
   return (
-    <Card>
+    <Card className="transition-shadow duration-200 hover:shadow-md">
       <CardHeader>
-        <CardTitle>Account details</CardTitle>
+        <IconTitle icon={User}>Account details</IconTitle>
         <CardDescription>Your name is shown across the app; your email and role are managed by an admin.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5">
-        <div className="flex items-center gap-3">
-          <Badge tone="info">{ROLE_LABELS[user.role]}</Badge>
-        </div>
-        <Separator />
+      <CardContent>
         <form className="space-y-4" onSubmit={handleSave}>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -326,7 +421,7 @@ function ProfileDetailsCard() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" value={user.email} disabled />
+              <Input id="email" value={user.email} disabled title="Managed by an admin" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="phone">Phone</Label>
@@ -338,10 +433,22 @@ function ProfileDetailsCard() {
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="bio">Bio</Label>
-            <Textarea id="bio" value={bio} onChange={(e) => setBio(e.target.value)} placeholder="A short note about yourself (optional)" />
+            <div className="flex items-center justify-between">
+              <Label htmlFor="bio">Bio</Label>
+              <span className="text-xs text-muted-foreground">
+                {bio.length}/{BIO_MAX_LENGTH}
+              </span>
+            </div>
+            <Textarea
+              id="bio"
+              value={bio}
+              maxLength={BIO_MAX_LENGTH}
+              onChange={(e) => setBio(e.target.value)}
+              placeholder="A short note about yourself (optional)"
+            />
           </div>
-          <Button type="submit" disabled={submitting || !name.trim()}>
+          <Button type="submit" disabled={submitting || !name.trim() || !isDirty}>
+            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
             {submitting ? "Saving…" : "Save changes"}
           </Button>
         </form>
@@ -378,9 +485,9 @@ function ChangePasswordCard() {
   }
 
   return (
-    <Card>
+    <Card className="transition-shadow duration-200 hover:shadow-md">
       <CardHeader>
-        <CardTitle>Change password</CardTitle>
+        <IconTitle icon={KeyRound}>Change password</IconTitle>
         <CardDescription>You'll stay signed in on this device after changing your password.</CardDescription>
       </CardHeader>
       <CardContent>
@@ -417,9 +524,19 @@ function ChangePasswordCard() {
               onChange={(e) => setConfirmPassword(e.target.value)}
             />
           </div>
-          <Button type="submit" disabled={submitting || !currentPassword || !newPassword}>
-            {submitting ? "Updating…" : "Update password"}
-          </Button>
+          {(() => {
+            const disabledReason = !currentPassword || !newPassword || !confirmPassword
+              ? "Fill in all fields to update your password"
+              : null;
+            return (
+              <div className="space-y-1.5">
+                <Button type="submit" disabled={submitting || !!disabledReason} title={disabledReason ?? undefined}>
+                  {submitting ? "Updating…" : "Update password"}
+                </Button>
+                {disabledReason && <p className="text-xs text-muted-foreground">{disabledReason}.</p>}
+              </div>
+            );
+          })()}
         </form>
       </CardContent>
     </Card>
@@ -430,6 +547,7 @@ interface SessionRow {
   id: string;
   userAgent: string | null;
   ipAddress: string | null;
+  location: string | null;
   createdAt: string;
   lastActiveAt: string;
   isCurrent: boolean;
@@ -472,14 +590,14 @@ function SessionsCard() {
   const hasOtherSessions = sessions.some((s) => !s.isCurrent);
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0">
-        <div>
-          <CardTitle>Active sessions</CardTitle>
+    <Card className="transition-shadow duration-200 hover:shadow-md">
+      <CardHeader className="flex-row items-start justify-between space-y-0">
+        <div className="space-y-1.5">
+          <IconTitle icon={MonitorSmartphone}>Active sessions</IconTitle>
           <CardDescription>Devices currently signed in to your account.</CardDescription>
         </div>
         {hasOtherSessions && (
-          <Button variant="outline" size="sm" onClick={handleRevokeOthers} disabled={revokingOthers}>
+          <Button variant="outline" size="sm" onClick={handleRevokeOthers} disabled={revokingOthers} className="shrink-0">
             {revokingOthers ? "Signing out…" : "Sign out all other sessions"}
           </Button>
         )}
@@ -488,22 +606,39 @@ function SessionsCard() {
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             {sessions.map((session) => {
               const Icon = isMobileUserAgent(session.userAgent) ? Smartphone : Laptop;
+              const label = browserLabel(session.userAgent);
+              const metaParts = [
+                session.location,
+                session.ipAddress,
+                !label ? `First seen ${shortDate(session.createdAt)}` : null,
+                `Active ${relativeTime(session.lastActiveAt)}`,
+              ].filter(Boolean);
               return (
-                <div key={session.id} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
+                <div
+                  key={session.id}
+                  className={cn(
+                    "flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 transition-colors duration-150",
+                    session.isCurrent ? "border-primary/30 bg-primary-bg/40" : "border-border hover:bg-muted/50",
+                  )}
+                >
                   <div className="flex items-center gap-3">
-                    <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span
+                      className={cn(
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+                        session.isCurrent ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">{browserLabel(session.userAgent)}</p>
+                        <p className="text-sm font-medium">{label ?? "Unknown device"}</p>
                         {session.isCurrent && <Badge tone="success">This device</Badge>}
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        {session.ipAddress ? `${session.ipAddress} · ` : ""}
-                        Active {relativeTime(session.lastActiveAt)}
-                      </p>
+                      <p className="text-xs text-muted-foreground">{metaParts.join(" · ")}</p>
                     </div>
                   </div>
                   {!session.isCurrent && (
@@ -512,6 +647,7 @@ function SessionsCard() {
                       size="sm"
                       onClick={() => handleRevoke(session)}
                       disabled={busyId === session.id}
+                      className="hover:bg-danger-bg hover:text-danger"
                     >
                       <LogOut className="h-4 w-4" />
                       Sign out
@@ -527,18 +663,45 @@ function SessionsCard() {
   );
 }
 
+function parseCategoryPrefs(raw: string | null): NotificationCategoryPrefs {
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as NotificationCategoryPrefs;
+  } catch {
+    return {};
+  }
+}
+
+type NotificationChannel = "inApp" | "email";
+
 function NotificationPrefsCard() {
   const { user } = useAuth();
   const [updateMyProfile] = useMutation(UPDATE_MY_PROFILE_MUTATION);
-  const [savingKey, setSavingKey] = useState<keyof Pick<AuthUser, "notifyEmailEnabled" | "notifyInAppEnabled"> | null>(null);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
 
   if (!user) return null;
 
-  async function handleToggle(key: "notifyEmailEnabled" | "notifyInAppEnabled", value: boolean) {
+  const categoryPrefs = parseCategoryPrefs(user.notificationCategoryPrefs);
+  const visibleCategories = NOTIFICATION_CATEGORIES.filter((c) => !c.hrOnly || hasModuleAccess(user.role, "hrms"));
+
+  async function persist(
+    key: string,
+    input: Partial<{ notifyInAppEnabled: boolean; notifyEmailEnabled: boolean; notificationCategoryPrefs: NotificationCategoryPrefs }>,
+  ) {
     if (!user) return;
     setSavingKey(key);
     try {
-      await updateMyProfile({ variables: { input: { name: user.name, [key]: value } } });
+      await updateMyProfile({
+        variables: {
+          input: {
+            name: user.name,
+            ...input,
+            ...(input.notificationCategoryPrefs
+              ? { notificationCategoryPrefs: JSON.stringify(input.notificationCategoryPrefs) }
+              : {}),
+          },
+        },
+      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update preference");
     } finally {
@@ -546,40 +709,110 @@ function NotificationPrefsCard() {
     }
   }
 
+  function handleCategoryToggle(categoryKey: string, channel: NotificationChannel, value: boolean) {
+    const current = categoryPrefs[categoryKey] ?? { inApp: true, email: true };
+    const next: NotificationCategoryPrefs = { ...categoryPrefs, [categoryKey]: { ...current, [channel]: value } };
+    void persist(`${categoryKey}-${channel}`, { notificationCategoryPrefs: next });
+  }
+
   return (
-    <Card>
+    <Card className="transition-shadow duration-200 hover:shadow-md">
       <CardHeader>
-        <CardTitle>Notification preferences</CardTitle>
+        <IconTitle icon={Bell}>Notification preferences</IconTitle>
         <CardDescription>Choose how you're notified about activity relevant to you.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium">In-app notifications</p>
-            <p className="text-xs text-muted-foreground">Show a badge and list in the notification bell.</p>
-          </div>
-          <Switch
-            checked={user.notifyInAppEnabled}
-            onCheckedChange={(v) => handleToggle("notifyInAppEnabled", v)}
-            disabled={savingKey === "notifyInAppEnabled"}
-            aria-label="Toggle in-app notifications"
-          />
-        </div>
+      <CardContent className="space-y-5">
+        <NotificationChannelSection
+          title="In-app notifications"
+          description="Show a badge and list in the notification bell."
+          channel="inApp"
+          masterChecked={user.notifyInAppEnabled}
+          masterSaving={savingKey === "notifyInAppEnabled"}
+          onMasterChange={(v) => void persist("notifyInAppEnabled", { notifyInAppEnabled: v })}
+          categories={visibleCategories}
+          categoryPrefs={categoryPrefs}
+          savingKey={savingKey}
+          onCategoryChange={handleCategoryToggle}
+        />
         <Separator />
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium">Email notifications</p>
-            <p className="text-xs text-muted-foreground">Also send an email for the same events.</p>
-          </div>
-          <Switch
-            checked={user.notifyEmailEnabled}
-            onCheckedChange={(v) => handleToggle("notifyEmailEnabled", v)}
-            disabled={savingKey === "notifyEmailEnabled"}
-            aria-label="Toggle email notifications"
-          />
-        </div>
+        <NotificationChannelSection
+          title="Email notifications"
+          description="Also send an email for the same events."
+          channel="email"
+          masterChecked={user.notifyEmailEnabled}
+          masterSaving={savingKey === "notifyEmailEnabled"}
+          onMasterChange={(v) => void persist("notifyEmailEnabled", { notifyEmailEnabled: v })}
+          categories={visibleCategories}
+          categoryPrefs={categoryPrefs}
+          savingKey={savingKey}
+          onCategoryChange={handleCategoryToggle}
+        />
       </CardContent>
     </Card>
+  );
+}
+
+function NotificationChannelSection({
+  title,
+  description,
+  channel,
+  masterChecked,
+  masterSaving,
+  onMasterChange,
+  categories,
+  categoryPrefs,
+  savingKey,
+  onCategoryChange,
+}: {
+  title: string;
+  description: string;
+  channel: NotificationChannel;
+  masterChecked: boolean;
+  masterSaving: boolean;
+  onMasterChange: (value: boolean) => void;
+  categories: typeof NOTIFICATION_CATEGORIES;
+  categoryPrefs: NotificationCategoryPrefs;
+  savingKey: string | null;
+  onCategoryChange: (categoryKey: string, channel: NotificationChannel, value: boolean) => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-lg border border-transparent p-2 transition-colors duration-150 hover:border-border hover:bg-muted/30">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium">{title}</p>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+        <Switch
+          checked={masterChecked}
+          onCheckedChange={onMasterChange}
+          disabled={masterSaving}
+          aria-label={`Toggle ${title}`}
+        />
+      </div>
+      <div className="ml-1 space-y-1 border-l-2 border-border pl-3.5">
+        {categories.map((cat) => {
+          const pref = categoryPrefs[cat.key] ?? { inApp: true, email: true };
+          const key = `${cat.key}-${channel}`;
+          return (
+            <div
+              key={cat.key}
+              className={cn(
+                "flex items-center justify-between gap-4 rounded-md px-1.5 py-1 transition-colors duration-150",
+                !masterChecked ? "opacity-50" : "hover:bg-card",
+              )}
+            >
+              <p className="text-xs text-muted-foreground">{cat.label}</p>
+              <Switch
+                checked={pref[channel]}
+                onCheckedChange={(v) => onCategoryChange(cat.key, channel, v)}
+                disabled={!masterChecked || savingKey === key}
+                aria-label={`Toggle ${cat.label} ${channel === "inApp" ? "in-app" : "email"} notifications`}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -588,6 +821,7 @@ interface AuditLogRow {
   action: "CREATE" | "UPDATE" | "DELETE";
   entityType: string;
   entityId: string;
+  entityName: string | null;
   before: string | null;
   after: string | null;
   createdAt: string;
@@ -599,46 +833,148 @@ const ACTION_TONE: Record<AuditLogRow["action"], "success" | "info" | "danger"> 
   DELETE: "danger",
 };
 
-function MyActivityCard() {
-  const { data, loading } = useQuery<{ myAuditActivity: AuditLogRow[] }>(MY_AUDIT_ACTIVITY_QUERY, {
-    variables: { limit: 50 },
-  });
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+const ACTION_FILTERS = [
+  { value: "ALL", label: "All" },
+  { value: "CREATE", label: "Create" },
+  { value: "UPDATE", label: "Update" },
+  { value: "DELETE", label: "Delete" },
+] as const;
 
-  const rows = data?.myAuditActivity ?? [];
+/** "SalesOrder" -> "Sales Order", "GoodsReceivedNote" -> "Goods Received Note" */
+function humanizeEntityType(entityType: string): string {
+  return entityType.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+}
+
+function MyActivityCard() {
+  const [actionFilter, setActionFilter] = useState<(typeof ACTION_FILTERS)[number]["value"]>("ALL");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [rows, setRows] = useState<AuditLogRow[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const variables = {
+    limit: ACTIVITY_PAGE_SIZE,
+    action: actionFilter === "ALL" ? undefined : actionFilter,
+    from: fromDate ? new Date(fromDate).toISOString() : undefined,
+    to: toDate ? new Date(`${toDate}T23:59:59.999`).toISOString() : undefined,
+  };
+
+  const { data, loading, fetchMore } = useQuery<{ myAuditActivity: { items: AuditLogRow[]; hasMore: boolean } }>(
+    MY_AUDIT_ACTIVITY_QUERY,
+    {
+      variables: { ...variables, offset: 0 },
+      onCompleted: (d) => {
+        setRows(d.myAuditActivity.items);
+        setHasMore(d.myAuditActivity.hasMore);
+      },
+    },
+  );
+
+  async function handleLoadMore() {
+    setLoadingMore(true);
+    try {
+      const { data: more } = await fetchMore({ variables: { ...variables, offset: rows.length } });
+      setRows((prev) => [...prev, ...more.myAuditActivity.items]);
+      setHasMore(more.myAuditActivity.hasMore);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  const displayRows = data ? rows : [];
 
   return (
-    <Card>
+    <Card className="transition-shadow duration-200 hover:shadow-md">
       <CardHeader>
-        <CardTitle>My activity</CardTitle>
+        <IconTitle icon={History}>My activity</IconTitle>
         <CardDescription>A record of changes you've made across the app.</CardDescription>
       </CardHeader>
-      <CardContent>
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No activity yet.</p>
-        ) : (
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
+            {ACTION_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => setActionFilter(f.value)}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all duration-150 ${
+                  actionFilter === f.value
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-card hover:text-foreground"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
           <div className="space-y-1">
-            {rows.map((row) => {
+            <Label htmlFor="activityFrom" className="text-xs">
+              From
+            </Label>
+            <Input id="activityFrom" type="date" className="h-8 w-36" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="activityTo" className="text-xs">
+              To
+            </Label>
+            <Input id="activityTo" type="date" className="h-8 w-36" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+          </div>
+          {(fromDate || toDate) && (
+            <Button variant="ghost" size="sm" onClick={() => { setFromDate(""); setToDate(""); }}>
+              Clear dates
+            </Button>
+          )}
+        </div>
+
+        {loading && displayRows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : displayRows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No activity found for this filter.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {displayRows.map((row) => {
               const expanded = expandedId === row.id;
+              const expandable = !!(row.before || row.after);
               return (
-                <div key={row.id} className="rounded-lg border border-border">
+                <div
+                  key={row.id}
+                  className={cn(
+                    "overflow-hidden rounded-lg border border-border transition-colors duration-150",
+                    expanded ? "border-primary/30" : "hover:bg-muted/40",
+                  )}
+                >
                   <button
                     type="button"
-                    onClick={() => setExpandedId(expanded ? null : row.id)}
-                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
+                    onClick={() => expandable && setExpandedId(expanded ? null : row.id)}
+                    className={cn(
+                      "flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left",
+                      !expandable && "cursor-default",
+                    )}
                   >
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex min-w-0 items-center gap-2.5">
                       <Badge tone={ACTION_TONE[row.action]}>{row.action}</Badge>
-                      <span className="text-sm">
-                        {row.entityType} <span className="text-muted-foreground">#{row.entityId.slice(0, 8)}</span>
+                      <span className="truncate text-sm">
+                        {humanizeEntityType(row.entityType)}:{" "}
+                        <span className={row.entityName ? "" : "text-muted-foreground"}>
+                          {row.entityName ?? `#${row.entityId.slice(0, 8)}`}
+                        </span>
                       </span>
                     </div>
-                    <span className="shrink-0 text-xs text-muted-foreground">{relativeTime(row.createdAt)}</span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="text-xs text-muted-foreground" title={exactDateTime(row.createdAt)}>
+                        {relativeTime(row.createdAt)}
+                      </span>
+                      {expandable && (
+                        <ChevronDown
+                          className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", expanded && "rotate-180")}
+                        />
+                      )}
+                    </div>
                   </button>
-                  {expanded && (row.before || row.after) && (
-                    <div className="grid gap-3 border-t border-border px-3 py-3 sm:grid-cols-2">
+                  {expanded && expandable && (
+                    <div className="grid animate-in fade-in-0 slide-in-from-top-1 gap-3 border-t border-border px-3 py-3 duration-200 sm:grid-cols-2">
                       {row.before && (
                         <div>
                           <p className="mb-1 text-xs font-medium text-muted-foreground">Before</p>
@@ -656,6 +992,13 @@ function MyActivityCard() {
                 </div>
               );
             })}
+            {hasMore && (
+              <div className="pt-2 text-center">
+                <Button variant="outline" size="sm" onClick={handleLoadMore} disabled={loadingMore}>
+                  {loadingMore ? "Loading…" : "Load more"}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

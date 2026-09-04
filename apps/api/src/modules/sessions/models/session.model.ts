@@ -11,6 +11,9 @@ export class SessionModel {
   @Field(() => String, { nullable: true })
   ipAddress!: string | null;
 
+  @Field(() => String, { nullable: true })
+  location!: string | null;
+
   @Field(() => Date)
   createdAt!: Date;
 

@@ -1,5 +1,5 @@
 import { Field, InputType } from "@nestjs/graphql";
-import { IsBoolean, IsOptional, IsString, MinLength } from "class-validator";
+import { IsBoolean, IsJSON, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
 
 @InputType()
 export class UpdateProfileInput {
@@ -26,6 +26,7 @@ export class UpdateProfileInput {
   @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
+  @MaxLength(280)
   bio?: string;
 
   @Field(() => Boolean, { nullable: true })
@@ -37,4 +38,10 @@ export class UpdateProfileInput {
   @IsOptional()
   @IsBoolean()
   notifyInAppEnabled?: boolean;
+
+  /** JSON-encoded { [category]: { inApp: boolean; email: boolean } } — see NotificationsService for category keys. */
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsJSON()
+  notificationCategoryPrefs?: string;
 }

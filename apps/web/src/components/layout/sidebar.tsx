@@ -16,7 +16,6 @@ import {
   Settings,
   ChevronDown,
   ChevronsLeft,
-  ChevronsRight,
   Building2,
   Globe,
   LogOut,
@@ -136,17 +135,24 @@ export function Sidebar({
       )}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex h-full shrink-0 flex-col bg-sidebar-gradient py-[1.2rem] transition-transform duration-200 ease-out lg:static lg:z-auto lg:translate-x-0 lg:transition-[width]",
+          "fixed inset-y-0 left-0 z-40 flex h-full shrink-0 flex-col overflow-hidden bg-sidebar-gradient py-[1.2rem] transition-[transform,width,padding] duration-500 ease-[cubic-bezier(0.65,0,0.35,1)] lg:static lg:z-auto lg:translate-x-0",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
-          collapsed ? "w-[68px] px-2" : "w-48 px-[0.8rem]",
+          collapsed ? "w-[68px] px-2" : "w-52 px-[0.8rem]",
         )}
       >
-        <div className={cn("mb-6 flex items-center gap-2", collapsed ? "flex-col" : "justify-between")}>
-          <div className={cn("flex items-center gap-2", collapsed && "justify-center")}>
+        <div className={cn("mb-6 flex items-center transition-all duration-500 ease-[cubic-bezier(0.65,0,0.35,1)]", collapsed ? "flex-col gap-2" : "justify-between gap-2")}>
+          <div className={cn("flex items-center transition-[gap] duration-500 ease-[cubic-bezier(0.65,0,0.35,1)]", collapsed ? "justify-center gap-0" : "gap-2")}>
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/10 text-[13px] font-bold text-sidebar-logo">
               A
             </span>
-            {!collapsed && <span className="text-[16px] font-bold text-sidebar-logo">ABMS</span>}
+            <span
+              className={cn(
+                "overflow-hidden whitespace-nowrap text-[16px] font-bold text-sidebar-logo transition-all duration-500 ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none",
+                collapsed ? "max-w-0 opacity-0" : "max-w-[120px] opacity-100",
+              )}
+            >
+              ABMS
+            </span>
           </div>
           <div className="flex items-center gap-1">
             <button
@@ -155,7 +161,12 @@ export function Sidebar({
               aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
               className="hidden rounded-md p-1 text-sidebar-inactive hover:bg-white/10 hover:text-white lg:flex lg:items-center lg:justify-center"
             >
-              {collapsed ? <ChevronsRight className="h-4 w-4 shrink-0" /> : <ChevronsLeft className="h-4 w-4 shrink-0" />}
+              <ChevronsLeft
+                className={cn(
+                  "h-4 w-4 shrink-0 transition-transform duration-500 ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none",
+                  collapsed && "rotate-180",
+                )}
+              />
             </button>
             <button
               type="button"
@@ -179,10 +190,19 @@ export function Sidebar({
                   to={item.path}
                   end={item.path === "/"}
                   title={collapsed ? item.label : undefined}
-                  className={({ isActive }) => cn(LEAF_CLASS, collapsed && "justify-center px-0", isActive && ACTIVE_CLASS)}
+                  className={({ isActive }) =>
+                    cn(LEAF_CLASS, collapsed && "justify-center gap-0 px-0", isActive && ACTIVE_CLASS)
+                  }
                 >
                   {Icon && <Icon className="h-[17px] w-[17px] shrink-0" />}
-                  {!collapsed && item.label}
+                  <span
+                    className={cn(
+                      "overflow-hidden whitespace-nowrap transition-all duration-500 ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none",
+                      collapsed ? "max-w-0 opacity-0" : "max-w-[10rem] opacity-100",
+                    )}
+                  >
+                    {item.label}
+                  </span>
                 </NavLink>
               );
             }
@@ -226,10 +246,17 @@ export function Sidebar({
         </nav>
 
         <div className="mt-2 border-t border-white/10 pt-3">
-          {!collapsed && orgData?.orgSettings?.companyName && (
-            <div className="mb-2 flex items-center gap-1.5 px-1.5 text-[11px] font-medium uppercase tracking-wide text-sidebar-inactive/80">
-              <Building2 className="h-3 w-3 shrink-0" />
-              <span className="truncate">{orgData.orgSettings.companyName}</span>
+          {orgData?.orgSettings?.companyName && (
+            <div
+              className={cn(
+                "overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none",
+                collapsed ? "mb-0 max-h-0 opacity-0" : "mb-2 max-h-6 opacity-100",
+              )}
+            >
+              <div className="flex items-center gap-1.5 px-1.5 text-[11px] font-medium uppercase tracking-wide text-sidebar-inactive/80">
+                <Building2 className="h-3 w-3 shrink-0" />
+                <span className="truncate">{orgData.orgSettings.companyName}</span>
+              </div>
             </div>
           )}
           <DropdownMenu>
@@ -237,8 +264,8 @@ export function Sidebar({
               <button
                 type="button"
                 className={cn(
-                  "flex w-full items-center gap-2 rounded-lg p-1.5 text-left outline-none transition-colors hover:bg-white/10 focus-visible:bg-white/10",
-                  collapsed && "justify-center",
+                  "flex w-full items-center rounded-lg p-1.5 text-left outline-none transition-all duration-500 ease-[cubic-bezier(0.65,0,0.35,1)] hover:bg-white/10 focus-visible:bg-white/10 motion-reduce:transition-none",
+                  collapsed ? "justify-center gap-0" : "gap-2",
                 )}
               >
                 <Avatar className="h-8 w-8 shrink-0 bg-white/10">
@@ -247,18 +274,21 @@ export function Sidebar({
                     {user ? initials(user.name) : "?"}
                   </AvatarFallback>
                 </Avatar>
-                {!collapsed && (
-                  <>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-white">{user?.name}</p>
-                      <p className="truncate text-xs text-sidebar-inactive">{user?.email}</p>
-                    </div>
-                    <MoreHorizontal className="h-4 w-4 shrink-0 text-sidebar-inactive" />
-                  </>
-                )}
+                <div
+                  className={cn(
+                    "flex min-w-0 flex-1 items-center gap-2 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none",
+                    collapsed ? "max-w-0 opacity-0" : "max-w-[160px] opacity-100",
+                  )}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-white">{user?.name}</p>
+                    <p className="truncate text-xs text-sidebar-inactive">{user?.email}</p>
+                  </div>
+                  <MoreHorizontal className="h-4 w-4 shrink-0 text-sidebar-inactive" />
+                </div>
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" side="top" className="w-56">
+            <DropdownMenuContent align="end" side="top" className="w-52">
               <DropdownMenuItem onClick={() => navigate("/profile")}>
                 <User className="h-4 w-4" />
                 Profile

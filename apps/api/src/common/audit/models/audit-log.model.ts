@@ -18,6 +18,9 @@ export class AuditLogModel {
   entityId!: string;
 
   @Field(() => String, { nullable: true })
+  entityName!: string | null;
+
+  @Field(() => String, { nullable: true })
   before!: string | null;
 
   @Field(() => String, { nullable: true })

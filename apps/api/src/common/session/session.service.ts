@@ -2,12 +2,16 @@ import { Injectable } from "@nestjs/common";
 import type { Response } from "express";
 import type { User } from "@abms/database";
 import { PrismaService } from "../prisma/prisma.service";
+import { GeoService } from "../geo/geo.service";
 
 export const SESSION_COOKIE_NAME = "abms_sid";
 
 @Injectable()
 export class SessionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly geo: GeoService,
+  ) {}
 
   private get timeoutMins(): number {
     const raw = Number(process.env.SESSION_TIMEOUT_MINS);
@@ -16,8 +20,16 @@ export class SessionService {
 
   async createSession(userId: string, meta?: { userAgent?: string; ipAddress?: string }) {
     const expiresAt = new Date(Date.now() + this.timeoutMins * 60_000);
+    const location = await this.geo.resolveLocation(meta?.ipAddress);
     return this.prisma.session.create({
-      data: { userId, expiresAt, userAgent: meta?.userAgent, ipAddress: meta?.ipAddress, lastActiveAt: new Date() },
+      data: {
+        userId,
+        expiresAt,
+        userAgent: meta?.userAgent,
+        ipAddress: meta?.ipAddress,
+        location,
+        lastActiveAt: new Date(),
+      },
     });
   }
 

@@ -6,6 +6,7 @@ import { ApolloDriver, type ApolloDriverConfig } from "@nestjs/apollo";
 import { GraphQLModule } from "@nestjs/graphql";
 import { PrismaModule } from "./common/prisma/prisma.module";
 import { SessionModule } from "./common/session/session.module";
+import { GeoModule } from "./common/geo/geo.module";
 import { AuditModule } from "./common/audit/audit.module";
 import { TenancyModule } from "./common/tenancy/tenancy.module";
 import { TenantContextInterceptor } from "./common/tenancy/tenant.interceptor";
@@ -42,6 +43,7 @@ import { AccountsModule } from "./modules/accounts/accounts.module";
     MailerModule,
     StorageModule,
     SessionModule,
+    GeoModule,
     AuditModule,
     AuthModule,
     UsersModule,
