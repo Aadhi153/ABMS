@@ -4,6 +4,7 @@ import { Toaster } from "@abms/ui";
 import { apolloClient } from "./lib/apollo-client";
 import { AuthProvider } from "./providers/auth-provider";
 import { ThemeProvider } from "./providers/theme-provider";
+import { LanguageProvider } from "./providers/language-provider";
 import { ProtectedRoute } from "./routes/protected-route";
 import { ModuleRoute } from "./routes/module-route";
 import { RootRoute } from "./routes/root-route";
@@ -38,232 +39,236 @@ import ReportsPage from "./pages/reports";
 import SettingsPage from "./pages/settings";
 import NewWarehousePage from "./pages/settings/new-warehouse-page";
 import NewUserInvitePage from "./pages/settings/new-user-invite-page";
+import ProfilePage from "./pages/profile";
 
 export function App() {
   return (
     <ApolloProvider client={apolloClient}>
       <ThemeProvider>
-        <BrowserRouter>
-          <AuthProvider>
-            <Toaster richColors position="top-right" />
-            <Routes>
-              <Route path="/" element={<RootRoute />} />
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/signup" element={<SignupPage />} />
-              <Route path="/invite/:token" element={<InvitePage />} />
-              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-              <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
-              <Route
-                element={
-                  <ProtectedRoute>
-                    <AppShell />
-                  </ProtectedRoute>
-                }
-              >
+        <LanguageProvider>
+          <BrowserRouter>
+            <AuthProvider>
+              <Toaster richColors position="top-right" />
+              <Routes>
+                <Route path="/" element={<RootRoute />} />
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/signup" element={<SignupPage />} />
+                <Route path="/invite/:token" element={<InvitePage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
                 <Route
-                  path="/crm/new"
                   element={
-                    <ModuleRoute module="crm">
-                      <CrmNewPage />
-                    </ModuleRoute>
+                    <ProtectedRoute>
+                      <AppShell />
+                    </ProtectedRoute>
                   }
-                />
-                <Route
-                  path="/crm/*"
-                  element={
-                    <ModuleRoute module="crm">
-                      <CrmPage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/products/*"
-                  element={
-                    <ModuleRoute module="products">
-                      <ProductsPage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/inventory/adjustments/new"
-                  element={
-                    <ModuleRoute module="inventory">
-                      <NewAdjustmentPage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/inventory/transfers/new"
-                  element={
-                    <ModuleRoute module="inventory">
-                      <NewTransferPage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/inventory/*"
-                  element={
-                    <ModuleRoute module="inventory">
-                      <InventoryPage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/sales/new"
-                  element={
-                    <ModuleRoute module="sales">
-                      <NewSalesOrderPage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/sales/quotes/new"
-                  element={
-                    <ModuleRoute module="sales">
-                      <NewQuotePage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/sales/quotes/edit/:id"
-                  element={
-                    <ModuleRoute module="sales">
-                      <EditQuotePage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/sales/*"
-                  element={
-                    <ModuleRoute module="sales">
-                      <SalesPage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/purchase/new"
-                  element={
-                    <ModuleRoute module="purchase">
-                      <NewPurchaseOrderPage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/purchase/*"
-                  element={
-                    <ModuleRoute module="purchase">
-                      <PurchasePage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/customers/new"
-                  element={
-                    <ModuleRoute module="customers">
-                      <NewCustomerPage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/customers/edit/:id"
-                  element={
-                    <ModuleRoute module="customers">
-                      <EditCustomerPage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/customers/*"
-                  element={
-                    <ModuleRoute module="customers">
-                      <CustomersPage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/suppliers/new"
-                  element={
-                    <ModuleRoute module="suppliers">
-                      <NewSupplierPage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/suppliers/edit/:id"
-                  element={
-                    <ModuleRoute module="suppliers">
-                      <EditSupplierPage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/suppliers/*"
-                  element={
-                    <ModuleRoute module="suppliers">
-                      <SuppliersPage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/accounts/new"
-                  element={
-                    <ModuleRoute module="accounts">
-                      <NewExpensePage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/accounts/*"
-                  element={
-                    <ModuleRoute module="accounts">
-                      <AccountsPage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/hrms/*"
-                  element={
-                    <ModuleRoute module="hrms">
-                      <HrmsPage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/reports/*"
-                  element={
-                    <ModuleRoute module="reports">
-                      <ReportsPage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/settings/warehouses/new"
-                  element={
-                    <ModuleRoute module="settings">
-                      <NewWarehousePage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/settings/users/invite"
-                  element={
-                    <ModuleRoute module="settings">
-                      <NewUserInvitePage />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="/settings/*"
-                  element={
-                    <ModuleRoute module="settings">
-                      <SettingsPage />
-                    </ModuleRoute>
-                  }
-                />
-              </Route>
-            </Routes>
-          </AuthProvider>
-        </BrowserRouter>
+                >
+                  <Route path="/profile" element={<ProfilePage />} />
+                  <Route
+                    path="/crm/new"
+                    element={
+                      <ModuleRoute module="crm">
+                        <CrmNewPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/crm/*"
+                    element={
+                      <ModuleRoute module="crm">
+                        <CrmPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/products/*"
+                    element={
+                      <ModuleRoute module="products">
+                        <ProductsPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/inventory/adjustments/new"
+                    element={
+                      <ModuleRoute module="inventory">
+                        <NewAdjustmentPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/inventory/transfers/new"
+                    element={
+                      <ModuleRoute module="inventory">
+                        <NewTransferPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/inventory/*"
+                    element={
+                      <ModuleRoute module="inventory">
+                        <InventoryPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/sales/new"
+                    element={
+                      <ModuleRoute module="sales">
+                        <NewSalesOrderPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/sales/quotes/new"
+                    element={
+                      <ModuleRoute module="sales">
+                        <NewQuotePage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/sales/quotes/edit/:id"
+                    element={
+                      <ModuleRoute module="sales">
+                        <EditQuotePage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/sales/*"
+                    element={
+                      <ModuleRoute module="sales">
+                        <SalesPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/purchase/new"
+                    element={
+                      <ModuleRoute module="purchase">
+                        <NewPurchaseOrderPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/purchase/*"
+                    element={
+                      <ModuleRoute module="purchase">
+                        <PurchasePage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/customers/new"
+                    element={
+                      <ModuleRoute module="customers">
+                        <NewCustomerPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/customers/edit/:id"
+                    element={
+                      <ModuleRoute module="customers">
+                        <EditCustomerPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/customers/*"
+                    element={
+                      <ModuleRoute module="customers">
+                        <CustomersPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/suppliers/new"
+                    element={
+                      <ModuleRoute module="suppliers">
+                        <NewSupplierPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/suppliers/edit/:id"
+                    element={
+                      <ModuleRoute module="suppliers">
+                        <EditSupplierPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/suppliers/*"
+                    element={
+                      <ModuleRoute module="suppliers">
+                        <SuppliersPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/accounts/new"
+                    element={
+                      <ModuleRoute module="accounts">
+                        <NewExpensePage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/accounts/*"
+                    element={
+                      <ModuleRoute module="accounts">
+                        <AccountsPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/hrms/*"
+                    element={
+                      <ModuleRoute module="hrms">
+                        <HrmsPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/reports/*"
+                    element={
+                      <ModuleRoute module="reports">
+                        <ReportsPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/settings/warehouses/new"
+                    element={
+                      <ModuleRoute module="settings">
+                        <NewWarehousePage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/settings/users/invite"
+                    element={
+                      <ModuleRoute module="settings">
+                        <NewUserInvitePage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/settings/*"
+                    element={
+                      <ModuleRoute module="settings">
+                        <SettingsPage />
+                      </ModuleRoute>
+                    }
+                  />
+                </Route>
+              </Routes>
+            </AuthProvider>
+          </BrowserRouter>
+        </LanguageProvider>
       </ThemeProvider>
     </ApolloProvider>
   );

@@ -1,7 +1,21 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
-import { Ban, Plus, RefreshCw } from "lucide-react";
+import {
+  ArrowLeft,
+  Ban,
+  Building2,
+  Camera,
+  ChevronRight,
+  Landmark,
+  Lock,
+  Plus,
+  RefreshCw,
+  ShieldCheck,
+  Users as UsersIcon,
+  Warehouse,
+  type LucideIcon,
+} from "lucide-react";
 import {
   Badge,
   Button,
@@ -22,48 +36,135 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
   toast,
 } from "@abms/ui";
 import { ALL_ROLES, NAV_MODULES, ROLE_LABELS, ROLE_MODULE_ACCESS, Role } from "@abms/shared";
 import { ModulePlaceholder } from "../../components/module-placeholder";
 
-const TABS = [{ key: "org" }, { key: "users" }, { key: "permissions" }, { key: "warehouses" }] as const;
+interface SettingsTab {
+  key: string;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  deferred?: boolean;
+}
 
-const DEFERRED_SEGMENTS: Record<string, string> = {
-  bankaccounts: "Bank Accounts",
-  notifications: "Notifications",
-  security: "Security",
-};
+const TABS: SettingsTab[] = [
+  {
+    key: "org",
+    label: "Organization Profile",
+    description: "Company name, logo, address, tax ID, and default currency.",
+    icon: Building2,
+  },
+  {
+    key: "users",
+    label: "Users & Teams",
+    description: "Invite teammates, manage roles, and control access.",
+    icon: UsersIcon,
+  },
+  {
+    key: "permissions",
+    label: "Roles & Permissions",
+    description: "Review the module access matrix for each role.",
+    icon: ShieldCheck,
+  },
+  {
+    key: "warehouses",
+    label: "Warehouses",
+    description: "Physical and virtual stock locations used across the app.",
+    icon: Warehouse,
+  },
+  {
+    key: "bankaccounts",
+    label: "Bank Accounts",
+    description: "Manage bank accounts used for payments and collections.",
+    icon: Landmark,
+    deferred: true,
+  },
+  {
+    key: "security",
+    label: "Security",
+    description: "Session timeout, password policy, and two-factor requirements.",
+    icon: Lock,
+  },
+];
 
 export default function SettingsPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const segment = location.pathname.split("/")[2];
-  const deferredTitle = DEFERRED_SEGMENTS[segment];
-  const tab = TABS.find((t) => t.key === segment)?.key ?? "org";
+  const activeTab = TABS.find((t) => t.key === segment);
 
   useEffect(() => {
-    if (!deferredTitle && !TABS.some((t) => t.key === segment)) {
-      navigate(`/settings/${tab}`, { replace: true });
+    if (segment && !activeTab) {
+      navigate("/settings", { replace: true });
     }
-  }, [segment, tab, navigate, deferredTitle]);
+  }, [segment, activeTab, navigate]);
 
+  if (!segment) {
+    return <SettingsLanding />;
+  }
+
+  if (!activeTab) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <button
+          type="button"
+          onClick={() => navigate("/settings")}
+          className="mb-2 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Settings
+        </button>
+        <h1 className="text-2xl font-semibold tracking-tight">{activeTab.label}</h1>
+        <p className="text-sm text-muted-foreground">{activeTab.description}</p>
+      </div>
+      {activeTab.deferred ? (
+        <ModulePlaceholder title={activeTab.label} />
+      ) : (
+        <>
+          {activeTab.key === "org" && <OrgProfileTab />}
+          {activeTab.key === "users" && <UsersTab />}
+          {activeTab.key === "permissions" && <PermissionsTab />}
+          {activeTab.key === "warehouses" && <WarehousesTab />}
+          {activeTab.key === "security" && <SecurityTab />}
+        </>
+      )}
+    </div>
+  );
+}
+
+function SettingsLanding() {
+  const navigate = useNavigate();
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="text-sm text-muted-foreground">Organization configuration, access control, and master data.</p>
       </div>
-      {deferredTitle ? (
-        <ModulePlaceholder title={deferredTitle} />
-      ) : (
-        <>
-          {tab === "org" && <OrgProfileTab />}
-          {tab === "users" && <UsersTab />}
-          {tab === "permissions" && <PermissionsTab />}
-          {tab === "warehouses" && <WarehousesTab />}
-        </>
-      )}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {TABS.map((tab) => (
+          <button key={tab.key} type="button" onClick={() => navigate(`/settings/${tab.key}`)} className="text-left">
+            <Card className="h-full transition-colors hover:border-primary/50 hover:bg-muted/40">
+              <CardContent className="flex items-start gap-3 p-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <tab.icon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground">{tab.label}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{tab.description}</p>
+                </div>
+                <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
+              </CardContent>
+            </Card>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -98,6 +199,18 @@ const UPDATE_ORG_SETTINGS_MUTATION = gql`
   }
 `;
 
+const REQUEST_ORG_LOGO_UPLOAD_URL_MUTATION = gql`
+  mutation RequestOrgLogoUploadUrl($contentType: String!, $fileSizeBytes: Int!) {
+    requestOrgLogoUploadUrl(contentType: $contentType, fileSizeBytes: $fileSizeBytes) {
+      uploadUrl
+      publicUrl
+    }
+  }
+`;
+
+const ALLOWED_LOGO_TYPES = ["image/png", "image/jpeg", "image/webp"];
+const MAX_LOGO_BYTES = 5 * 1024 * 1024;
+
 interface OrgSettings {
   id: string;
   companyName: string;
@@ -110,8 +223,11 @@ interface OrgSettings {
 function OrgProfileTab() {
   const { data, loading } = useQuery<{ orgSettings: OrgSettings }>(ORG_SETTINGS_QUERY);
   const [updateOrgSettings] = useMutation(UPDATE_ORG_SETTINGS_MUTATION);
+  const [requestLogoUploadUrl] = useMutation(REQUEST_ORG_LOGO_UPLOAD_URL_MUTATION);
   const [form, setForm] = useState<OrgSettings | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const org = form ?? data?.orgSettings;
 
@@ -139,6 +255,41 @@ function OrgProfileTab() {
     }
   }
 
+  async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !org) return;
+
+    if (!ALLOWED_LOGO_TYPES.includes(file.type)) {
+      toast.error("Please choose a PNG, JPEG, or WEBP image");
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      toast.error("Image must be under 5MB");
+      return;
+    }
+
+    setUploadingLogo(true);
+    try {
+      const { data: uploadData } = await requestLogoUploadUrl({
+        variables: { contentType: file.type, fileSizeBytes: file.size },
+      });
+      const { uploadUrl, publicUrl } = uploadData.requestOrgLogoUploadUrl;
+      const putResponse = await fetch(uploadUrl, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+      if (!putResponse.ok) throw new Error("Upload to storage failed");
+
+      await updateOrgSettings({
+        variables: { input: { companyName: org.companyName, logoUrl: publicUrl, defaultCurrency: org.defaultCurrency } },
+      });
+      setForm({ ...org, logoUrl: publicUrl });
+      toast.success("Logo updated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to upload logo");
+    } finally {
+      setUploadingLogo(false);
+    }
+  }
+
   if (loading && !data) return <p className="text-sm text-muted-foreground">Loading…</p>;
   if (!org) return null;
 
@@ -160,13 +311,38 @@ function OrgProfileTab() {
             />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="logoUrl">Logo URL</Label>
-            <Input
-              id="logoUrl"
-              placeholder="https://…"
-              value={org.logoUrl ?? ""}
-              onChange={(e) => setForm({ ...org, logoUrl: e.target.value })}
-            />
+            <Label>Logo</Label>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => logoInputRef.current?.click()}
+                disabled={uploadingLogo}
+                className="group relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed"
+                aria-label="Change organization logo"
+              >
+                {org.logoUrl ? (
+                  <img src={org.logoUrl} alt={org.companyName} className="h-full w-full object-contain" />
+                ) : (
+                  <Building2 className="h-6 w-6 text-muted-foreground" />
+                )}
+                <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                  <Camera className="h-4 w-4" />
+                </span>
+              </button>
+              <div>
+                <Button type="button" variant="outline" size="sm" onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo}>
+                  {uploadingLogo ? "Uploading…" : "Change logo"}
+                </Button>
+                <p className="mt-1.5 text-xs text-muted-foreground">PNG, JPEG, or WEBP. Max 5MB.</p>
+              </div>
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={handleLogoChange}
+              />
+            </div>
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="address">Address</Label>
@@ -183,6 +359,117 @@ function OrgProfileTab() {
               required
               value={org.defaultCurrency}
               onChange={(e) => setForm({ ...org, defaultCurrency: e.target.value })}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "Saving…" : "Save changes"}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Security (org-wide policy — distinct from Profile > Security, which is the
+// signed-in user's own password and sessions)
+// ---------------------------------------------------------------------------
+
+const ORG_SECURITY_QUERY = gql`
+  query OrgSecuritySettings {
+    orgSettings {
+      id
+      sessionTimeoutMins
+      passwordMinLength
+      twoFactorRequired
+    }
+  }
+`;
+
+interface OrgSecuritySettings {
+  id: string;
+  sessionTimeoutMins: number;
+  passwordMinLength: number;
+  twoFactorRequired: boolean;
+}
+
+function SecurityTab() {
+  const { data, loading } = useQuery<{ orgSettings: OrgSecuritySettings }>(ORG_SECURITY_QUERY);
+  const [updateOrgSettings] = useMutation(UPDATE_ORG_SETTINGS_MUTATION);
+  const [form, setForm] = useState<OrgSecuritySettings | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const settings = form ?? data?.orgSettings;
+
+  async function handleSave(e: FormEvent) {
+    e.preventDefault();
+    if (!settings) return;
+    setSubmitting(true);
+    try {
+      await updateOrgSettings({
+        variables: {
+          input: {
+            sessionTimeoutMins: settings.sessionTimeoutMins,
+            passwordMinLength: settings.passwordMinLength,
+            twoFactorRequired: settings.twoFactorRequired,
+          },
+        },
+      });
+      toast.success("Security settings saved");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (loading && !data) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  if (!settings) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Security</CardTitle>
+        <CardDescription>
+          Organization-wide security policy, applied to every user. For your own password and signed-in devices, see
+          Profile &gt; Security.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="grid max-w-lg gap-4 sm:grid-cols-2" onSubmit={handleSave}>
+          <div className="space-y-1.5">
+            <Label htmlFor="sessionTimeoutMins">Session timeout (minutes)</Label>
+            <Input
+              id="sessionTimeoutMins"
+              type="number"
+              min={5}
+              required
+              value={settings.sessionTimeoutMins}
+              onChange={(e) => setForm({ ...settings, sessionTimeoutMins: Number(e.target.value) })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="passwordMinLength">Minimum password length</Label>
+            <Input
+              id="passwordMinLength"
+              type="number"
+              min={4}
+              required
+              value={settings.passwordMinLength}
+              onChange={(e) => setForm({ ...settings, passwordMinLength: Number(e.target.value) })}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-3 py-2.5 sm:col-span-2">
+            <div>
+              <p className="text-sm font-medium">Require two-factor authentication</p>
+              <p className="text-xs text-muted-foreground">Applies to every user in this organization.</p>
+            </div>
+            <Switch
+              checked={settings.twoFactorRequired}
+              onCheckedChange={(v) => setForm({ ...settings, twoFactorRequired: v })}
+              aria-label="Require two-factor authentication"
             />
           </div>
           <div className="sm:col-span-2">
