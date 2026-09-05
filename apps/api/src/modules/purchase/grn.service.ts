@@ -1,27 +1,86 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { PurchaseOrderStatus, StockMovementType } from "@abms/database";
+import { GrnStatus, PurchaseOrderStatus, PurchaseOrderTaxMethod, StockMovementType } from "@abms/database";
 import { SCOPED_PRISMA, type ScopedPrismaClient } from "../../common/tenancy/scoped-prisma.service";
-import type { CreateGrnInput } from "./dto/grn.input";
+import { addressToColumns, columnsToAddress } from "./address-columns.util";
+import type { CreateGrnInput, GrnItemInput } from "./dto/grn.input";
 
 const GRN_INCLUDE = {
-  purchaseOrder: true,
+  purchaseOrder: { include: { supplier: true } },
   warehouse: true,
   receivedBy: true,
-  items: { include: { purchaseOrderItem: { include: { product: true } } } },
+  bankAccount: true,
+  items: { include: { purchaseOrderItem: { include: { product: true } }, warehouse: true } },
 } as const;
 
+function computeLine(item: { quantity: number; unitPrice: number; discountPct: number; taxPct: number }, taxMethod: PurchaseOrderTaxMethod) {
+  const gross = item.quantity * item.unitPrice;
+  const base = taxMethod === PurchaseOrderTaxMethod.INCLUSIVE ? gross / (1 + item.taxPct / 100) : gross;
+  const discountAmt = base * (item.discountPct / 100);
+  const afterDiscount = base - discountAmt;
+  const taxAmt = afterDiscount * (item.taxPct / 100);
+  return { base, discountAmt, taxAmt, lineTotal: afterDiscount + taxAmt };
+}
+
 function toModel<T extends {
-  purchaseOrder: { poNumber: string };
+  purchaseOrder: { poNumber: string; supplierId: string; supplier: { name: string } };
   warehouse: { name: string };
   receivedBy: { name: string };
-  items: Array<{ id: string; quantityReceived: number; purchaseOrderItem: { product: { name: string } } }>;
+  bankAccount: { name: string } | null;
+  subtotal: unknown;
+  shippingAmount: unknown;
+  discountAmount: unknown;
+  taxAmount: unknown;
+  total: unknown;
+  items: Array<{
+    id: string;
+    purchaseOrderItemId: string;
+    quantityReceived: number;
+    acceptedQuantity: number;
+    rejectedQuantity: number;
+    batchNumber: string | null;
+    unitPrice: unknown;
+    discountPct: unknown;
+    taxPct: unknown;
+    warehouseId: string | null;
+    warehouse: { name: string } | null;
+    lineTotal: unknown;
+    purchaseOrderItem: { productId: string; quantity: number; hsnSac: string | null; product: { name: string; sku: string } };
+  }>;
 }>(row: T) {
   return {
     ...row,
     poNumber: row.purchaseOrder.poNumber,
+    supplierId: row.purchaseOrder.supplierId,
+    supplierName: row.purchaseOrder.supplier.name,
     warehouseName: row.warehouse.name,
     receivedByName: row.receivedBy.name,
-    items: row.items.map((i) => ({ id: i.id, productName: i.purchaseOrderItem.product.name, quantityReceived: i.quantityReceived })),
+    bankAccountName: row.bankAccount?.name ?? null,
+    subtotal: Number(row.subtotal),
+    shippingAmount: Number(row.shippingAmount),
+    discountAmount: Number(row.discountAmount),
+    taxAmount: Number(row.taxAmount),
+    total: Number(row.total),
+    vendorAddress: columnsToAddress(row as unknown as Record<string, unknown>, "vendorAddress"),
+    deliveryAddress: columnsToAddress(row as unknown as Record<string, unknown>, "deliveryAddress"),
+    items: row.items.map((i) => ({
+      id: i.id,
+      purchaseOrderItemId: i.purchaseOrderItemId,
+      productId: i.purchaseOrderItem.productId,
+      productName: i.purchaseOrderItem.product.name,
+      sku: i.purchaseOrderItem.product.sku,
+      hsnSac: i.purchaseOrderItem.hsnSac,
+      orderedQuantity: i.purchaseOrderItem.quantity,
+      quantityReceived: i.quantityReceived,
+      acceptedQuantity: i.acceptedQuantity,
+      rejectedQuantity: i.rejectedQuantity,
+      batchNumber: i.batchNumber,
+      unitPrice: Number(i.unitPrice),
+      discountPct: Number(i.discountPct),
+      taxPct: Number(i.taxPct),
+      warehouseId: i.warehouseId,
+      warehouseName: i.warehouse?.name ?? null,
+      lineTotal: Number(i.lineTotal),
+    })),
   };
 }
 
@@ -46,51 +105,94 @@ export class GrnService {
     if (!warehouse) throw new NotFoundException("Warehouse not found");
 
     const poItemById = new Map(order.items.map((i) => [i.id, i]));
-    for (const item of input.items) {
+    const taxMethod = input.taxMethod ?? PurchaseOrderTaxMethod.EXCLUSIVE;
+    const lines = input.items.map((item: GrnItemInput) => {
       const poItem = poItemById.get(item.purchaseOrderItemId);
       if (!poItem) throw new NotFoundException(`Purchase order item ${item.purchaseOrderItemId} not found`);
       const remaining = poItem.quantity - poItem.receivedQuantity;
       if (item.quantityReceived > remaining) {
         throw new BadRequestException(`Cannot receive ${item.quantityReceived} — only ${remaining} outstanding`);
       }
-    }
+      if (item.acceptedQuantity + item.rejectedQuantity !== item.quantityReceived) {
+        throw new BadRequestException("Accepted + rejected quantity must equal the quantity received");
+      }
+      const unitPrice = item.unitPrice ?? Number(poItem.unitCost);
+      const normalized = { quantity: item.quantityReceived, unitPrice, discountPct: item.discountPct ?? 0, taxPct: item.taxPct ?? 0 };
+      return { input: item, poItem, unitPrice, ...computeLine(normalized, taxMethod) };
+    });
+    const subtotal = lines.reduce((sum, l) => sum + l.base, 0);
+    const discountAmount = lines.reduce((sum, l) => sum + l.discountAmt, 0);
+    const taxAmount = lines.reduce((sum, l) => sum + l.taxAmt, 0);
+    const shippingAmount = input.shippingAmount ?? 0;
+    const total = subtotal - discountAmount + taxAmount + shippingAmount;
 
     const grnNumber = await this.nextGrnNumber();
     await this.prisma.$transaction(async (tx) => {
-      const grn = await tx.goodsReceivedNote.create({
+      await tx.goodsReceivedNote.create({
         data: {
           grnNumber,
           purchaseOrderId: input.purchaseOrderId,
           warehouseId: input.warehouseId,
           receivedById: actorId,
+          status: input.status ?? GrnStatus.COMPLETED,
+          qualityScore: input.qualityScore ?? 100,
+          taxId: input.taxId,
+          bankAccountId: input.bankAccountId,
+          taxMethod,
+          supplierNotes: input.supplierNotes,
+          termsConditions: input.termsConditions,
+          internalNotes: input.internalNotes,
+          shippingAmount,
+          subtotal,
+          discountAmount,
+          taxAmount,
+          total,
+          ...addressToColumns("vendorAddress", input.vendorAddress),
+          ...addressToColumns("deliveryAddress", input.deliveryAddress),
           organizationId,
-          items: { create: input.items.map((i) => ({ purchaseOrderItemId: i.purchaseOrderItemId, quantityReceived: i.quantityReceived })) },
+          items: {
+            create: lines.map((l) => ({
+              purchaseOrderItemId: l.input.purchaseOrderItemId,
+              quantityReceived: l.input.quantityReceived,
+              acceptedQuantity: l.input.acceptedQuantity,
+              rejectedQuantity: l.input.rejectedQuantity,
+              batchNumber: l.input.batchNumber,
+              unitPrice: l.unitPrice,
+              discountPct: l.input.discountPct ?? 0,
+              taxPct: l.input.taxPct ?? 0,
+              warehouseId: l.input.warehouseId,
+              lineTotal: l.lineTotal,
+            })),
+          },
         },
       });
 
-      for (const item of input.items) {
-        const poItem = poItemById.get(item.purchaseOrderItemId)!;
+      for (const line of lines) {
+        const poItem = line.poItem;
         await tx.purchaseOrderItem.update({
           where: { id: poItem.id },
-          data: { receivedQuantity: { increment: item.quantityReceived } },
+          data: { receivedQuantity: { increment: line.input.quantityReceived } },
         });
-        await tx.stockLevel.upsert({
-          where: { productId_warehouseId: { productId: poItem.productId, warehouseId: input.warehouseId } },
-          create: { productId: poItem.productId, warehouseId: input.warehouseId, quantity: item.quantityReceived, organizationId },
-          update: { quantity: { increment: item.quantityReceived } },
-        });
-        await tx.stockLedgerEntry.create({
-          data: {
-            productId: poItem.productId,
-            warehouseId: input.warehouseId,
-            type: StockMovementType.PURCHASE,
-            quantity: item.quantityReceived,
-            reason: `Receipt ${grnNumber} (${order.poNumber})`,
-            relatedPurchaseOrderId: order.id,
-            createdById: actorId,
-            organizationId,
-          },
-        });
+        // Only accepted stock posts to inventory — rejected units never hit stock.
+        if (line.input.acceptedQuantity > 0) {
+          await tx.stockLevel.upsert({
+            where: { productId_warehouseId: { productId: poItem.productId, warehouseId: input.warehouseId } },
+            create: { productId: poItem.productId, warehouseId: input.warehouseId, quantity: line.input.acceptedQuantity, organizationId },
+            update: { quantity: { increment: line.input.acceptedQuantity } },
+          });
+          await tx.stockLedgerEntry.create({
+            data: {
+              productId: poItem.productId,
+              warehouseId: input.warehouseId,
+              type: StockMovementType.PURCHASE,
+              quantity: line.input.acceptedQuantity,
+              reason: `Receipt ${grnNumber} (${order.poNumber})`,
+              relatedPurchaseOrderId: order.id,
+              createdById: actorId,
+              organizationId,
+            },
+          });
+        }
       }
 
       const updatedItems = await tx.purchaseOrderItem.findMany({ where: { purchaseOrderId: order.id } });
@@ -100,8 +202,6 @@ export class GrnService {
         where: { id: order.id },
         data: { status: allReceived ? PurchaseOrderStatus.RECEIVED : anyReceived ? PurchaseOrderStatus.PARTIALLY_RECEIVED : order.status },
       });
-
-      return grn;
     });
 
     const row = await this.prisma.goodsReceivedNote.findFirst({ where: { grnNumber }, include: GRN_INCLUDE });
