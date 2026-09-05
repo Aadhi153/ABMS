@@ -1,6 +1,27 @@
 import { Field, Float, Int, ObjectType } from "@nestjs/graphql";
 
 @ObjectType()
+export class BankAccountModel {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  name!: string;
+
+  @Field(() => String)
+  bankName!: string;
+
+  @Field(() => String)
+  accountNumber!: string;
+
+  @Field(() => String)
+  currency!: string;
+
+  @Field(() => Boolean)
+  isDefault!: boolean;
+}
+
+@ObjectType()
 export class LedgerEntryModel {
   @Field(() => String)
   id!: string;

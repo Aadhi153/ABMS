@@ -23,6 +23,11 @@ export class AccountsService {
     return rows.map((r) => ({ ...r, amount: Number(r.amount) }));
   }
 
+  async bankAccounts() {
+    const rows = await this.prisma.bankAccount.findMany({ orderBy: { isDefault: "desc" } });
+    return rows;
+  }
+
   async receivables() {
     const invoices = await this.prisma.invoice.findMany({
       where: { status: { not: InvoiceStatus.PAID } },

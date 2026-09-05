@@ -33,7 +33,9 @@ export const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-full max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-border bg-card p-6 text-card-foreground shadow-lg duration-200",
+        // No pt-6: DialogHeader supplies its own top inset so it can sit flush
+        // against this edge (see the note on DialogHeader for why).
+        "fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-full max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-border bg-card px-6 pb-6 text-card-foreground shadow-2xl shadow-black/10 duration-200",
         "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 motion-reduce:animate-none",
         className,
       )}
@@ -45,7 +47,7 @@ export const DialogContent = React.forwardRef<
           // fixed (not absolute): DialogContent's transform makes it the containing
           // block for fixed descendants, so this stays pinned to the dialog's
           // corner without scrolling away with the internal overflow-y-auto content.
-          "fixed right-4 top-4 z-20 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "fixed right-4 top-4 z-20 rounded-md p-1 text-muted-foreground opacity-70 transition-opacity hover:bg-muted hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         )}
       >
         <X className="h-4 w-4" />
@@ -57,15 +59,21 @@ export const DialogContent = React.forwardRef<
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 // Sticky, not just spaced: DialogContent scrolls internally (max-h-[85vh]
-// overflow-y-auto) for tall forms, so the header/footer bleed out of that
-// padding via negative margins and re-pin themselves to the scrollport edges.
-// Without this, the primary action button scrolls away with the rest of the
-// form on any dialog taller than the viewport.
+// overflow-y-auto) for tall forms, so the header/footer re-pin themselves to
+// the scrollport edges. Without this, the primary action button scrolls away
+// with the rest of the form on any dialog taller than the viewport.
+//
+// Horizontal bleed only (-mx-6, to span DialogContent's own px-6): a matching
+// -mt-6 used to bleed the top edge too, but Chromium drops a sticky element's
+// own margin-bottom from flow when it also carries a negative margin-top,
+// which let this header's title/border overlap the content right below it.
+// DialogContent now omits pt-6 instead, so this header's pt-6 sits flush
+// against the content edge without needing a negative offset to get there.
 export function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        "sticky top-0 z-10 -mx-6 -mt-6 mb-4 flex flex-col gap-1.5 border-b border-border bg-card px-6 pb-4 pt-6",
+        "sticky top-0 z-10 -mx-6 mb-4 flex flex-col gap-1.5 border-b border-border bg-card px-6 pb-4 pt-6",
         className,
       )}
       {...props}

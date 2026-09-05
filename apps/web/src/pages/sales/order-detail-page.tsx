@@ -12,6 +12,7 @@ import {
   CardTitle,
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -455,12 +456,15 @@ export default function OrderDetailPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm {order?.orderNumber}</DialogTitle>
+            <DialogDescription>
+              Confirming deducts stock for each line item from the selected warehouse.
+            </DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Confirming deducts stock for each line item from the selected warehouse.
-          </p>
           <div className="space-y-1.5">
-            <Label>Fulfillment warehouse</Label>
+            <Label className="flex items-center gap-1.5">
+              <Package className="h-3.5 w-3.5 text-muted-foreground" />
+              Fulfillment warehouse
+            </Label>
             <Select value={confirmWarehouseId} onValueChange={setConfirmWarehouseId}>
               <SelectTrigger>
                 <SelectValue placeholder="Select warehouse" />

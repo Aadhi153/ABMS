@@ -8,7 +8,7 @@ import { Roles } from "../../common/decorators/roles.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { AuditService } from "../../common/audit/audit.service";
 import { AccountsService } from "./accounts.service";
-import { ExpenseModel, LedgerEntryModel, PayableModel, PnlModel, ReceivableModel } from "./models/accounts.model";
+import { BankAccountModel, ExpenseModel, LedgerEntryModel, PayableModel, PnlModel, ReceivableModel } from "./models/accounts.model";
 import { CreateExpenseInput } from "./dto/expense.input";
 
 @Resolver()
@@ -22,6 +22,11 @@ export class AccountsResolver {
   @Query(() => [LedgerEntryModel])
   ledgerEntries() {
     return this.accountsService.ledger();
+  }
+
+  @Query(() => [BankAccountModel])
+  bankAccounts() {
+    return this.accountsService.bankAccounts();
   }
 
   @Query(() => [ReceivableModel])

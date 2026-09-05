@@ -231,6 +231,8 @@ interface ServerQuote {
 
 const UOM_OPTIONS = ["unit", "pcs", "box", "kg", "gram", "ltr", "ml", "dozen", "meter", "set"];
 
+const CONVERTIBLE_STATUSES = ["SENT", "PENDING", "APPROVED"];
+
 const STATUS_TRANSITIONS: Record<string, { value: string; label: string }[]> = {
   SENT: [
     { value: "PENDING", label: "Mark as Pending" },
@@ -762,8 +764,14 @@ export default function EditQuotePage() {
               <Button
                 type="button"
                 variant="outline"
-                disabled={actionBusy !== "idle" || status !== "APPROVED"}
-                title={status === "WON" ? "This quote has already been converted" : status !== "APPROVED" ? "Approve the quote before converting it to a sales order" : undefined}
+                disabled={actionBusy !== "idle" || !CONVERTIBLE_STATUSES.includes(status)}
+                title={
+                  status === "WON"
+                    ? "This quote has already been converted"
+                    : !CONVERTIBLE_STATUSES.includes(status)
+                      ? "Send the quote before converting it to a sales order"
+                      : undefined
+                }
                 onClick={handleConvertToSalesOrder}
                 className={BUTTON_PRESS}
               >

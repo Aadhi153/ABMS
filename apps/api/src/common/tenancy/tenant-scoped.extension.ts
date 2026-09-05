@@ -36,6 +36,8 @@ const TENANT_SCOPED_MODELS = new Set([
   "PurchaseOrder",
   "GoodsReceivedNote",
   "SupplierBill",
+  "SupplierPayment",
+  "DebitNote",
   "LedgerEntry",
   "Expense",
   "OrgSettings",

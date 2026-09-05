@@ -25,8 +25,12 @@ import NewSalesOrderPage from "./pages/sales/new-sales-order-page";
 import NewQuotePage from "./pages/sales/new-quote-page";
 import EditQuotePage from "./pages/sales/edit-quote-page";
 import OrderDetailPage from "./pages/sales/order-detail-page";
+import InvoiceDetailPage from "./pages/sales/invoice-detail-page";
 import PurchasePage from "./pages/purchase";
 import NewPurchaseOrderPage from "./pages/purchase/new-purchase-order-page";
+import NewGrnPage from "./pages/purchase/new-grn-page";
+import NewSupplierBillPage from "./pages/purchase/new-supplier-bill-page";
+import NewDebitNotePage from "./pages/purchase/new-debit-note-page";
 import CustomersPage from "./pages/customers";
 import NewCustomerPage from "./pages/customers/new-customer-page";
 import EditCustomerPage from "./pages/customers/edit-customer-page";
@@ -146,6 +150,14 @@ export function App() {
                     }
                   />
                   <Route
+                    path="/sales/invoices/:id"
+                    element={
+                      <ModuleRoute module="sales">
+                        <InvoiceDetailPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
                     path="/sales/*"
                     element={
                       <ModuleRoute module="sales">
@@ -158,6 +170,30 @@ export function App() {
                     element={
                       <ModuleRoute module="purchase">
                         <NewPurchaseOrderPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/purchase/orders/:id/receive"
+                    element={
+                      <ModuleRoute module="purchase">
+                        <NewGrnPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/purchase/bills/new"
+                    element={
+                      <ModuleRoute module="purchase">
+                        <NewSupplierBillPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/purchase/debitnotes/new"
+                    element={
+                      <ModuleRoute module="purchase">
+                        <NewDebitNotePage />
                       </ModuleRoute>
                     }
                   />

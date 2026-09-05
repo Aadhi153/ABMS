@@ -87,9 +87,12 @@ export const NAV_MODULES: NavModule[] = [
     children: [
       { id: "requisitions", label: "Purchase Requisitions", path: "/purchase/requisitions" },
       { id: "orders", label: "Purchase Orders", path: "/purchase/orders" },
-      { id: "receipts", label: "Goods Received Notes", path: "/purchase/receipts" },
-      { id: "bills", label: "Purchase Invoices / Supplier Bills", path: "/purchase/bills" },
+      { id: "receipts", label: "Goods Receipt Notes", path: "/purchase/receipts" },
+      { id: "bills", label: "Purchase Invoices", path: "/purchase/bills" },
       { id: "debitnotes", label: "Debit Notes", path: "/purchase/debitnotes" },
+      { id: "outstanding", label: "Purchase Outstanding", path: "/purchase/outstanding" },
+      { id: "paymentapprovals", label: "Payment Approval Queue", path: "/purchase/paymentapprovals" },
+      { id: "supplierpayments", label: "Supplier Payments", path: "/purchase/supplierpayments" },
     ],
   },
   {

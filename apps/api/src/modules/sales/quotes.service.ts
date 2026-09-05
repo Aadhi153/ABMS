@@ -303,8 +303,9 @@ export class QuotesService {
   async convertToSalesOrder(id: string, actorId: string, organizationId: string) {
     const quote = await this.prisma.quote.findUnique({ where: { id }, include: { items: true } });
     if (!quote) throw new NotFoundException("Quote not found");
-    if (quote.status !== QuoteStatus.APPROVED) {
-      throw new BadRequestException("Only approved quotes can be converted to a sales order");
+    const convertible: QuoteStatus[] = [QuoteStatus.SENT, QuoteStatus.PENDING, QuoteStatus.APPROVED];
+    if (!convertible.includes(quote.status as QuoteStatus)) {
+      throw new BadRequestException("Only sent, pending, or approved quotes can be converted to a sales order");
     }
 
     const input: CreateSalesOrderInput = {

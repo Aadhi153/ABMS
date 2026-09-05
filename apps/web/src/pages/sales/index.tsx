@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import {
@@ -18,7 +18,6 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
-  Printer,
   RefreshCw,
   Search,
   Send,
@@ -324,14 +323,6 @@ const GENERATE_INVOICE = gql`
     }
   }
 `;
-const RECORD_PAYMENT = gql`
-  mutation RecordPayment($input: RecordPaymentInput!) {
-    recordPayment(input: $input) {
-      id
-    }
-  }
-`;
-
 const DEFERRED_SEGMENTS: Record<string, string> = {
   returns: "Credit Notes",
 };
@@ -364,9 +355,7 @@ export default function SalesPage() {
   const [confirmOrder] = useMutation(CONFIRM_ORDER);
   const [deleteOrder] = useMutation(DELETE_ORDER);
   const [generateInvoice] = useMutation(GENERATE_INVOICE);
-  const [recordPayment] = useMutation(RECORD_PAYMENT);
 
-  const [invoiceDetail, setInvoiceDetail] = useState<Invoice | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SalesOrder | null>(null);
   const [confirmPrompt, setConfirmPrompt] = useState<SalesOrder | null>(null);
   const [confirmWarehouseId, setConfirmWarehouseId] = useState("");
@@ -478,11 +467,11 @@ export default function SalesPage() {
       )}
 
       {tab === "invoices" && (
-        <InvoicesTab invoices={invoices} loading={loading} onRowClick={setInvoiceDetail} onRefetch={refetch} />
+        <InvoicesTab invoices={invoices} loading={loading} onRowClick={(inv) => navigate(`/sales/invoices/${inv.id}`)} onRefetch={refetch} />
       )}
 
       {tab === "collections" && (
-        <CollectionsTab collections={collections} loading={loading} onRowClick={setInvoiceDetail} onRefetch={refetch} />
+        <CollectionsTab collections={collections} loading={loading} onRowClick={(inv) => navigate(`/sales/invoices/${inv.id}`)} onRefetch={refetch} />
       )}
 
       {tab === "outstanding" && (
@@ -490,7 +479,7 @@ export default function SalesPage() {
           outstandingInvoices={outstandingInvoices}
           totalOutstanding={totalOutstanding}
           loading={loading}
-          onRowClick={setInvoiceDetail}
+          onRowClick={(inv) => navigate(`/sales/invoices/${inv.id}`)}
           onRefetch={refetch}
         />
       )}
@@ -552,166 +541,6 @@ export default function SalesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Invoice detail */}
-      <Dialog open={!!invoiceDetail} onOpenChange={(o) => !o && setInvoiceDetail(null)}>
-        <DialogContent className="max-w-lg">
-          {invoiceDetail && (
-            <InvoiceDetail
-              invoice={invoiceDetail}
-              submitting={submitting}
-              onRecordPayment={async (amount, method, reference) => {
-                setSubmitting(true);
-                try {
-                  await recordPayment({ variables: { input: { invoiceId: invoiceDetail.id, amount, method, reference } } });
-                  toast.success("Payment recorded");
-                  await refetch();
-                } catch (err) {
-                  toast.error(err instanceof Error ? err.message : "Failed to record payment");
-                } finally {
-                  setSubmitting(false);
-                }
-              }}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
-    </div>
-  );
-}
-
-function InvoiceDetail({
-  invoice,
-  onRecordPayment,
-  submitting,
-}: {
-  invoice: Invoice;
-  onRecordPayment: (amount: number, method: string, reference: string | undefined) => void;
-  submitting: boolean;
-}) {
-  const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState("BANK_TRANSFER");
-  const [reference, setReference] = useState("");
-  const remaining = invoice.total - invoice.amountPaid;
-
-  function handlePrint() {
-    const win = window.open("", "_blank", "width=700,height=900");
-    if (!win) return;
-    win.document.write(`
-      <html><head><title>${invoice.invoiceNumber}</title>
-      <style>body{font-family:sans-serif;padding:32px;color:#1C1917} h1{margin-bottom:4px} table{width:100%;border-collapse:collapse;margin-top:16px} td,th{padding:6px 0;text-align:left;border-bottom:1px solid #E7E5E4} .right{text-align:right}</style>
-      </head><body>
-      <h1>Invoice ${invoice.invoiceNumber}</h1>
-      <p>Customer: ${invoice.customerName}</p>
-      <p>Order: ${invoice.orderNumber ?? "—"}</p>
-      <p>Due: ${new Date(invoice.dueDate).toLocaleDateString()}</p>
-      <table>
-        <tr><td>Subtotal</td><td class="right">${inr(invoice.subtotal)}</td></tr>
-        <tr><td>Tax</td><td class="right">${inr(invoice.taxAmount)}</td></tr>
-        <tr><td>Discount</td><td class="right">-${inr(invoice.discountAmount)}</td></tr>
-        <tr><td><strong>Total</strong></td><td class="right"><strong>${inr(invoice.total)}</strong></td></tr>
-        <tr><td>Paid</td><td class="right">${inr(invoice.amountPaid)}</td></tr>
-      </table>
-      </body></html>
-    `);
-    win.document.close();
-    win.focus();
-    win.print();
-  }
-
-  return (
-    <div className="space-y-4">
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2">
-          {invoice.invoiceNumber}
-          <StatusBadge status={invoice.status} />
-        </DialogTitle>
-      </DialogHeader>
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        <div>
-          <p className="text-muted-foreground">Customer</p>
-          <p>{invoice.customerName}</p>
-        </div>
-        <div>
-          <p className="text-muted-foreground">Order</p>
-          <p className="font-mono text-xs">{invoice.orderNumber || "—"}</p>
-        </div>
-        <div>
-          <p className="text-muted-foreground">Due date</p>
-          <p>{new Date(invoice.dueDate).toLocaleDateString()}</p>
-        </div>
-        <div>
-          <p className="text-muted-foreground">Total / Paid</p>
-          <p>
-            {inr(invoice.total)} / {inr(invoice.amountPaid)}
-          </p>
-        </div>
-      </div>
-      <div>
-        <p className="mb-1.5 text-sm font-medium">Payments</p>
-        {invoice.payments.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No payments recorded.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <tbody>
-              {invoice.payments.map((p) => (
-                <tr key={p.id} className="border-b border-border last:border-0">
-                  <td className="py-1.5">{inr(p.amount)}</td>
-                  <td className="py-1.5 text-muted-foreground">{p.method.replaceAll("_", " ")}</td>
-                  <td className="py-1.5 text-right text-muted-foreground">{new Date(p.paidAt).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-      {remaining > 0 && (
-        <form
-          className="grid grid-cols-3 gap-2"
-          onSubmit={(e: FormEvent) => {
-            e.preventDefault();
-            if (!amount) return;
-            onRecordPayment(Number(amount), method, reference || undefined);
-            setAmount("");
-            setReference("");
-          }}
-        >
-          <div className="space-y-1.5">
-            <Label>Amount</Label>
-            <Input type="number" step="0.01" min="0.01" max={remaining} value={amount} onChange={(e) => setAmount(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Method</Label>
-            <Select value={method} onValueChange={setMethod}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CASH">Cash</SelectItem>
-                <SelectItem value="BANK_TRANSFER">Bank transfer</SelectItem>
-                <SelectItem value="CARD">Card</SelectItem>
-                <SelectItem value="CHEQUE">Cheque</SelectItem>
-                <SelectItem value="OTHER">Other</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Reference</Label>
-            <Input value={reference} onChange={(e) => setReference(e.target.value)} />
-          </div>
-          <div className="col-span-3">
-            <Button type="submit" size="sm" disabled={submitting}>
-              {submitting ? "Recording…" : `Record payment (remaining ${inr(remaining)})`}
-            </Button>
-          </div>
-        </form>
-      )}
-      <DialogFooter>
-        <Button variant="outline" onClick={handlePrint}>
-          <Printer className="h-4 w-4" />
-          Export PDF
-        </Button>
-      </DialogFooter>
     </div>
   );
 }

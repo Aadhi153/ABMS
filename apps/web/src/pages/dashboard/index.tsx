@@ -109,21 +109,21 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {WIDGETS.map((w) => (
           <Card key={w.label} className="transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md hover:border-primary/30">
-            <CardContent className="space-y-3 p-4">
+            <CardContent className="space-y-2 p-2">
               <div className="flex items-start justify-between">
                 <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{w.label}</span>
                 <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${w.color.badge}`}>
                   <w.icon className="h-4 w-4" />
                 </span>
               </div>
-              <div className="text-3xl font-extrabold text-foreground">{w.value}</div>
+              <div className="text-2xl font-extrabold text-foreground">{w.value}</div>
               <div className={`text-xs ${w.color.footer}`}>{w.footer}</div>
             </CardContent>
           </Card>
         ))}
       </div>
       <Card className="border-l-4 border-l-info">
-        <CardContent className="flex items-start gap-3 p-4">
+        <CardContent className="flex items-start gap-2 p-2">
           <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-info-bg text-info">
             <Sparkles className="h-4 w-4" />
           </span>
