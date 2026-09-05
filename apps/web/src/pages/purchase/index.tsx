@@ -1,14 +1,9 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
-import { ClipboardList, FileText, PackageCheck, Plus, Send, Trash2 } from "lucide-react";
+import { FileMinus, Send, Trash2, Wallet } from "lucide-react";
 import {
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -25,67 +20,25 @@ import {
   toast,
 } from "@abms/ui";
 import { ModulePlaceholder } from "../../components/module-placeholder";
+import { inr } from "./purchase-helpers";
+import { OrdersTab } from "./orders-tab";
+import { GrnTab } from "./grn-tab";
+import { BillsTab } from "./bills-tab";
+import { OutstandingTab } from "./outstanding-tab";
+import { SupplierPaymentsTab } from "./supplier-payments-tab";
+import { PaymentApprovalsTab } from "./payment-approvals-tab";
+import { DebitNotesTab } from "./debit-notes-tab";
+import type { DebitNote, Grn, Product, PurchaseOrder, Supplier, SupplierBill, SupplierPayment, Warehouse } from "./types";
 
-const TABS = [{ key: "orders" }, { key: "receipts" }, { key: "bills" }] as const;
-interface Supplier {
-  id: string;
-  name: string;
-}
-interface Product {
-  id: string;
-  sku: string;
-  name: string;
-  costPrice: number;
-}
-interface Warehouse {
-  id: string;
-  name: string;
-}
-interface PoItem {
-  id: string;
-  productId: string;
-  productName: string;
-  sku: string;
-  quantity: number;
-  unitCost: number;
-  receivedQuantity: number;
-  lineTotal: number;
-}
-interface PurchaseOrder {
-  id: string;
-  poNumber: string;
-  status: string;
-  supplierId: string;
-  supplierName: string;
-  expectedDeliveryDate: string | null;
-  createdByName: string;
-  items: PoItem[];
-  subtotal: number;
-  hasBill: boolean;
-  createdAt: string;
-}
-interface Grn {
-  id: string;
-  grnNumber: string;
-  purchaseOrderId: string;
-  poNumber: string;
-  warehouseName: string;
-  receivedByName: string;
-  items: Array<{ id: string; productName: string; quantityReceived: number }>;
-  createdAt: string;
-}
-interface SupplierBill {
-  id: string;
-  billNumber: string;
-  supplierId: string;
-  supplierName: string;
-  purchaseOrderId: string | null;
-  poNumber: string | null;
-  amount: number;
-  status: string;
-  dueDate: string;
-  createdAt: string;
-}
+const TABS = [
+  { key: "orders" },
+  { key: "receipts" },
+  { key: "bills" },
+  { key: "debitnotes" },
+  { key: "outstanding" },
+  { key: "paymentapprovals" },
+  { key: "supplierpayments" },
+] as const;
 
 const BASE_QUERY = gql`
   query PurchasePageData {
@@ -96,17 +49,37 @@ const BASE_QUERY = gql`
       supplierId
       supplierName
       expectedDeliveryDate
+      trackingCode
+      currency
+      paymentTerms
+      taxMethod
+      supplierNotes
+      termsConditions
+      internalNotes
+      supplierAddress { line1 line2 city state postalCode country }
+      deliveryAddress { line1 line2 city state postalCode country }
       createdByName
+      shippingAmount
       subtotal
+      discountAmount
+      taxAmount
+      total
       hasBill
+      billStatus
       createdAt
       items {
         id
         productId
         productName
         sku
+        hsnSac
         quantity
+        uom
         unitCost
+        discountPct
+        taxPct
+        warehouseId
+        warehouseName
         receivedQuantity
         lineTotal
       }
@@ -116,13 +89,46 @@ const BASE_QUERY = gql`
       grnNumber
       purchaseOrderId
       poNumber
+      supplierId
+      supplierName
+      warehouseId
       warehouseName
       receivedByName
+      status
+      qualityScore
+      taxId
+      bankAccountId
+      bankAccountName
+      taxMethod
+      supplierNotes
+      termsConditions
+      internalNotes
+      vendorAddress { line1 line2 city state postalCode country }
+      deliveryAddress { line1 line2 city state postalCode country }
+      shippingAmount
+      subtotal
+      discountAmount
+      taxAmount
+      total
       createdAt
       items {
         id
+        purchaseOrderItemId
+        productId
         productName
+        sku
+        hsnSac
+        orderedQuantity
         quantityReceived
+        acceptedQuantity
+        rejectedQuantity
+        batchNumber
+        unitPrice
+        discountPct
+        taxPct
+        warehouseId
+        warehouseName
+        lineTotal
       }
     }
     supplierBills {
@@ -132,13 +138,105 @@ const BASE_QUERY = gql`
       supplierName
       purchaseOrderId
       poNumber
+      invoiceReference
+      invoiceDate
+      paymentTerms
+      taxMethod
+      supplierNotes
+      termsConditions
+      internalNotes
+      billingAddress { line1 line2 city state postalCode country }
+      shippingAddress { line1 line2 city state postalCode country }
+      shippingAmount
+      subtotal
+      discountAmount
+      taxAmount
       amount
+      amountPaid
+      amountDebited
+      remaining
       status
       dueDate
       createdAt
+      items {
+        id
+        productId
+        productName
+        sku
+        hsnSac
+        quantity
+        uom
+        unitCost
+        discountPct
+        taxPct
+        warehouseId
+        warehouseName
+        lineTotal
+      }
+    }
+    supplierPayments {
+      id
+      billId
+      billNumber
+      supplierId
+      supplierName
+      amount
+      method
+      reference
+      status
+      requestedById
+      requestedByName
+      approvedById
+      approvedByName
+      paidAt
+      resolvedAt
+      createdAt
+    }
+    debitNotes {
+      id
+      debitNoteNumber
+      billId
+      billNumber
+      supplierId
+      supplierName
+      type
+      status
+      warehouseId
+      warehouseName
+      issueDate
+      dueDate
+      linkedDocId
+      taxId
+      settlementAccountId
+      settlementAccountName
+      taxMethod
+      supplierNotes
+      termsConditions
+      internalNotes
+      partnerAddress { line1 line2 city state postalCode country }
+      grossAmount
+      discountAmount
+      taxAmount
+      amount
+      reason
+      voidedAt
+      createdAt
+      items {
+        id
+        productId
+        productName
+        sku
+        quantity
+        uom
+        unitPrice
+        discountPct
+        taxPct
+        lineTotal
+      }
     }
     suppliers {
       id
+      code
       name
     }
     products {
@@ -156,6 +254,13 @@ const BASE_QUERY = gql`
   }
 `;
 
+const CREATE_PO = gql`
+  mutation CreatePurchaseOrder($input: CreatePurchaseOrderInput!) {
+    createPurchaseOrder(input: $input) {
+      id
+    }
+  }
+`;
 const SEND_PO = gql`
   mutation SendPurchaseOrder($id: String!) {
     sendPurchaseOrder(id: $id) {
@@ -168,23 +273,30 @@ const DELETE_PO = gql`
     deletePurchaseOrder(id: $id)
   }
 `;
-const CREATE_GRN = gql`
-  mutation CreateGrn($input: CreateGrnInput!) {
-    createGrn(input: $input) {
+const RECORD_SUPPLIER_PAYMENT = gql`
+  mutation RecordSupplierPayment($input: RecordSupplierPaymentInput!) {
+    recordSupplierPayment(input: $input) {
       id
     }
   }
 `;
-const CREATE_BILL = gql`
-  mutation CreateSupplierBill($input: CreateSupplierBillInput!) {
-    createSupplierBill(input: $input) {
+const APPROVE_SUPPLIER_PAYMENT = gql`
+  mutation ApproveSupplierPayment($id: String!) {
+    approveSupplierPayment(id: $id) {
       id
     }
   }
 `;
-const UPDATE_BILL_STATUS = gql`
-  mutation UpdateSupplierBillStatus($id: String!, $status: String!) {
-    updateSupplierBillStatus(id: $id, status: $status) {
+const REJECT_SUPPLIER_PAYMENT = gql`
+  mutation RejectSupplierPayment($id: String!) {
+    rejectSupplierPayment(id: $id) {
+      id
+    }
+  }
+`;
+const VOID_DEBIT_NOTE = gql`
+  mutation VoidDebitNote($id: String!) {
+    voidDebitNote(id: $id) {
       id
     }
   }
@@ -192,7 +304,6 @@ const UPDATE_BILL_STATUS = gql`
 
 const DEFERRED_SEGMENTS: Record<string, string> = {
   requisitions: "Purchase Requisitions",
-  debitnotes: "Debit Notes",
 };
 
 export default function PurchasePage() {
@@ -212,28 +323,42 @@ export default function PurchasePage() {
     purchaseOrders: PurchaseOrder[];
     goodsReceivedNotes: Grn[];
     supplierBills: SupplierBill[];
+    supplierPayments: SupplierPayment[];
+    debitNotes: DebitNote[];
     suppliers: Supplier[];
     products: Product[];
     warehouses: Warehouse[];
   }>(BASE_QUERY);
 
+  const [createPo] = useMutation(CREATE_PO, { refetchQueries: ["PurchasePageData"] });
   const [sendPo] = useMutation(SEND_PO);
   const [deletePo] = useMutation(DELETE_PO);
-  const [createGrn] = useMutation(CREATE_GRN);
-  const [createBill] = useMutation(CREATE_BILL);
-  const [updateBillStatus] = useMutation(UPDATE_BILL_STATUS);
+  const [recordSupplierPayment] = useMutation(RECORD_SUPPLIER_PAYMENT);
+  const [approveSupplierPayment] = useMutation(APPROVE_SUPPLIER_PAYMENT);
+  const [rejectSupplierPayment] = useMutation(REJECT_SUPPLIER_PAYMENT);
+  const [voidDebitNote] = useMutation(VOID_DEBIT_NOTE);
 
   const [poDetail, setPoDetail] = useState<PurchaseOrder | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PurchaseOrder | null>(null);
-  const [receiveTarget, setReceiveTarget] = useState<PurchaseOrder | null>(null);
-  const [billFor, setBillFor] = useState<PurchaseOrder | null>(null);
+  const [grnDetail, setGrnDetail] = useState<Grn | null>(null);
   const [billDetail, setBillDetail] = useState<SupplierBill | null>(null);
+  const [paymentTarget, setPaymentTarget] = useState<SupplierBill | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const orders = data?.purchaseOrders ?? [];
   const grns = data?.goodsReceivedNotes ?? [];
   const bills = data?.supplierBills ?? [];
-  const warehouses = data?.warehouses ?? [];
+  const payments = data?.supplierPayments ?? [];
+  const debitNotes = data?.debitNotes ?? [];
+  const products = data?.products ?? [];
+
+  const outstandingBills = bills.filter((b) => b.remaining > 0.005).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  const totalOutstanding = outstandingBills.reduce((sum, b) => sum + b.remaining, 0);
+  const pendingPayments = payments.filter((p) => p.status === "PENDING").sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+  function findBill(billId: string) {
+    return bills.find((b) => b.id === billId) ?? null;
+  }
 
   async function handleSend(po: PurchaseOrder) {
     setSubmitting(true);
@@ -264,6 +389,55 @@ export default function PurchasePage() {
     }
   }
 
+  async function handleApprovePayment(payment: SupplierPayment) {
+    setSubmitting(true);
+    try {
+      await approveSupplierPayment({ variables: { id: payment.id } });
+      toast.success(`Payment for ${payment.billNumber} approved`);
+      await refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to approve payment");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleRejectPayment(payment: SupplierPayment) {
+    setSubmitting(true);
+    try {
+      await rejectSupplierPayment({ variables: { id: payment.id } });
+      toast.success(`Payment for ${payment.billNumber} rejected`);
+      await refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to reject payment");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleCreateReturn(grn: Grn) {
+    const bill = bills.find((b) => b.purchaseOrderId === grn.purchaseOrderId);
+    if (!bill) {
+      toast.error(`No purchase invoice yet for ${grn.poNumber} — create one before issuing a return.`);
+      return;
+    }
+    setGrnDetail(null);
+    navigate(`/purchase/debitnotes/new?billId=${bill.id}`);
+  }
+
+  async function handleVoidDebitNote(note: DebitNote) {
+    setSubmitting(true);
+    try {
+      await voidDebitNote({ variables: { id: note.id } });
+      toast.success(`${note.debitNoteNumber} voided`);
+      await refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to void debit note");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   if (deferredTitle) {
     return (
       <div className="space-y-6">
@@ -278,169 +452,81 @@ export default function PurchasePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Purchase</h1>
-          <p className="text-sm text-muted-foreground">Purchase orders, goods receipt, and supplier bills.</p>
-        </div>
-        {tab === "orders" && (
-          <Button size="sm" onClick={() => navigate("/purchase/new")}>
-            <Plus className="h-4 w-4" />
-            New Purchase Order
-          </Button>
-        )}
-      </div>
-
       {tab === "orders" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Purchase orders</CardTitle>
-            <CardDescription>Click a row to view items, send, receive stock, or create a bill.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <p className="text-sm text-muted-foreground">Loading…</p>
-            ) : orders.length === 0 ? (
-              <EmptyState label="purchase order" onAdd={() => navigate("/purchase/new")} />
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="py-2 font-medium">PO #</th>
-                    <th className="py-2 font-medium">Supplier</th>
-                    <th className="py-2 font-medium">Items</th>
-                    <th className="py-2 font-medium">Subtotal</th>
-                    <th className="py-2 font-medium">Status</th>
-                    <th className="py-2 font-medium text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.map((po) => (
-                    <tr
-                      key={po.id}
-                      className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/50"
-                      onClick={() => setPoDetail(po)}
-                    >
-                      <td className="py-2 font-mono text-xs">{po.poNumber}</td>
-                      <td className="py-2">{po.supplierName}</td>
-                      <td className="py-2 text-muted-foreground">{po.items.length}</td>
-                      <td className="py-2">${po.subtotal.toFixed(2)}</td>
-                      <td className="py-2">
-                        <StatusBadge status={po.status} />
-                      </td>
-                      <td className="py-2 text-right" onClick={(e) => e.stopPropagation()}>
-                        {po.status === "DRAFT" && (
-                          <Button variant="ghost" size="sm" onClick={() => handleSend(po)}>
-                            <Send className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {(po.status === "SENT" || po.status === "PARTIALLY_RECEIVED") && (
-                          <Button variant="ghost" size="sm" onClick={() => setReceiveTarget(po)}>
-                            Receive
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </CardContent>
-        </Card>
+        <OrdersTab
+          orders={orders}
+          suppliers={data?.suppliers ?? []}
+          products={products}
+          loading={loading}
+          onNew={() => navigate("/purchase/new")}
+          onRowClick={setPoDetail}
+          onImportOne={async (input) => {
+            await createPo({ variables: { input } });
+          }}
+          onRefetch={refetch}
+        />
       )}
 
       {tab === "receipts" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Goods received notes</CardTitle>
-            <CardDescription>Every confirmed receipt adds stock back into Inventory.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <p className="text-sm text-muted-foreground">Loading…</p>
-            ) : grns.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-                <PackageCheck className="h-8 w-8 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">No goods received yet.</p>
-              </div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="py-2 font-medium">GRN #</th>
-                    <th className="py-2 font-medium">PO #</th>
-                    <th className="py-2 font-medium">Warehouse</th>
-                    <th className="py-2 font-medium">Items received</th>
-                    <th className="py-2 font-medium">Received by</th>
-                    <th className="py-2 font-medium">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {grns.map((g) => (
-                    <tr key={g.id} className="border-b border-border last:border-0">
-                      <td className="py-2 font-mono text-xs">{g.grnNumber}</td>
-                      <td className="py-2 font-mono text-xs text-muted-foreground">{g.poNumber}</td>
-                      <td className="py-2">{g.warehouseName}</td>
-                      <td className="py-2 text-muted-foreground">{g.items.reduce((s, i) => s + i.quantityReceived, 0)} units</td>
-                      <td className="py-2">{g.receivedByName}</td>
-                      <td className="py-2 text-muted-foreground">{new Date(g.createdAt).toLocaleDateString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </CardContent>
-        </Card>
+        <GrnTab
+          grns={grns}
+          loading={loading}
+          onRowClick={setGrnDetail}
+          onCreateReturn={handleCreateReturn}
+          onRefetch={refetch}
+        />
       )}
 
       {tab === "bills" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Supplier bills</CardTitle>
-            <CardDescription>Click a row to update payment status.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <p className="text-sm text-muted-foreground">Loading…</p>
-            ) : bills.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-                <FileText className="h-8 w-8 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">No supplier bills yet.</p>
-              </div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="py-2 font-medium">Bill #</th>
-                    <th className="py-2 font-medium">PO #</th>
-                    <th className="py-2 font-medium">Supplier</th>
-                    <th className="py-2 font-medium">Amount</th>
-                    <th className="py-2 font-medium">Due</th>
-                    <th className="py-2 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bills.map((b) => (
-                    <tr
-                      key={b.id}
-                      className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/50"
-                      onClick={() => setBillDetail(b)}
-                    >
-                      <td className="py-2 font-mono text-xs">{b.billNumber}</td>
-                      <td className="py-2 font-mono text-xs text-muted-foreground">{b.poNumber || "—"}</td>
-                      <td className="py-2">{b.supplierName}</td>
-                      <td className="py-2">${b.amount.toFixed(2)}</td>
-                      <td className="py-2 text-muted-foreground">{new Date(b.dueDate).toLocaleDateString()}</td>
-                      <td className="py-2">
-                        <StatusBadge status={b.status} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </CardContent>
-        </Card>
+        <BillsTab
+          bills={bills}
+          loading={loading}
+          onNew={() => navigate("/purchase/bills/new")}
+          onRowClick={setBillDetail}
+          onRefetch={refetch}
+        />
+      )}
+
+      {tab === "debitnotes" && (
+        <DebitNotesTab
+          debitNotes={debitNotes}
+          loading={loading}
+          onRowClick={(note) => { const b = findBill(note.billId); if (b) setBillDetail(b); }}
+          onVoid={handleVoidDebitNote}
+          submitting={submitting}
+          onRefetch={refetch}
+        />
+      )}
+
+      {tab === "outstanding" && (
+        <OutstandingTab
+          outstandingBills={outstandingBills}
+          totalOutstanding={totalOutstanding}
+          loading={loading}
+          onRowClick={setBillDetail}
+          onRefetch={refetch}
+        />
+      )}
+
+      {tab === "paymentapprovals" && (
+        <PaymentApprovalsTab
+          pendingPayments={pendingPayments}
+          loading={loading}
+          submitting={submitting}
+          onApprove={handleApprovePayment}
+          onReject={handleRejectPayment}
+          onRowClick={(p) => { const b = findBill(p.billId); if (b) setBillDetail(b); }}
+          onRefetch={refetch}
+        />
+      )}
+
+      {tab === "supplierpayments" && (
+        <SupplierPaymentsTab
+          payments={payments}
+          loading={loading}
+          onRowClick={(p) => { const b = findBill(p.billId); if (b) setBillDetail(b); }}
+          onRefetch={refetch}
+        />
       )}
 
       {/* PO detail */}
@@ -479,12 +565,31 @@ export default function PurchasePage() {
                       <td className="py-1.5">{i.productName}</td>
                       <td className="py-1.5 text-right">{i.quantity}</td>
                       <td className="py-1.5 text-right">{i.receivedQuantity}</td>
-                      <td className="py-1.5 text-right">${i.lineTotal.toFixed(2)}</td>
+                      <td className="py-1.5 text-right">{inr(i.lineTotal)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <div className="flex justify-end text-sm font-medium">Subtotal: ${poDetail.subtotal.toFixed(2)}</div>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-end gap-3 text-muted-foreground">
+                  <span>Subtotal:</span>
+                  <span>{inr(poDetail.subtotal)}</span>
+                </div>
+                {poDetail.discountAmount > 0 && (
+                  <div className="flex justify-end gap-3 text-muted-foreground">
+                    <span>Discount:</span>
+                    <span className="text-danger">-{inr(poDetail.discountAmount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-end gap-3 text-muted-foreground">
+                  <span>Tax:</span>
+                  <span>{inr(poDetail.taxAmount)}</span>
+                </div>
+                <div className="flex justify-end gap-3 font-semibold text-foreground">
+                  <span>Total:</span>
+                  <span>{inr(poDetail.total)}</span>
+                </div>
+              </div>
               <DialogFooter>
                 {poDetail.status === "DRAFT" && (
                   <>
@@ -499,10 +604,10 @@ export default function PurchasePage() {
                   </>
                 )}
                 {(poDetail.status === "SENT" || poDetail.status === "PARTIALLY_RECEIVED") && (
-                  <Button onClick={() => setReceiveTarget(poDetail)}>Receive goods</Button>
+                  <Button onClick={() => navigate(`/purchase/orders/${poDetail.id}/receive`)}>Receive goods</Button>
                 )}
                 {poDetail.status === "RECEIVED" && !poDetail.hasBill && (
-                  <Button onClick={() => setBillFor(poDetail)}>Create bill</Button>
+                  <Button onClick={() => navigate(`/purchase/bills/new?poId=${poDetail.id}`)}>Create bill</Button>
                 )}
               </DialogFooter>
             </div>
@@ -528,55 +633,63 @@ export default function PurchasePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Receive goods */}
-      <Dialog open={!!receiveTarget} onOpenChange={(o) => !o && setReceiveTarget(null)}>
+      {/* GRN detail */}
+      <Dialog open={!!grnDetail} onOpenChange={(o) => !o && setGrnDetail(null)}>
         <DialogContent className="max-w-lg">
-          {receiveTarget && (
-            <ReceiveGoodsForm
-              po={receiveTarget}
-              warehouses={warehouses}
-              submitting={submitting}
-              onSubmit={async (warehouseId, items) => {
-                setSubmitting(true);
-                try {
-                  await createGrn({ variables: { input: { purchaseOrderId: receiveTarget.id, warehouseId, items } } });
-                  toast.success(`Stock received for ${receiveTarget.poNumber}`);
-                  setReceiveTarget(null);
-                  setPoDetail(null);
-                  await refetch();
-                } catch (err) {
-                  toast.error(err instanceof Error ? err.message : "Failed to record receipt");
-                } finally {
-                  setSubmitting(false);
-                }
-              }}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Create bill */}
-      <Dialog open={!!billFor} onOpenChange={(o) => !o && setBillFor(null)}>
-        <DialogContent>
-          {billFor && (
-            <CreateBillForm
-              po={billFor}
-              submitting={submitting}
-              onSubmit={async (amount, dueDate) => {
-                setSubmitting(true);
-                try {
-                  await createBill({ variables: { input: { supplierId: billFor.supplierId, purchaseOrderId: billFor.id, amount, dueDate } } });
-                  toast.success(`Bill created for ${billFor.poNumber}`);
-                  setBillFor(null);
-                  setPoDetail(null);
-                  await refetch();
-                } catch (err) {
-                  toast.error(err instanceof Error ? err.message : "Failed to create bill");
-                } finally {
-                  setSubmitting(false);
-                }
-              }}
-            />
+          {grnDetail && (
+            <div className="space-y-4">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  {grnDetail.grnNumber}
+                  <StatusBadge status={grnDetail.status} />
+                </DialogTitle>
+              </DialogHeader>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Supplier</p>
+                  <p>{grnDetail.supplierName}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Purchase order</p>
+                  <p className="font-mono text-xs">{grnDetail.poNumber}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Warehouse</p>
+                  <p>{grnDetail.warehouseName}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Quality score</p>
+                  <p>{grnDetail.qualityScore}%</p>
+                </div>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-muted-foreground">
+                    <th className="py-1.5 font-medium">Product</th>
+                    <th className="py-1.5 font-medium text-right">Accepted</th>
+                    <th className="py-1.5 font-medium text-right">Rejected</th>
+                    <th className="py-1.5 font-medium text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {grnDetail.items.map((i) => (
+                    <tr key={i.id} className="border-b border-border last:border-0">
+                      <td className="py-1.5">{i.productName}</td>
+                      <td className="py-1.5 text-right text-success">{i.acceptedQuantity}</td>
+                      <td className="py-1.5 text-right text-danger">{i.rejectedQuantity}</td>
+                      <td className="py-1.5 text-right">{inr(i.lineTotal)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="flex justify-end text-sm font-medium">Total: {inr(grnDetail.total)}</div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => handleCreateReturn(grnDetail)}>
+                  <FileMinus className="h-4 w-4" />
+                  Create Return
+                </Button>
+              </DialogFooter>
+            </div>
           )}
         </DialogContent>
       </Dialog>
@@ -598,188 +711,176 @@ export default function PurchasePage() {
                   <p>{billDetail.supplierName}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Amount</p>
-                  <p>${billDetail.amount.toFixed(2)}</p>
-                </div>
-                <div>
                   <p className="text-muted-foreground">Due date</p>
                   <p>{new Date(billDetail.dueDate).toLocaleDateString()}</p>
                 </div>
-                <div>
-                  <p className="text-muted-foreground">PO</p>
-                  <p className="font-mono text-xs">{billDetail.poNumber || "—"}</p>
+                {billDetail.invoiceReference && (
+                  <div>
+                    <p className="text-muted-foreground">Invoice reference</p>
+                    <p>{billDetail.invoiceReference}</p>
+                  </div>
+                )}
+                {billDetail.poNumber && (
+                  <div>
+                    <p className="text-muted-foreground">Purchase order</p>
+                    <p className="font-mono text-xs">{billDetail.poNumber}</p>
+                  </div>
+                )}
+              </div>
+              {billDetail.items.length > 0 && (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-muted-foreground">
+                      <th className="py-1.5 font-medium">Product</th>
+                      <th className="py-1.5 font-medium text-right">Qty</th>
+                      <th className="py-1.5 font-medium text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {billDetail.items.map((i) => (
+                      <tr key={i.id} className="border-b border-border last:border-0">
+                        <td className="py-1.5">{i.productName}</td>
+                        <td className="py-1.5 text-right">{i.quantity}</td>
+                        <td className="py-1.5 text-right">{inr(i.lineTotal)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-end gap-3 text-muted-foreground">
+                  <span>Bill amount:</span>
+                  <span>{inr(billDetail.amount)}</span>
+                </div>
+                <div className="flex justify-end gap-3 text-muted-foreground">
+                  <span>Paid:</span>
+                  <span>{inr(billDetail.amountPaid)}</span>
+                </div>
+                <div className="flex justify-end gap-3 text-muted-foreground">
+                  <span>Debited:</span>
+                  <span>{inr(billDetail.amountDebited)}</span>
+                </div>
+                <div className="flex justify-end gap-3 font-semibold text-foreground">
+                  <span>Remaining:</span>
+                  <span>{inr(billDetail.remaining)}</span>
                 </div>
               </div>
               <DialogFooter>
-                {["UNPAID", "PARTIAL", "PAID"].map((s) => (
-                  <Button
-                    key={s}
-                    variant={billDetail.status === s ? "default" : "outline"}
-                    size="sm"
-                    disabled={submitting}
-                    onClick={async () => {
-                      setSubmitting(true);
-                      try {
-                        await updateBillStatus({ variables: { id: billDetail.id, status: s } });
-                        toast.success(`${billDetail.billNumber} marked ${s.toLowerCase()}`);
-                        setBillDetail(null);
-                        await refetch();
-                      } catch (err) {
-                        toast.error(err instanceof Error ? err.message : "Failed to update bill");
-                      } finally {
-                        setSubmitting(false);
-                      }
-                    }}
-                  >
-                    Mark {s.toLowerCase()}
-                  </Button>
-                ))}
+                {billDetail.remaining > 0.005 && (
+                  <>
+                    <Button variant="outline" onClick={() => navigate(`/purchase/debitnotes/new?billId=${billDetail.id}`)}>
+                      <FileMinus className="h-4 w-4" />
+                      Create debit note
+                    </Button>
+                    <Button onClick={() => setPaymentTarget(billDetail)}>
+                      <Wallet className="h-4 w-4" />
+                      Record payment
+                    </Button>
+                  </>
+                )}
               </DialogFooter>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Record payment (goes to approval queue) */}
+      <Dialog open={!!paymentTarget} onOpenChange={(o) => !o && setPaymentTarget(null)}>
+        <DialogContent>
+          {paymentTarget && (
+            <RecordPaymentForm
+              bill={paymentTarget}
+              submitting={submitting}
+              onSubmit={async (amount, method, reference) => {
+                setSubmitting(true);
+                try {
+                  await recordSupplierPayment({ variables: { input: { billId: paymentTarget.id, amount, method, reference } } });
+                  toast.success(`Payment submitted for approval — ${paymentTarget.billNumber}`);
+                  setPaymentTarget(null);
+                  setBillDetail(null);
+                  await refetch();
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Failed to record payment");
+                } finally {
+                  setSubmitting(false);
+                }
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
 
-function ReceiveGoodsForm({
-  po,
-  warehouses,
+
+const PAYMENT_METHODS = [
+  { value: "CASH", label: "Cash" },
+  { value: "BANK_TRANSFER", label: "Bank transfer" },
+  { value: "CARD", label: "Card" },
+  { value: "CHEQUE", label: "Cheque" },
+  { value: "OTHER", label: "Other" },
+];
+
+function RecordPaymentForm({
+  bill,
   onSubmit,
   submitting,
 }: {
-  po: PurchaseOrder;
-  warehouses: Warehouse[];
-  onSubmit: (warehouseId: string, items: Array<{ purchaseOrderItemId: string; quantityReceived: number }>) => void;
+  bill: SupplierBill;
+  onSubmit: (amount: number, method: string, reference: string | undefined) => void;
   submitting: boolean;
 }) {
-  const [warehouseId, setWarehouseId] = useState("");
-  const outstanding = po.items.filter((i) => i.receivedQuantity < i.quantity);
-  const [quantities, setQuantities] = useState<Record<string, string>>(
-    Object.fromEntries(outstanding.map((i) => [i.id, String(i.quantity - i.receivedQuantity)])),
-  );
-
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    const items = outstanding
-      .map((i) => ({ purchaseOrderItemId: i.id, quantityReceived: Number(quantities[i.id] || 0) }))
-      .filter((i) => i.quantityReceived > 0);
-    if (items.length === 0 || !warehouseId) return;
-    onSubmit(warehouseId, items);
-  }
-
-  return (
-    <form className="space-y-4" onSubmit={handleSubmit}>
-      <DialogHeader>
-        <DialogTitle>Receive goods — {po.poNumber}</DialogTitle>
-      </DialogHeader>
-      <div className="space-y-1.5">
-        <Label>Receiving warehouse</Label>
-        <Select value={warehouseId} onValueChange={setWarehouseId}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select warehouse" />
-          </SelectTrigger>
-          <SelectContent>
-            {warehouses.map((w) => (
-              <SelectItem key={w.id} value={w.id}>
-                {w.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border text-left text-muted-foreground">
-            <th className="py-1.5 font-medium">Product</th>
-            <th className="py-1.5 font-medium text-right">Outstanding</th>
-            <th className="py-1.5 font-medium text-right">Receive now</th>
-          </tr>
-        </thead>
-        <tbody>
-          {outstanding.map((i) => (
-            <tr key={i.id} className="border-b border-border last:border-0">
-              <td className="py-1.5">{i.productName}</td>
-              <td className="py-1.5 text-right text-muted-foreground">{i.quantity - i.receivedQuantity}</td>
-              <td className="py-1.5 text-right">
-                <Input
-                  className="ml-auto w-24"
-                  type="number"
-                  min="0"
-                  max={i.quantity - i.receivedQuantity}
-                  value={quantities[i.id] ?? ""}
-                  onChange={(e) => setQuantities((prev) => ({ ...prev, [i.id]: e.target.value }))}
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <DialogFooter>
-        <Button type="submit" disabled={submitting || !warehouseId}>
-          {submitting ? "Recording…" : "Confirm receipt"}
-        </Button>
-      </DialogFooter>
-    </form>
-  );
-}
-
-function CreateBillForm({
-  po,
-  onSubmit,
-  submitting,
-}: {
-  po: PurchaseOrder;
-  onSubmit: (amount: number, dueDate: string) => void;
-  submitting: boolean;
-}) {
-  const [amount, setAmount] = useState(String(po.subtotal.toFixed(2)));
-  const [dueDate, setDueDate] = useState(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
+  const [amount, setAmount] = useState(String(bill.remaining.toFixed(2)));
+  const [method, setMethod] = useState("BANK_TRANSFER");
+  const [reference, setReference] = useState("");
 
   return (
     <form
       className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!amount || !dueDate) return;
-        onSubmit(Number(amount), dueDate);
+        if (!amount || Number(amount) <= 0) return;
+        onSubmit(Number(amount), method, reference || undefined);
       }}
     >
       <DialogHeader>
-        <DialogTitle>Create bill — {po.poNumber}</DialogTitle>
+        <DialogTitle>Record payment — {bill.billNumber}</DialogTitle>
+        <p className="text-sm text-muted-foreground">
+          Submitted for admin approval before it counts toward the bill. Remaining balance: {inr(bill.remaining)}.
+        </p>
       </DialogHeader>
       <div className="space-y-1.5">
         <Label>Amount</Label>
-        <Input type="number" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <Input type="number" step="0.01" min="0.01" max={bill.remaining} value={amount} onChange={(e) => setAmount(e.target.value)} />
       </div>
       <div className="space-y-1.5">
-        <Label>Due date</Label>
-        <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+        <Label>Payment method</Label>
+        <Select value={method} onValueChange={setMethod}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PAYMENT_METHODS.map((m) => (
+              <SelectItem key={m.value} value={m.value}>
+                {m.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1.5">
+        <Label>Reference (optional)</Label>
+        <Input placeholder="Transaction ID, cheque number…" value={reference} onChange={(e) => setReference(e.target.value)} />
       </div>
       <DialogFooter>
-        <Button type="submit" disabled={submitting}>
-          {submitting ? "Creating…" : "Create bill"}
+        <Button type="submit" disabled={submitting || !amount}>
+          {submitting ? "Submitting…" : "Submit for approval"}
         </Button>
       </DialogFooter>
     </form>
   );
 }
 
-function EmptyState({ label, onAdd }: { label: string; onAdd: () => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-        <ClipboardList className="h-5 w-5 text-muted-foreground" />
-      </div>
-      <div>
-        <p className="text-sm font-medium">No {label}s yet</p>
-        <p className="text-sm text-muted-foreground">Get started by creating your first {label}.</p>
-      </div>
-      <Button size="sm" onClick={onAdd}>
-        <Plus className="h-4 w-4" />
-        Create your first {label}
-      </Button>
-    </div>
-  );
-}
+

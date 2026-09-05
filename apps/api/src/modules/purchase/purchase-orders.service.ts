@@ -1,33 +1,75 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { PurchaseOrderStatus } from "@abms/database";
+import { PurchaseOrderStatus, PurchaseOrderTaxMethod } from "@abms/database";
 import { SCOPED_PRISMA, type ScopedPrismaClient } from "../../common/tenancy/scoped-prisma.service";
-import type { CreatePurchaseOrderInput } from "./dto/purchase-order.input";
+import { addressToColumns, columnsToAddress } from "./address-columns.util";
+import type { CreatePurchaseOrderInput, PurchaseOrderItemInput } from "./dto/purchase-order.input";
 
 const PO_INCLUDE = {
   supplier: true,
   createdBy: true,
-  items: { include: { product: true } },
+  items: { include: { product: true, warehouse: true }, orderBy: { sortOrder: "asc" as const } },
   bills: true,
 } as const;
+
+function computeLine(item: { quantity: number; unitCost: number; discountPct: number; taxPct: number }, taxMethod: PurchaseOrderTaxMethod) {
+  const gross = item.quantity * item.unitCost;
+  const base = taxMethod === PurchaseOrderTaxMethod.INCLUSIVE ? gross / (1 + item.taxPct / 100) : gross;
+  const discountAmt = base * (item.discountPct / 100);
+  const afterDiscount = base - discountAmt;
+  const taxAmt = afterDiscount * (item.taxPct / 100);
+  return { base, discountAmt, taxAmt, lineTotal: afterDiscount + taxAmt };
+}
 
 function toModel<T extends {
   supplier: { name: string };
   createdBy: { name: string };
-  items: Array<{ id: string; productId: string; quantity: number; unitCost: unknown; receivedQuantity: number; product: { name: string; sku: string } }>;
-  bills: unknown[];
+  subtotal: unknown;
+  shippingAmount: unknown;
+  discountAmount: unknown;
+  taxAmount: unknown;
+  total: unknown;
+  items: Array<{
+    id: string;
+    productId: string;
+    hsnSac: string | null;
+    quantity: number;
+    uom: string;
+    unitCost: unknown;
+    discountPct: unknown;
+    taxPct: unknown;
+    warehouseId: string | null;
+    warehouse: { name: string } | null;
+    receivedQuantity: number;
+    lineTotal: unknown;
+    product: { name: string; sku: string };
+  }>;
+  bills: Array<{ status: string }>;
 }>(row: T) {
   const items = row.items.map((i) => ({
-    id: i.id,
-    productId: i.productId,
+    ...i,
     productName: i.product.name,
     sku: i.product.sku,
-    quantity: i.quantity,
+    warehouseName: i.warehouse?.name ?? null,
     unitCost: Number(i.unitCost),
-    receivedQuantity: i.receivedQuantity,
-    lineTotal: i.quantity * Number(i.unitCost),
+    discountPct: Number(i.discountPct),
+    taxPct: Number(i.taxPct),
+    lineTotal: Number(i.lineTotal),
   }));
-  const subtotal = items.reduce((sum, i) => sum + i.lineTotal, 0);
-  return { ...row, supplierName: row.supplier.name, createdByName: row.createdBy.name, items, subtotal, hasBill: row.bills.length > 0 };
+  return {
+    ...row,
+    supplierName: row.supplier.name,
+    createdByName: row.createdBy.name,
+    items,
+    subtotal: Number(row.subtotal),
+    shippingAmount: Number(row.shippingAmount),
+    discountAmount: Number(row.discountAmount),
+    taxAmount: Number(row.taxAmount),
+    total: Number(row.total),
+    supplierAddress: columnsToAddress(row as unknown as Record<string, unknown>, "supplierAddress"),
+    deliveryAddress: columnsToAddress(row as unknown as Record<string, unknown>, "deliveryAddress"),
+    hasBill: row.bills.length > 0,
+    billStatus: row.bills[0]?.status ?? null,
+  };
 }
 
 @Injectable()
@@ -54,15 +96,53 @@ export class PurchaseOrdersService {
       const product = await this.prisma.product.findUnique({ where: { id: item.productId } });
       if (!product) throw new NotFoundException(`Product ${item.productId} not found`);
     }
+    const taxMethod = input.taxMethod ?? PurchaseOrderTaxMethod.EXCLUSIVE;
+    const lines = input.items.map((i: PurchaseOrderItemInput) => {
+      const normalized = { quantity: i.quantity, unitCost: i.unitCost, discountPct: i.discountPct ?? 0, taxPct: i.taxPct ?? 0 };
+      return { input: i, ...computeLine(normalized, taxMethod) };
+    });
+    const subtotal = lines.reduce((sum, l) => sum + l.base, 0);
+    const discountAmount = lines.reduce((sum, l) => sum + l.discountAmt, 0);
+    const taxAmount = lines.reduce((sum, l) => sum + l.taxAmt, 0);
+    const shippingAmount = input.shippingAmount ?? 0;
+    const total = subtotal - discountAmount + taxAmount + shippingAmount;
+
     const poNumber = await this.nextPoNumber();
     const row = await this.prisma.purchaseOrder.create({
       data: {
         poNumber,
         supplierId: input.supplierId,
         expectedDeliveryDate: input.expectedDeliveryDate ? new Date(input.expectedDeliveryDate) : undefined,
+        trackingCode: input.trackingCode,
+        currency: input.currency ?? "INR",
+        paymentTerms: input.paymentTerms,
+        taxMethod,
+        supplierNotes: input.supplierNotes,
+        termsConditions: input.termsConditions,
+        internalNotes: input.internalNotes,
+        shippingAmount,
+        subtotal,
+        discountAmount,
+        taxAmount,
+        total,
+        ...addressToColumns("supplierAddress", input.supplierAddress),
+        ...addressToColumns("deliveryAddress", input.deliveryAddress),
         createdById: actorId,
         organizationId,
-        items: { create: input.items.map((i) => ({ productId: i.productId, quantity: i.quantity, unitCost: i.unitCost })) },
+        items: {
+          create: lines.map((l, idx) => ({
+            productId: l.input.productId,
+            hsnSac: l.input.hsnSac,
+            quantity: l.input.quantity,
+            uom: l.input.uom ?? "unit",
+            unitCost: l.input.unitCost,
+            discountPct: l.input.discountPct ?? 0,
+            taxPct: l.input.taxPct ?? 0,
+            warehouseId: l.input.warehouseId,
+            lineTotal: l.lineTotal,
+            sortOrder: idx,
+          })),
+        },
       },
       include: PO_INCLUDE,
     });
@@ -73,7 +153,8 @@ export class PurchaseOrdersService {
     const order = await this.prisma.purchaseOrder.findUnique({ where: { id } });
     if (!order) throw new NotFoundException("Purchase order not found");
     if (order.status !== PurchaseOrderStatus.DRAFT) throw new BadRequestException("Only draft orders can be sent");
-    return this.prisma.purchaseOrder.update({ where: { id }, data: { status: PurchaseOrderStatus.SENT } });
+    await this.prisma.purchaseOrder.update({ where: { id }, data: { status: PurchaseOrderStatus.SENT } });
+    return this.findById(id);
   }
 
   async delete(id: string) {
