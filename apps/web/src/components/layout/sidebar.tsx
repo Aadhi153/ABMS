@@ -83,11 +83,13 @@ const ICONS: Record<string, LucideIcon> = {
 const COLLAPSED_KEY = "abms-sidebar-collapsed";
 
 const HEADER_CLASS =
-  "flex w-full items-center gap-3 rounded-lg border-l-[3px] border-transparent px-3 py-[9px] text-sm font-normal text-sidebar-inactive transition-colors hover:bg-white/10 hover:text-white";
+  "flex w-full items-center gap-3 rounded-lg border-l-[3px] border-transparent px-3 py-[9px] text-sm font-normal text-sidebar-inactive transition-all duration-150 ease-out hover:translate-x-0.5 hover:bg-white/10 hover:text-white";
 const LEAF_CLASS =
-  "flex items-center gap-3 rounded-lg border-l-[3px] border-transparent px-3 py-[9px] text-sm font-normal text-sidebar-inactive transition-colors hover:bg-white/10 hover:text-white";
+  "flex items-center gap-3 rounded-lg border-l-[3px] border-transparent px-3 py-[9px] text-sm font-normal text-sidebar-inactive transition-all duration-150 ease-out hover:translate-x-0.5 hover:bg-white/10 hover:text-white";
 const ACTIVE_CLASS = "border-l-primary bg-white/[0.22] font-semibold text-white";
-const SUBITEM_ACTIVE_CLASS = "bg-white/[0.12] font-medium text-white";
+const SUBITEM_CLASS =
+  "block rounded-lg px-3 py-[7px] text-sm font-normal text-sidebar-inactive transition-all duration-150 ease-out hover:translate-x-0.5 hover:bg-white/10 hover:text-white";
+const SUBITEM_ACTIVE_CLASS = "bg-primary font-semibold text-primary-foreground shadow-sm hover:bg-primary hover:text-primary-foreground";
 
 export function Sidebar({
   role,
@@ -220,26 +222,33 @@ export function Sidebar({
                 >
                   {Icon && <Icon className="h-[17px] w-[17px] shrink-0" />}
                   <span className="flex-1 text-left">{item.label}</span>
-                  <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", isOpen && "rotate-180")} />
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none",
+                      isOpen && "rotate-180",
+                    )}
+                  />
                 </button>
-                {isOpen && (
-                  <div className="ml-[22px] mt-0.5 space-y-0.5 border-l border-white/15 pl-3">
-                    {item.children!.map((child) => (
-                      <NavLink
-                        key={child.id}
-                        to={child.path}
-                        className={({ isActive }) =>
-                          cn(
-                            "block rounded-lg px-3 py-[7px] text-sm font-normal text-sidebar-inactive transition-colors hover:bg-white/10 hover:text-white",
-                            isActive && SUBITEM_ACTIVE_CLASS,
-                          )
-                        }
-                      >
-                        {child.label}
-                      </NavLink>
-                    ))}
+                <div
+                  className={cn(
+                    "grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none",
+                    isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+                  )}
+                >
+                  <div className="overflow-hidden">
+                    <div className="ml-[22px] mt-0.5 space-y-0.5 border-l border-white/15 pl-3 pb-0.5">
+                      {item.children!.map((child) => (
+                        <NavLink
+                          key={child.id}
+                          to={child.path}
+                          className={({ isActive }) => cn(SUBITEM_CLASS, isActive && SUBITEM_ACTIVE_CLASS)}
+                        >
+                          {child.label}
+                        </NavLink>
+                      ))}
+                    </div>
                   </div>
-                )}
+                </div>
               </div>
             );
           })}

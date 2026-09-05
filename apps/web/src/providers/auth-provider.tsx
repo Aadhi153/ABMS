@@ -14,6 +14,8 @@ export interface AuthUser {
   bio: string | null;
   notifyEmailEnabled: boolean;
   notifyInAppEnabled: boolean;
+  notificationCategoryPrefs: string | null;
+  createdAt: string;
 }
 
 const ME_QUERY = gql`
@@ -30,6 +32,8 @@ const ME_QUERY = gql`
       bio
       notifyEmailEnabled
       notifyInAppEnabled
+      notificationCategoryPrefs
+      createdAt
     }
   }
 `;

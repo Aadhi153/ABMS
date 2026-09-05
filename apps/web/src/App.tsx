@@ -24,6 +24,7 @@ import SalesPage from "./pages/sales";
 import NewSalesOrderPage from "./pages/sales/new-sales-order-page";
 import NewQuotePage from "./pages/sales/new-quote-page";
 import EditQuotePage from "./pages/sales/edit-quote-page";
+import OrderDetailPage from "./pages/sales/order-detail-page";
 import PurchasePage from "./pages/purchase";
 import NewPurchaseOrderPage from "./pages/purchase/new-purchase-order-page";
 import CustomersPage from "./pages/customers";
@@ -133,6 +134,14 @@ export function App() {
                     element={
                       <ModuleRoute module="sales">
                         <EditQuotePage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/sales/orders/:id"
+                    element={
+                      <ModuleRoute module="sales">
+                        <OrderDetailPage />
                       </ModuleRoute>
                     }
                   />

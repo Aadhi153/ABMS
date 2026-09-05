@@ -7,13 +7,12 @@ import {
   Building2,
   Camera,
   ChevronRight,
-  Landmark,
   Lock,
   Plus,
+  Receipt,
   RefreshCw,
   ShieldCheck,
-  Users as UsersIcon,
-  Warehouse,
+  Warehouse as WarehouseIcon,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -36,136 +35,263 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Skeleton,
   Switch,
+  cn,
   toast,
 } from "@abms/ui";
 import { ALL_ROLES, NAV_MODULES, ROLE_LABELS, ROLE_MODULE_ACCESS, Role } from "@abms/shared";
 import { ModulePlaceholder } from "../../components/module-placeholder";
-
-interface SettingsTab {
-  key: string;
-  label: string;
-  description: string;
-  icon: LucideIcon;
-  deferred?: boolean;
-}
-
-const TABS: SettingsTab[] = [
-  {
-    key: "org",
-    label: "Organization Profile",
-    description: "Company name, logo, address, tax ID, and default currency.",
-    icon: Building2,
-  },
-  {
-    key: "users",
-    label: "Users & Teams",
-    description: "Invite teammates, manage roles, and control access.",
-    icon: UsersIcon,
-  },
-  {
-    key: "permissions",
-    label: "Roles & Permissions",
-    description: "Review the module access matrix for each role.",
-    icon: ShieldCheck,
-  },
-  {
-    key: "warehouses",
-    label: "Warehouses",
-    description: "Physical and virtual stock locations used across the app.",
-    icon: Warehouse,
-  },
-  {
-    key: "bankaccounts",
-    label: "Bank Accounts",
-    description: "Manage bank accounts used for payments and collections.",
-    icon: Landmark,
-    deferred: true,
-  },
-  {
-    key: "security",
-    label: "Security",
-    description: "Session timeout, password policy, and two-factor requirements.",
-    icon: Lock,
-  },
-];
+import { FORM_ENTER, LIST_ENTER, LIST_EXIT, sectionMotion, usePageTransition } from "../products/form-motion";
+import { SETTINGS_CARDS_BY_KEY, SETTINGS_CATEGORIES, type SettingCardDef } from "./settings-data";
 
 export default function SettingsPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const segment = location.pathname.split("/")[2];
-  const activeTab = TABS.find((t) => t.key === segment);
+  const card = segment ? SETTINGS_CARDS_BY_KEY[segment] : undefined;
 
   useEffect(() => {
-    if (segment && !activeTab) {
+    if (segment && !card) {
       navigate("/settings", { replace: true });
     }
-  }, [segment, activeTab, navigate]);
+  }, [segment, card, navigate]);
 
   if (!segment) {
     return <SettingsLanding />;
   }
 
-  if (!activeTab) {
+  if (!card) {
     return null;
   }
 
   return (
-    <div className="space-y-6">
+    <div className={cn("space-y-6", FORM_ENTER)}>
       <div>
         <button
           type="button"
           onClick={() => navigate("/settings")}
-          className="mb-2 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+          className="group mb-2 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors duration-150 ease-out hover:text-primary"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4 transition-transform duration-200 ease-out group-hover:-translate-x-0.5 motion-reduce:transition-none" />
           Settings
         </button>
-        <h1 className="text-2xl font-semibold tracking-tight">{activeTab.label}</h1>
-        <p className="text-sm text-muted-foreground">{activeTab.description}</p>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">{card.label}</h1>
+          {card.restricted && <Lock className="h-4 w-4 text-muted-foreground" aria-label="Admin-only" />}
+        </div>
+        <p className="text-sm text-muted-foreground">{card.description}</p>
       </div>
-      {activeTab.deferred ? (
-        <ModulePlaceholder title={activeTab.label} />
-      ) : (
-        <>
-          {activeTab.key === "org" && <OrgProfileTab />}
-          {activeTab.key === "users" && <UsersTab />}
-          {activeTab.key === "permissions" && <PermissionsTab />}
-          {activeTab.key === "warehouses" && <WarehousesTab />}
-          {activeTab.key === "security" && <SecurityTab />}
-        </>
-      )}
+
+      {card.key === "organization" && <OrganizationTab />}
+      {card.key === "users" && <UsersTab />}
+      {card.key === "permissions" && <PermissionsTab />}
+      {card.key === "warehouses" && <WarehousesTab />}
+      {card.key === "security" && <SecurityTab />}
+      {card.key === "tax-configuration" && <TaxConfigurationView />}
+      {card.key === "pricing-discounts" && <PricingDiscountsView />}
+      {card.status === "placeholder" && <ModulePlaceholder title={card.label} />}
     </div>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Landing — categorized settings grid
+// ---------------------------------------------------------------------------
+
 function SettingsLanding() {
-  const navigate = useNavigate();
+  const { leaving, goWithExit } = usePageTransition();
+
   return (
-    <div className="space-y-6">
+    <div className={cn("space-y-6", leaving ? LIST_EXIT : LIST_ENTER)}>
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="text-sm text-muted-foreground">Organization configuration, access control, and master data.</p>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {TABS.map((tab) => (
-          <button key={tab.key} type="button" onClick={() => navigate(`/settings/${tab.key}`)} className="text-left">
-            <Card className="h-full transition-colors hover:border-primary/50 hover:bg-muted/40">
-              <CardContent className="flex items-start gap-3 p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <tab.icon className="h-5 w-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-foreground">{tab.label}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{tab.description}</p>
-                </div>
-                <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
-              </CardContent>
-            </Card>
-          </button>
-        ))}
+      <div className="space-y-4">
+        {SETTINGS_CATEGORIES.map((category, index) => {
+          const motion = sectionMotion(index);
+          return (
+          <Card
+            key={category.key}
+            className={cn("p-5 transition-shadow duration-200 ease-out hover:shadow-sm", motion.className)}
+            style={motion.style}
+          >
+            <h2 className="text-sm font-medium text-foreground">{category.title}</h2>
+            <p className="mb-3.5 mt-0.5 text-xs text-muted-foreground">{category.description}</p>
+            <div className="grid grid-cols-1 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+              {category.cards.map((card) => (
+                <SettingCard
+                  key={card.key}
+                  card={card}
+                  onClick={() => goWithExit(`/settings/${card.key}`)}
+                  extra={card.key === "users" ? <PendingInvitesBadge /> : null}
+                />
+              ))}
+            </div>
+          </Card>
+          );
+        })}
       </div>
     </div>
+  );
+}
+
+function SettingCard({
+  card,
+  onClick,
+  extra,
+}: {
+  card: SettingCardDef;
+  onClick: () => void;
+  extra?: React.ReactNode;
+}) {
+  const Icon = card.icon;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group relative rounded-lg border border-border bg-muted/30 p-3.5 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-primary/30 hover:bg-card hover:shadow-md active:translate-y-0 active:scale-[0.98] motion-reduce:transition-none motion-reduce:hover:translate-y-0 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    >
+      <ChevronRight className="absolute right-3 top-3.5 h-3.5 w-3.5 text-muted-foreground/70 transition-all duration-200 ease-out group-hover:translate-x-0.5 group-hover:text-primary motion-reduce:transition-none" />
+      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors duration-200 ease-out group-hover:bg-primary/15">
+        <Icon className="h-[18px] w-[18px] transition-transform duration-200 ease-out group-hover:scale-110 motion-reduce:transition-none" />
+      </div>
+      <div className="mt-2.5 flex items-center gap-1.5 pr-4">
+        <p className="text-[13px] font-medium text-foreground">{card.label}</p>
+        {card.badge && (
+          <span
+            className={cn(
+              "rounded-full px-2 py-0.5 text-[10px] font-medium leading-none",
+              card.badge.tone === "accent" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+            )}
+          >
+            {card.badge.label}
+          </span>
+        )}
+        {card.restricted && <Lock className="h-3 w-3 shrink-0 text-muted-foreground/70" aria-label="Admin-only" />}
+      </div>
+      <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{card.description}</p>
+      {extra}
+    </button>
+  );
+}
+
+const PENDING_INVITES_QUERY = gql`
+  query PendingInvites {
+    pendingInvites {
+      id
+      email
+      role
+      expiresAt
+      acceptedAt
+      revokedAt
+      createdAt
+    }
+  }
+`;
+
+function PendingInvitesBadge() {
+  const { data, loading } = useQuery<{ pendingInvites: InviteRow[] }>(PENDING_INVITES_QUERY);
+  if (loading) return <Skeleton className="mt-1.5 h-4 w-20" />;
+  const count =
+    data?.pendingInvites.filter((i) => !i.acceptedAt && !i.revokedAt && new Date(i.expiresAt).getTime() >= Date.now())
+      .length ?? 0;
+  if (!count) return null;
+  return (
+    <Badge tone="warning" className="mt-1.5">
+      {count} pending invite{count === 1 ? "" : "s"}
+    </Badge>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tax Configuration / Pricing & Discounts — reuse existing Products data,
+// no duplicate CRUD. Each is a small full-page menu of links out to the
+// already-built Products module tabs.
+// ---------------------------------------------------------------------------
+
+function LinkOutCard({
+  icon: Icon,
+  label,
+  description,
+  to,
+}: {
+  icon: LucideIcon;
+  label: string;
+  description: string;
+  to: string;
+}) {
+  const navigate = useNavigate();
+  return (
+    <button
+      type="button"
+      onClick={() => navigate(to)}
+      className="group flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-3.5 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-primary/30 hover:bg-card hover:shadow-md active:translate-y-0 active:scale-[0.98] motion-reduce:transition-none motion-reduce:hover:translate-y-0 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    >
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors duration-200 ease-out group-hover:bg-primary/15">
+        <Icon className="h-[18px] w-[18px] transition-transform duration-200 ease-out group-hover:scale-110 motion-reduce:transition-none" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] font-medium text-foreground">{label}</p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">{description}</p>
+      </div>
+      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70 transition-all duration-200 ease-out group-hover:translate-x-0.5 group-hover:text-primary motion-reduce:transition-none" />
+    </button>
+  );
+}
+
+function TaxConfigurationView() {
+  return (
+    <Card className="p-5">
+      <p className="mb-3.5 text-xs text-muted-foreground">
+        Tax Configuration is managed from the Products module — links below open the existing screens directly.
+      </p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <LinkOutCard
+          icon={Receipt}
+          label="Tax Rates"
+          description="GST/VAT rates applied to products and documents."
+          to="/products/taxrates"
+        />
+        <LinkOutCard
+          icon={Receipt}
+          label="Tax Groups"
+          description="Group multiple tax rates for compound taxation."
+          to="/products/taxgroups"
+        />
+      </div>
+    </Card>
+  );
+}
+
+function PricingDiscountsView() {
+  return (
+    <Card className="p-5">
+      <p className="mb-3.5 text-xs text-muted-foreground">
+        Pricing & Discounts are managed from the Products module — links below open the existing screens directly.
+      </p>
+      <div className="grid grid-cols-1 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+        <LinkOutCard
+          icon={Receipt}
+          label="Price Lists"
+          description="Customer- or channel-specific price overrides."
+          to="/products/pricelist"
+        />
+        <LinkOutCard
+          icon={Receipt}
+          label="Pricing Tiers"
+          description="Volume or customer-tier pricing rules."
+          to="/products/pricingtiers"
+        />
+        <LinkOutCard
+          icon={Receipt}
+          label="Discounts"
+          description="Promotional and negotiated discount rules."
+          to="/products/discounts"
+        />
+      </div>
+    </Card>
   );
 }
 
@@ -220,7 +346,7 @@ interface OrgSettings {
   defaultCurrency: string;
 }
 
-function OrgProfileTab() {
+function OrganizationTab() {
   const { data, loading } = useQuery<{ orgSettings: OrgSettings }>(ORG_SETTINGS_QUERY);
   const [updateOrgSettings] = useMutation(UPDATE_ORG_SETTINGS_MUTATION);
   const [requestLogoUploadUrl] = useMutation(REQUEST_ORG_LOGO_UPLOAD_URL_MUTATION);
@@ -290,11 +416,30 @@ function OrgProfileTab() {
     }
   }
 
-  if (loading && !data) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  if (loading && !data) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-5 w-44" />
+          <Skeleton className="h-4 w-72" />
+        </CardHeader>
+        <CardContent>
+          <div className="grid max-w-2xl gap-4 sm:grid-cols-2">
+            <Skeleton className="h-9 sm:col-span-2" />
+            <Skeleton className="h-14 w-14 rounded-lg sm:col-span-2" />
+            <Skeleton className="h-9 sm:col-span-2" />
+            <Skeleton className="h-9" />
+            <Skeleton className="h-9" />
+            <Skeleton className="h-9 w-28" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
   if (!org) return null;
 
   return (
-    <Card>
+    <Card className="transition-shadow duration-200 ease-out">
       <CardHeader>
         <CardTitle>Organization profile</CardTitle>
         <CardDescription>Shown on invoices, purchase orders, and other generated documents.</CardDescription>
@@ -425,11 +570,28 @@ function SecurityTab() {
     }
   }
 
-  if (loading && !data) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  if (loading && !data) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-5 w-24" />
+          <Skeleton className="h-4 w-96" />
+        </CardHeader>
+        <CardContent>
+          <div className="grid max-w-lg gap-4 sm:grid-cols-2">
+            <Skeleton className="h-9" />
+            <Skeleton className="h-9" />
+            <Skeleton className="h-12 sm:col-span-2" />
+            <Skeleton className="h-9 w-28" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
   if (!settings) return null;
 
   return (
-    <Card>
+    <Card className="transition-shadow duration-200 ease-out">
       <CardHeader>
         <CardTitle>Security</CardTitle>
         <CardDescription>
@@ -461,7 +623,7 @@ function SecurityTab() {
               onChange={(e) => setForm({ ...settings, passwordMinLength: Number(e.target.value) })}
             />
           </div>
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-3 py-2.5 sm:col-span-2">
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-3 py-2.5 transition-colors duration-150 ease-out hover:bg-muted/40 sm:col-span-2">
             <div>
               <p className="text-sm font-medium">Require two-factor authentication</p>
               <p className="text-xs text-muted-foreground">Applies to every user in this organization.</p>
@@ -505,20 +667,6 @@ const UPDATE_USER_MUTATION = gql`
       id
       role
       active
-    }
-  }
-`;
-
-const PENDING_INVITES_QUERY = gql`
-  query PendingInvites {
-    pendingInvites {
-      id
-      email
-      role
-      expiresAt
-      acceptedAt
-      revokedAt
-      createdAt
     }
   }
 `;
@@ -609,7 +757,7 @@ function UsersTab() {
 
   return (
     <div className="space-y-6">
-    <Card>
+    <Card className="transition-shadow duration-200 ease-out">
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <div>
           <CardTitle>Users & Teams</CardTitle>
@@ -622,7 +770,7 @@ function UsersTab() {
       </CardHeader>
       <CardContent>
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <TableSkeleton columns={5} />
         ) : data?.users.length === 0 ? (
           <EmptyState label="user" onAdd={() => navigate("/settings/users/invite")} />
         ) : (
@@ -638,7 +786,7 @@ function UsersTab() {
             </thead>
             <tbody>
               {data?.users.map((u) => (
-                <tr key={u.id} className="border-b border-border last:border-0">
+                <tr key={u.id} className="border-b border-border transition-colors duration-150 ease-out last:border-0 hover:bg-muted/40">
                   <td className="py-2">{u.name}</td>
                   <td className="py-2 text-muted-foreground">{u.email}</td>
                   <td className="py-2">
@@ -691,14 +839,14 @@ function UsersTab() {
       </Dialog>
     </Card>
 
-    <Card>
+    <Card className="transition-shadow duration-200 ease-out">
       <CardHeader>
         <CardTitle>Pending Invites</CardTitle>
         <CardDescription>Invites awaiting acceptance. Resend if the link expired, or revoke to cancel.</CardDescription>
       </CardHeader>
       <CardContent>
         {invitesLoading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <TableSkeleton columns={4} rows={2} />
         ) : !inviteData?.pendingInvites.length ? (
           <p className="text-sm text-muted-foreground">No pending invites.</p>
         ) : (
@@ -715,7 +863,7 @@ function UsersTab() {
               {inviteData.pendingInvites.map((invite) => {
                 const expired = new Date(invite.expiresAt).getTime() < Date.now();
                 return (
-                  <tr key={invite.id} className="border-b border-border last:border-0">
+                  <tr key={invite.id} className="border-b border-border transition-colors duration-150 ease-out last:border-0 hover:bg-muted/40">
                     <td className="py-2 text-muted-foreground">{invite.email}</td>
                     <td className="py-2">{ROLE_LABELS[invite.role]}</td>
                     <td className="py-2">
@@ -752,9 +900,12 @@ function UsersTab() {
 function PermissionsTab() {
   const modules = NAV_MODULES.filter((m) => m.id !== "dashboard");
   return (
-    <Card>
+    <Card className="transition-shadow duration-200 ease-out">
       <CardHeader>
-        <CardTitle>Roles & Permissions</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+          Roles & Permissions
+        </CardTitle>
         <CardDescription>
           Module access per role. Admin always has full access. This matrix is defined in code
           (packages/shared/src/permissions.ts) as the single RBAC source read by both the API guard and the sidebar —
@@ -775,13 +926,18 @@ function PermissionsTab() {
           </thead>
           <tbody>
             {modules.map((m) => (
-              <tr key={m.id} className="border-b border-border last:border-0">
+              <tr key={m.id} className="border-b border-border transition-colors duration-150 ease-out last:border-0 hover:bg-muted/40">
                 <td className="py-2.5 pr-4">{m.label}</td>
                 {ALL_ROLES.map((role) => {
                   const checked = role === Role.ADMIN || (ROLE_MODULE_ACCESS[role]?.includes(m.id as never) ?? false);
                   return (
                     <td key={role} className="px-2 py-2.5 text-center">
-                      <input type="checkbox" checked={checked} disabled className="h-4 w-4 accent-primary disabled:opacity-70" />
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled
+                        className="h-4 w-4 accent-primary transition-transform duration-150 ease-out disabled:opacity-70"
+                      />
                     </td>
                   );
                 })}
@@ -866,10 +1022,13 @@ function WarehousesTab() {
   }
 
   return (
-    <Card>
+    <Card className="transition-shadow duration-200 ease-out">
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <div>
-          <CardTitle>Warehouses</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <WarehouseIcon className="h-4 w-4 text-muted-foreground" />
+            Warehouses
+          </CardTitle>
           <CardDescription>Physical or virtual stock locations used across Inventory, Sales, and Purchase.</CardDescription>
         </div>
         <Button size="sm" onClick={() => navigate("/settings/warehouses/new")}>
@@ -879,7 +1038,7 @@ function WarehousesTab() {
       </CardHeader>
       <CardContent>
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <TableSkeleton columns={4} />
         ) : data?.warehouses.length === 0 ? (
           <EmptyState label="warehouse" onAdd={() => navigate("/settings/warehouses/new")} />
         ) : (
@@ -894,7 +1053,7 @@ function WarehousesTab() {
             </thead>
             <tbody>
               {data?.warehouses.map((w) => (
-                <tr key={w.id} className="border-b border-border last:border-0">
+                <tr key={w.id} className="border-b border-border transition-colors duration-150 ease-out last:border-0 hover:bg-muted/40">
                   <td className="py-2">{w.name}</td>
                   <td className="py-2 text-muted-foreground">{w.address || "—"}</td>
                   <td className="py-2">
@@ -946,9 +1105,9 @@ function WarehousesTab() {
 
 function EmptyState({ label, onAdd }: { label: string; onAdd: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-        <Plus className="h-5 w-5 text-muted-foreground" />
+    <div className="flex flex-col items-center justify-center gap-3 py-12 text-center animate-in fade-in duration-300 motion-reduce:animate-none">
+      <div className="group flex h-12 w-12 items-center justify-center rounded-full bg-muted transition-colors duration-200 hover:bg-primary/10">
+        <Plus className="h-5 w-5 text-muted-foreground transition-colors duration-200 group-hover:text-primary" />
       </div>
       <div>
         <p className="text-sm font-medium">No {label}s yet</p>
@@ -958,6 +1117,28 @@ function EmptyState({ label, onAdd }: { label: string; onAdd: () => void }) {
         <Plus className="h-4 w-4" />
         Add your first {label}
       </Button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Shared table loading skeleton
+// ---------------------------------------------------------------------------
+
+function TableSkeleton({ columns, rows = 3 }: { columns: number; rows?: number }) {
+  return (
+    <div className="space-y-3 py-1">
+      {Array.from({ length: rows }).map((_, r) => (
+        <div
+          key={r}
+          className="flex items-center gap-4 animate-in fade-in duration-300 motion-reduce:animate-none"
+          style={{ animationDelay: `${r * 60}ms`, animationFillMode: "backwards" }}
+        >
+          {Array.from({ length: columns }).map((__, c) => (
+            <Skeleton key={c} className={cn("h-4", c === 0 ? "w-1/5" : "flex-1")} />
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

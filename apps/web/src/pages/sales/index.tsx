@@ -34,9 +34,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -369,7 +366,6 @@ export default function SalesPage() {
   const [generateInvoice] = useMutation(GENERATE_INVOICE);
   const [recordPayment] = useMutation(RECORD_PAYMENT);
 
-  const [orderDetail, setOrderDetail] = useState<SalesOrder | null>(null);
   const [invoiceDetail, setInvoiceDetail] = useState<Invoice | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SalesOrder | null>(null);
   const [confirmPrompt, setConfirmPrompt] = useState<SalesOrder | null>(null);
@@ -387,6 +383,7 @@ export default function SalesPage() {
         ...p,
         invoiceNumber: inv.invoiceNumber,
         customerName: inv.customerName,
+        invoice: inv,
       })),
     )
     .sort((a, b) => new Date(b.paidAt).getTime() - new Date(a.paidAt).getTime());
@@ -405,7 +402,6 @@ export default function SalesPage() {
       toast.success(`${confirmPrompt.orderNumber} confirmed — stock deducted`);
       setConfirmPrompt(null);
       setConfirmWarehouseId("");
-      setOrderDetail(null);
       await refetch();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to confirm order");
@@ -421,7 +417,6 @@ export default function SalesPage() {
       await deleteOrder({ variables: { id: deleteTarget.id } });
       toast.success(`${deleteTarget.orderNumber} deleted`);
       setDeleteTarget(null);
-      setOrderDetail(null);
       await refetch();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to delete order");
@@ -435,7 +430,6 @@ export default function SalesPage() {
     try {
       await generateInvoice({ variables: { salesOrderId: order.id } });
       toast.success(`Invoice generated for ${order.orderNumber}`);
-      setOrderDetail(null);
       await refetch();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate invoice");
@@ -472,12 +466,13 @@ export default function SalesPage() {
           orders={orders}
           loading={loading}
           onNew={() => navigate("/sales/new")}
-          onRowClick={setOrderDetail}
+          onRowClick={(o) => navigate(`/sales/orders/${o.id}`)}
           onConfirmClick={(o) => {
             setConfirmPrompt(o);
             setConfirmWarehouseId("");
           }}
           onGenerateInvoice={handleGenerateInvoice}
+          onDeleteClick={setDeleteTarget}
           onRefetch={refetch}
         />
       )}
@@ -487,182 +482,22 @@ export default function SalesPage() {
       )}
 
       {tab === "collections" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Customer Collections</CardTitle>
-            <CardDescription>Every payment collected against a sales invoice.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <p className="text-sm text-muted-foreground">Loading…</p>
-            ) : collections.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-                <FileText className="h-8 w-8 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">No collections recorded yet.</p>
-              </div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="py-2 font-medium">Invoice #</th>
-                    <th className="py-2 font-medium">Customer</th>
-                    <th className="py-2 font-medium">Amount</th>
-                    <th className="py-2 font-medium">Method</th>
-                    <th className="py-2 font-medium">Reference</th>
-                    <th className="py-2 font-medium">Collected On</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {collections.map((c) => (
-                    <tr key={c.id} className="border-b border-border last:border-0">
-                      <td className="py-2 font-mono text-xs">{c.invoiceNumber}</td>
-                      <td className="py-2">{c.customerName}</td>
-                      <td className="py-2">${c.amount.toFixed(2)}</td>
-                      <td className="py-2 text-muted-foreground">{c.method.replaceAll("_", " ")}</td>
-                      <td className="py-2 text-muted-foreground">{c.reference || "—"}</td>
-                      <td className="py-2 text-muted-foreground">{new Date(c.paidAt).toLocaleDateString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </CardContent>
-        </Card>
+        <CollectionsTab collections={collections} loading={loading} onRowClick={setInvoiceDetail} onRefetch={refetch} />
       )}
 
       {tab === "outstanding" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Sales Outstanding</CardTitle>
-            <CardDescription>
-              Invoices with a remaining balance
-              {outstandingInvoices.length > 0 && ` — $${totalOutstanding.toFixed(2)} total due`}.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <p className="text-sm text-muted-foreground">Loading…</p>
-            ) : outstandingInvoices.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-                <FileText className="h-8 w-8 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">Nothing outstanding — all invoices are fully paid.</p>
-              </div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="py-2 font-medium">Invoice #</th>
-                    <th className="py-2 font-medium">Customer</th>
-                    <th className="py-2 font-medium">Total</th>
-                    <th className="py-2 font-medium">Paid</th>
-                    <th className="py-2 font-medium">Remaining</th>
-                    <th className="py-2 font-medium">Due</th>
-                    <th className="py-2 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {outstandingInvoices.map((inv) => {
-                    const overdue = new Date(inv.dueDate).getTime() < Date.now();
-                    return (
-                      <tr
-                        key={inv.id}
-                        className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/50"
-                        onClick={() => setInvoiceDetail(inv)}
-                      >
-                        <td className="py-2 font-mono text-xs">{inv.invoiceNumber}</td>
-                        <td className="py-2">{inv.customerName}</td>
-                        <td className="py-2">${inv.total.toFixed(2)}</td>
-                        <td className="py-2 text-muted-foreground">${inv.amountPaid.toFixed(2)}</td>
-                        <td className="py-2 font-medium text-danger">${inv.remaining.toFixed(2)}</td>
-                        <td className={cn("py-2", overdue ? "text-danger" : "text-muted-foreground")}>
-                          {new Date(inv.dueDate).toLocaleDateString()}
-                        </td>
-                        <td className="py-2">
-                          <StatusBadge status={inv.status} />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </CardContent>
-        </Card>
+        <OutstandingTab
+          outstandingInvoices={outstandingInvoices}
+          totalOutstanding={totalOutstanding}
+          loading={loading}
+          onRowClick={setInvoiceDetail}
+          onRefetch={refetch}
+        />
       )}
 
       {tab === "quotes" && (
         <QuotesTab quotes={quotes} loading={quotesLoading} onRefetch={refetchQuotes} onNew={() => navigate("/sales/quotes/new")} />
       )}
-
-      {/* Order detail */}
-      <Dialog open={!!orderDetail} onOpenChange={(o) => !o && setOrderDetail(null)}>
-        <DialogContent className="max-w-lg">
-          {orderDetail && (
-            <div className="space-y-4">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  {orderDetail.orderNumber}
-                  <StatusBadge status={orderDetail.status} />
-                </DialogTitle>
-              </DialogHeader>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Customer</p>
-                  <p>{orderDetail.customerName}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Created by</p>
-                  <p>{orderDetail.createdByName}</p>
-                </div>
-              </div>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="py-1.5 font-medium">Product</th>
-                    <th className="py-1.5 font-medium text-right">Qty</th>
-                    <th className="py-1.5 font-medium text-right">Price</th>
-                    <th className="py-1.5 font-medium text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orderDetail.items.map((i) => (
-                    <tr key={i.id} className="border-b border-border last:border-0">
-                      <td className="py-1.5">{i.productName}</td>
-                      <td className="py-1.5 text-right">{i.quantity}</td>
-                      <td className="py-1.5 text-right">${i.unitPrice.toFixed(2)}</td>
-                      <td className="py-1.5 text-right">${i.lineTotal.toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="flex justify-end text-sm font-medium">Subtotal: ${orderDetail.subtotal.toFixed(2)}</div>
-              <DialogFooter>
-                {orderDetail.status === "DRAFT" && (
-                  <Button variant="outline" onClick={() => setDeleteTarget(orderDetail)}>
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </Button>
-                )}
-                {orderDetail.status === "DRAFT" && (
-                  <Button
-                    onClick={() => {
-                      setConfirmPrompt(orderDetail);
-                      setConfirmWarehouseId("");
-                    }}
-                  >
-                    Confirm order
-                  </Button>
-                )}
-                {orderDetail.status === "CONFIRMED" && !orderDetail.hasInvoice && (
-                  <Button onClick={() => handleGenerateInvoice(orderDetail)} disabled={submitting}>
-                    Generate invoice
-                  </Button>
-                )}
-              </DialogFooter>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* Confirm order (choose warehouse) */}
       <Dialog open={!!confirmPrompt} onOpenChange={(o) => !o && setConfirmPrompt(null)}>
@@ -771,11 +606,11 @@ function InvoiceDetail({
       <p>Order: ${invoice.orderNumber ?? "—"}</p>
       <p>Due: ${new Date(invoice.dueDate).toLocaleDateString()}</p>
       <table>
-        <tr><td>Subtotal</td><td class="right">$${invoice.subtotal.toFixed(2)}</td></tr>
-        <tr><td>Tax</td><td class="right">$${invoice.taxAmount.toFixed(2)}</td></tr>
-        <tr><td>Discount</td><td class="right">-$${invoice.discountAmount.toFixed(2)}</td></tr>
-        <tr><td><strong>Total</strong></td><td class="right"><strong>$${invoice.total.toFixed(2)}</strong></td></tr>
-        <tr><td>Paid</td><td class="right">$${invoice.amountPaid.toFixed(2)}</td></tr>
+        <tr><td>Subtotal</td><td class="right">${inr(invoice.subtotal)}</td></tr>
+        <tr><td>Tax</td><td class="right">${inr(invoice.taxAmount)}</td></tr>
+        <tr><td>Discount</td><td class="right">-${inr(invoice.discountAmount)}</td></tr>
+        <tr><td><strong>Total</strong></td><td class="right"><strong>${inr(invoice.total)}</strong></td></tr>
+        <tr><td>Paid</td><td class="right">${inr(invoice.amountPaid)}</td></tr>
       </table>
       </body></html>
     `);
@@ -808,7 +643,7 @@ function InvoiceDetail({
         <div>
           <p className="text-muted-foreground">Total / Paid</p>
           <p>
-            ${invoice.total.toFixed(2)} / ${invoice.amountPaid.toFixed(2)}
+            {inr(invoice.total)} / {inr(invoice.amountPaid)}
           </p>
         </div>
       </div>
@@ -821,7 +656,7 @@ function InvoiceDetail({
             <tbody>
               {invoice.payments.map((p) => (
                 <tr key={p.id} className="border-b border-border last:border-0">
-                  <td className="py-1.5">${p.amount.toFixed(2)}</td>
+                  <td className="py-1.5">{inr(p.amount)}</td>
                   <td className="py-1.5 text-muted-foreground">{p.method.replaceAll("_", " ")}</td>
                   <td className="py-1.5 text-right text-muted-foreground">{new Date(p.paidAt).toLocaleDateString()}</td>
                 </tr>
@@ -866,7 +701,7 @@ function InvoiceDetail({
           </div>
           <div className="col-span-3">
             <Button type="submit" size="sm" disabled={submitting}>
-              {submitting ? "Recording…" : `Record payment (remaining $${remaining.toFixed(2)})`}
+              {submitting ? "Recording…" : `Record payment (remaining ${inr(remaining)})`}
             </Button>
           </div>
         </form>
@@ -1365,6 +1200,7 @@ function OrdersTab({
   onRowClick,
   onConfirmClick,
   onGenerateInvoice,
+  onDeleteClick,
   onRefetch,
 }: {
   orders: SalesOrder[];
@@ -1373,6 +1209,7 @@ function OrdersTab({
   onRowClick: (o: SalesOrder) => void;
   onConfirmClick: (o: SalesOrder) => void;
   onGenerateInvoice: (o: SalesOrder) => void;
+  onDeleteClick: (o: SalesOrder) => void;
   onRefetch: () => void;
 }) {
   const [showSummary, setShowSummary] = useState(true);
@@ -1628,7 +1465,7 @@ function OrdersTab({
                                 <DropdownMenuItem onClick={() => onGenerateInvoice(o)}>Generate Invoice</DropdownMenuItem>
                               )}
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem disabled={o.status !== "DRAFT"} onClick={() => onRowClick(o)} className="text-danger focus:text-danger">
+                              <DropdownMenuItem disabled={o.status !== "DRAFT"} onClick={() => onDeleteClick(o)} className="text-danger focus:text-danger">
                                 <Trash2 className="h-3.5 w-3.5" /> Delete
                               </DropdownMenuItem>
                             </DropdownMenuContent>
@@ -1884,6 +1721,456 @@ function InvoicesTab({
                                 <DropdownMenuItem onClick={() => onRowClick(inv)}>View / Record Payment</DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex items-center justify-between border-t border-border px-5 py-3">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Rows per page</span>
+                  <Select value={String(rowsPerPage)} onValueChange={(v) => { setRowsPerPage(Number(v)); setCurrentPage(1); }}>
+                    <SelectTrigger className="h-7 w-16 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>{[10, 20, 50].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span>Page {currentPage} of {totalPages}</span>
+                  <div className="flex gap-1">
+                    <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-xs" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>«</Button>
+                    <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-xs" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>‹</Button>
+                    <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-xs" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>›</Button>
+                    <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-xs" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}>»</Button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+interface CollectionEntry extends Payment {
+  invoiceNumber: string;
+  customerName: string;
+  invoice: Invoice;
+}
+
+type CollectionsSortKey = "invoiceNumber" | "customerName" | "amount" | "method" | "paidAt";
+
+function CollectionsTab({
+  collections,
+  loading,
+  onRowClick,
+  onRefetch,
+}: {
+  collections: CollectionEntry[];
+  loading: boolean;
+  onRowClick: (inv: Invoice) => void;
+  onRefetch: () => void;
+}) {
+  const [showSummary, setShowSummary] = useState(true);
+  const [search, setSearch] = useState("");
+  const [methodFilter, setMethodFilter] = useState("all");
+  const [sortKey, setSortKey] = useState<CollectionsSortKey>("paidAt");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  const stats = useMemo(() => {
+    const total = collections.length;
+    const totalCollected = collections.reduce((sum, c) => sum + c.amount, 0);
+    const now = new Date();
+    const thisMonth = collections
+      .filter((c) => {
+        const d = new Date(c.paidAt);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      })
+      .reduce((sum, c) => sum + c.amount, 0);
+    const avg = total > 0 ? totalCollected / total : 0;
+    return { total, totalCollected, thisMonth, avg };
+  }, [collections]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return collections.filter((c) => {
+      if (methodFilter !== "all" && c.method !== methodFilter) return false;
+      if (!q) return true;
+      return (
+        c.invoiceNumber.toLowerCase().includes(q) ||
+        c.customerName.toLowerCase().includes(q) ||
+        (c.reference ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [collections, search, methodFilter]);
+
+  const sorted = useMemo(() => {
+    const dirMul = sortDir === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      switch (sortKey) {
+        case "invoiceNumber":
+          return a.invoiceNumber.localeCompare(b.invoiceNumber) * dirMul;
+        case "customerName":
+          return a.customerName.localeCompare(b.customerName) * dirMul;
+        case "amount":
+          return (a.amount - b.amount) * dirMul;
+        case "method":
+          return a.method.localeCompare(b.method) * dirMul;
+        case "paidAt":
+          return (new Date(a.paidAt).getTime() - new Date(b.paidAt).getTime()) * dirMul;
+        default:
+          return 0;
+      }
+    });
+  }, [filtered, sortKey, sortDir]);
+
+  function handleSort(k: string) {
+    if (k === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(k as CollectionsSortKey);
+      setSortDir("asc");
+    }
+    setCurrentPage(1);
+  }
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / rowsPerPage));
+  const paginated = sorted.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+
+  const widgets = [
+    { label: "Total Collections", value: loading ? "—" : String(stats.total), icon: Wallet, iconClass: "text-slate-500", footer: "Payments recorded" },
+    { label: "Total Collected", value: loading ? "—" : inr(stats.totalCollected), icon: CheckCircle2, iconClass: "text-emerald-500", footer: "All-time" },
+    { label: "This Month", value: loading ? "—" : inr(stats.thisMonth), icon: TrendingUp, iconClass: "text-blue-500", footer: new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" }) },
+    { label: "Average Collection", value: loading ? "—" : inr(stats.avg), icon: FileText, iconClass: "text-primary", footer: "Per payment" },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Customer Collections</h1>
+          <p className="text-sm text-muted-foreground">Every payment collected against a sales invoice.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setShowSummary(!showSummary)} className="gap-1.5 text-xs">
+          {showSummary ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          {showSummary ? "Hide Summary" : "Show Summary"}
+        </Button>
+      </div>
+
+      {showSummary && (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {widgets.map((w) => (
+            <Card key={w.label} className={CARD_HOVER}>
+              <CardContent className="p-4">
+                <div className="mb-2 flex items-start justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">{w.label}</span>
+                  <w.icon className={cn("h-4 w-4", w.iconClass)} />
+                </div>
+                <div className="text-2xl font-bold tracking-tight text-foreground">{w.value}</div>
+                <div className="mt-1 text-[11px] text-muted-foreground">{w.footer}</div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Card>
+        <div className="border-b border-border px-5 pt-5 pb-3">
+          <h3 className="text-sm font-semibold text-foreground">Collection History</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">Click a row to view the related invoice.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-3">
+          <div className="relative min-w-[200px] flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="h-8 pl-8 text-xs"
+              placeholder="Search by invoice, customer, or reference…"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
+            />
+          </div>
+          <Select value={methodFilter} onValueChange={(v) => { setMethodFilter(v); setCurrentPage(1); }}>
+            <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="All Methods" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Methods</SelectItem>
+              <SelectItem value="CASH">Cash</SelectItem>
+              <SelectItem value="BANK_TRANSFER">Bank transfer</SelectItem>
+              <SelectItem value="CARD">Card</SelectItem>
+              <SelectItem value="CHEQUE">Cheque</SelectItem>
+              <SelectItem value="OTHER">Other</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground" onClick={onRefetch}>
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+        <CardContent className="p-0">
+          {loading ? (
+            <p className="py-16 text-center text-sm text-muted-foreground">Loading…</p>
+          ) : collections.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+              <FileText className="h-8 w-8 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">No collections recorded yet.</p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">No collections match your search.</p>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/30 text-left text-muted-foreground">
+                      <SortHeader label="Invoice #" k="invoiceNumber" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortHeader label="Customer" k="customerName" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortHeader label="Amount" k="amount" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortHeader label="Method" k="method" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <th className="px-4 py-2.5 font-medium">Reference</th>
+                      <SortHeader label="Collected On" k="paidAt" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginated.map((c) => (
+                      <tr
+                        key={c.id}
+                        className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/40"
+                        onClick={() => onRowClick(c.invoice)}
+                      >
+                        <td className="px-4 py-2.5 font-mono text-xs text-primary">{c.invoiceNumber}</td>
+                        <td className="px-4 py-2.5">{c.customerName}</td>
+                        <td className="px-4 py-2.5 font-medium text-foreground">{inr(c.amount)}</td>
+                        <td className="px-4 py-2.5 text-muted-foreground">{c.method.replaceAll("_", " ")}</td>
+                        <td className="px-4 py-2.5 text-muted-foreground">{c.reference || "—"}</td>
+                        <td className="px-4 py-2.5 text-muted-foreground">
+                          {new Date(c.paidAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex items-center justify-between border-t border-border px-5 py-3">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Rows per page</span>
+                  <Select value={String(rowsPerPage)} onValueChange={(v) => { setRowsPerPage(Number(v)); setCurrentPage(1); }}>
+                    <SelectTrigger className="h-7 w-16 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>{[10, 20, 50].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span>Page {currentPage} of {totalPages}</span>
+                  <div className="flex gap-1">
+                    <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-xs" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>«</Button>
+                    <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-xs" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>‹</Button>
+                    <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-xs" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>›</Button>
+                    <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-xs" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}>»</Button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+interface OutstandingEntry extends Invoice {
+  remaining: number;
+}
+
+type OutstandingSortKey = "invoiceNumber" | "customerName" | "total" | "amountPaid" | "remaining" | "dueDate" | "status";
+
+function OutstandingTab({
+  outstandingInvoices,
+  totalOutstanding,
+  loading,
+  onRowClick,
+  onRefetch,
+}: {
+  outstandingInvoices: OutstandingEntry[];
+  totalOutstanding: number;
+  loading: boolean;
+  onRowClick: (inv: Invoice) => void;
+  onRefetch: () => void;
+}) {
+  const [showSummary, setShowSummary] = useState(true);
+  const [search, setSearch] = useState("");
+  const [dueFilter, setDueFilter] = useState("all");
+  const [sortKey, setSortKey] = useState<OutstandingSortKey>("dueDate");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  const isOverdue = (inv: OutstandingEntry) => new Date(inv.dueDate).getTime() < Date.now();
+
+  const stats = useMemo(() => {
+    const total = outstandingInvoices.length;
+    const overdue = outstandingInvoices.filter(isOverdue);
+    const overdueAmount = overdue.reduce((sum, inv) => sum + inv.remaining, 0);
+    const avg = total > 0 ? totalOutstanding / total : 0;
+    return { total, overdueCount: overdue.length, overdueAmount, avg };
+  }, [outstandingInvoices, totalOutstanding]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return outstandingInvoices.filter((inv) => {
+      if (dueFilter === "overdue" && !isOverdue(inv)) return false;
+      if (dueFilter === "upcoming" && isOverdue(inv)) return false;
+      if (!q) return true;
+      return inv.invoiceNumber.toLowerCase().includes(q) || inv.customerName.toLowerCase().includes(q);
+    });
+  }, [outstandingInvoices, search, dueFilter]);
+
+  const sorted = useMemo(() => {
+    const dirMul = sortDir === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      switch (sortKey) {
+        case "invoiceNumber":
+          return a.invoiceNumber.localeCompare(b.invoiceNumber) * dirMul;
+        case "customerName":
+          return a.customerName.localeCompare(b.customerName) * dirMul;
+        case "total":
+          return (a.total - b.total) * dirMul;
+        case "amountPaid":
+          return (a.amountPaid - b.amountPaid) * dirMul;
+        case "remaining":
+          return (a.remaining - b.remaining) * dirMul;
+        case "dueDate":
+          return (new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()) * dirMul;
+        case "status":
+          return a.status.localeCompare(b.status) * dirMul;
+        default:
+          return 0;
+      }
+    });
+  }, [filtered, sortKey, sortDir]);
+
+  function handleSort(k: string) {
+    if (k === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(k as OutstandingSortKey);
+      setSortDir("asc");
+    }
+    setCurrentPage(1);
+  }
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / rowsPerPage));
+  const paginated = sorted.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+
+  const widgets = [
+    { label: "Outstanding Invoices", value: loading ? "—" : String(stats.total), icon: FileText, iconClass: "text-slate-500", footer: "Awaiting payment" },
+    { label: "Total Outstanding", value: loading ? "—" : inr(totalOutstanding), icon: Wallet, iconClass: "text-primary", footer: "Remaining balance" },
+    { label: "Overdue", value: loading ? "—" : String(stats.overdueCount), icon: AlertTriangle, iconClass: "text-danger", footer: "Past due date" },
+    { label: "Overdue Amount", value: loading ? "—" : inr(stats.overdueAmount), icon: Clock, iconClass: "text-danger", footer: "Needs follow-up" },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Sales Outstanding</h1>
+          <p className="text-sm text-muted-foreground">Invoices with a remaining balance.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setShowSummary(!showSummary)} className="gap-1.5 text-xs">
+          {showSummary ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          {showSummary ? "Hide Summary" : "Show Summary"}
+        </Button>
+      </div>
+
+      {showSummary && (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {widgets.map((w) => (
+            <Card key={w.label} className={CARD_HOVER}>
+              <CardContent className="p-4">
+                <div className="mb-2 flex items-start justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">{w.label}</span>
+                  <w.icon className={cn("h-4 w-4", w.iconClass)} />
+                </div>
+                <div className="text-2xl font-bold tracking-tight text-foreground">{w.value}</div>
+                <div className="mt-1 text-[11px] text-muted-foreground">{w.footer}</div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Card>
+        <div className="border-b border-border px-5 pt-5 pb-3">
+          <h3 className="text-sm font-semibold text-foreground">Outstanding Invoices</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">Click a row to view the invoice or record a payment.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-3">
+          <div className="relative min-w-[200px] flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="h-8 pl-8 text-xs"
+              placeholder="Search by invoice or customer…"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
+            />
+          </div>
+          <Select value={dueFilter} onValueChange={(v) => { setDueFilter(v); setCurrentPage(1); }}>
+            <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="All Due Dates" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Due Dates</SelectItem>
+              <SelectItem value="overdue">Overdue</SelectItem>
+              <SelectItem value="upcoming">Upcoming</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground" onClick={onRefetch}>
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+        <CardContent className="p-0">
+          {loading ? (
+            <p className="py-16 text-center text-sm text-muted-foreground">Loading…</p>
+          ) : outstandingInvoices.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+              <FileText className="h-8 w-8 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Nothing outstanding — all invoices are fully paid.</p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">No invoices match your search.</p>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/30 text-left text-muted-foreground">
+                      <SortHeader label="Invoice #" k="invoiceNumber" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortHeader label="Customer" k="customerName" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortHeader label="Total" k="total" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortHeader label="Paid" k="amountPaid" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortHeader label="Remaining" k="remaining" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortHeader label="Due" k="dueDate" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortHeader label="Status" k="status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginated.map((inv) => {
+                      const overdue = isOverdue(inv);
+                      return (
+                        <tr
+                          key={inv.id}
+                          className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/40"
+                          onClick={() => onRowClick(inv)}
+                        >
+                          <td className="px-4 py-2.5 font-mono text-xs text-primary">{inv.invoiceNumber}</td>
+                          <td className="px-4 py-2.5">{inv.customerName}</td>
+                          <td className="px-4 py-2.5 font-medium text-foreground">{inr(inv.total)}</td>
+                          <td className="px-4 py-2.5 text-muted-foreground">{inr(inv.amountPaid)}</td>
+                          <td className="px-4 py-2.5 font-medium text-danger">{inr(inv.remaining)}</td>
+                          <td className={cn("px-4 py-2.5", overdue ? "text-danger" : "text-muted-foreground")}>
+                            <span className="inline-flex items-center gap-1">
+                              {new Date(inv.dueDate).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
+                              {overdue && <AlertTriangle className="h-3.5 w-3.5" />}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <StatusBadge status={inv.status} />
                           </td>
                         </tr>
                       );
