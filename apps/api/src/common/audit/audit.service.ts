@@ -26,6 +26,9 @@ const NAME_FIELDS = [
   "quoteNumber",
   "grnNumber",
   "billNumber",
+  "employeeCode",
+  "loanNumber",
+  "payslipNumber",
   "sku",
   "email",
 ];

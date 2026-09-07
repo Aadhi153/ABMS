@@ -40,6 +40,15 @@ import EditSupplierPage from "./pages/suppliers/edit-supplier-page";
 import AccountsPage from "./pages/accounts";
 import NewExpensePage from "./pages/accounts/new-expense-page";
 import HrmsPage from "./pages/hrms";
+import NewEmployeePage from "./pages/hrms/new-employee-page";
+import EmployeeDetailPage from "./pages/hrms/employee-detail-page";
+import NewSalaryRevisionPage from "./pages/hrms/new-salary-revision-page";
+import NewLoanPage from "./pages/hrms/new-loan-page";
+import LoanDetailPage from "./pages/hrms/loan-detail-page";
+import NewReviewPage from "./pages/hrms/new-review-page";
+import ReviewDetailPage from "./pages/hrms/review-detail-page";
+import PayrollRunDetailPage from "./pages/hrms/payroll-run-detail-page";
+import PayslipDetailPage from "./pages/hrms/payslip-detail-page";
 import ReportsPage from "./pages/reports";
 import SettingsPage from "./pages/settings";
 import NewWarehousePage from "./pages/settings/new-warehouse-page";
@@ -266,6 +275,78 @@ export function App() {
                     element={
                       <ModuleRoute module="accounts">
                         <AccountsPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/hrms/employees/new"
+                    element={
+                      <ModuleRoute module="hrms">
+                        <NewEmployeePage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/hrms/employees/:id"
+                    element={
+                      <ModuleRoute module="hrms">
+                        <EmployeeDetailPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/hrms/promotions/new"
+                    element={
+                      <ModuleRoute module="hrms">
+                        <NewSalaryRevisionPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/hrms/loans/new"
+                    element={
+                      <ModuleRoute module="hrms">
+                        <NewLoanPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/hrms/loans/:id"
+                    element={
+                      <ModuleRoute module="hrms">
+                        <LoanDetailPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/hrms/performance/reviews/new"
+                    element={
+                      <ModuleRoute module="hrms">
+                        <NewReviewPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/hrms/performance/reviews/:id"
+                    element={
+                      <ModuleRoute module="hrms">
+                        <ReviewDetailPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/hrms/payroll/payslips/:id"
+                    element={
+                      <ModuleRoute module="hrms">
+                        <PayslipDetailPage />
+                      </ModuleRoute>
+                    }
+                  />
+                  <Route
+                    path="/hrms/payroll/:id"
+                    element={
+                      <ModuleRoute module="hrms">
+                        <PayrollRunDetailPage />
                       </ModuleRoute>
                     }
                   />

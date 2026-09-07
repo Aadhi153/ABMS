@@ -83,13 +83,14 @@ const ICONS: Record<string, LucideIcon> = {
 const COLLAPSED_KEY = "abms-sidebar-collapsed";
 
 const HEADER_CLASS =
-  "flex w-full items-center gap-3 rounded-lg border-l-[3px] border-transparent px-3 py-[9px] text-sm font-normal text-sidebar-inactive transition-all duration-150 ease-out hover:translate-x-0.5 hover:bg-white/10 hover:text-white";
+  "flex w-full items-center gap-3 rounded-lg border-l-[3px] border-transparent px-3 py-[7px] text-xs font-normal text-sidebar-inactive transition-all duration-300 ease-in-out hover:translate-x-0.5 hover:bg-white/20 hover:text-white";
 const LEAF_CLASS =
-  "flex items-center gap-3 rounded-lg border-l-[3px] border-transparent px-3 py-[9px] text-sm font-normal text-sidebar-inactive transition-all duration-150 ease-out hover:translate-x-0.5 hover:bg-white/10 hover:text-white";
-const ACTIVE_CLASS = "border-l-primary bg-white/[0.22] font-semibold text-white";
+  "flex items-center gap-3 rounded-lg border-l-[3px] border-transparent px-3 py-[7px] text-xs font-normal text-sidebar-inactive transition-all duration-300 ease-in-out hover:translate-x-0.5 hover:bg-white/30 hover:text-white";
 const SUBITEM_CLASS =
-  "block rounded-lg px-3 py-[7px] text-sm font-normal text-sidebar-inactive transition-all duration-150 ease-out hover:translate-x-0.5 hover:bg-white/10 hover:text-white";
+  "block rounded-lg px-[11px] py-[6px] text-xs font-normal text-sidebar-inactive transition-all duration-300 ease-in-out hover:translate-x-0.5 hover:bg-white/30 hover:text-white";
+const ACTIVE_CLASS = "bg-white/[0.22] font-semibold text-white animate-border-rotate";
 const SUBITEM_ACTIVE_CLASS = "bg-primary font-semibold text-primary-foreground shadow-sm hover:bg-primary hover:text-primary-foreground";
+
 
 export function Sidebar({
   role,
@@ -149,7 +150,7 @@ export function Sidebar({
             </span>
             <span
               className={cn(
-                "overflow-hidden whitespace-nowrap text-[16px] font-bold text-sidebar-logo transition-all duration-500 ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none",
+                "overflow-hidden whitespace-nowrap text-sm font-bold text-sidebar-logo transition-all duration-500 ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none",
                 collapsed ? "max-w-0 opacity-0" : "max-w-[120px] opacity-100",
               )}
             >
@@ -196,7 +197,7 @@ export function Sidebar({
                     cn(LEAF_CLASS, collapsed && "justify-center gap-0 px-0", isActive && ACTIVE_CLASS)
                   }
                 >
-                  {Icon && <Icon className="h-[17px] w-[17px] shrink-0" />}
+                  {Icon && <Icon className="h-4 w-4 shrink-0" />}
                   <span
                     className={cn(
                       "overflow-hidden whitespace-nowrap transition-all duration-500 ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none",
@@ -220,7 +221,7 @@ export function Sidebar({
                   aria-expanded={isOpen}
                   className={cn(HEADER_CLASS, isActiveSection && !isOpen && ACTIVE_CLASS)}
                 >
-                  {Icon && <Icon className="h-[17px] w-[17px] shrink-0" />}
+                  {Icon && <Icon className="h-4 w-4 shrink-0" />}
                   <span className="flex-1 text-left">{item.label}</span>
                   <ChevronDown
                     className={cn(
@@ -231,12 +232,12 @@ export function Sidebar({
                 </button>
                 <div
                   className={cn(
-                    "grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none",
+                    "grid transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none",
                     isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
                   )}
                 >
                   <div className="overflow-hidden">
-                    <div className="ml-[22px] mt-0.5 space-y-0.5 border-l border-white/15 pl-3 pb-0.5">
+                    <div className="ml-[22px] mt-0.5 space-y-0.5 border-l border-white/15 pl-[9px] pb-0.5">
                       {item.children!.map((child) => (
                         <NavLink
                           key={child.id}
@@ -290,8 +291,8 @@ export function Sidebar({
                   )}
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-white">{user?.name}</p>
-                    <p className="truncate text-xs text-sidebar-inactive">{user?.email}</p>
+                    <p className="truncate text-xs font-semibold text-white">{user?.name}</p>
+                    <p className="truncate text-[11px] text-sidebar-inactive">{user?.email}</p>
                   </div>
                   <MoreHorizontal className="h-4 w-4 shrink-0 text-sidebar-inactive" />
                 </div>

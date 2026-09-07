@@ -25,6 +25,7 @@ import { SuppliersModule } from "./modules/suppliers/suppliers.module";
 import { SalesModule } from "./modules/sales/sales.module";
 import { PurchaseModule } from "./modules/purchase/purchase.module";
 import { AccountsModule } from "./modules/accounts/accounts.module";
+import { HrmsModule } from "./modules/hrms/hrms.module";
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { AccountsModule } from "./modules/accounts/accounts.module";
     SalesModule,
     PurchaseModule,
     AccountsModule,
+    HrmsModule,
   ],
   providers: [{ provide: APP_INTERCEPTOR, useClass: TenantContextInterceptor }],
 })
