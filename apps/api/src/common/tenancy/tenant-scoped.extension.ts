@@ -49,6 +49,22 @@ const TENANT_SCOPED_MODELS = new Set([
   "Approval",
   "AuditLog",
   "Notification",
+  "Employee",
+  "Department",
+  "Designation",
+  "Grade",
+  "Shift",
+  "AttendanceLog",
+  "LeaveType",
+  "LeaveBalance",
+  "LeaveRequest",
+  "SalaryComponent",
+  "SalaryRevision",
+  "EmployeeLoan",
+  "PerformanceReview",
+  "Incentive",
+  "PayrollRun",
+  "Payslip",
 ]);
 
 /// Reads/writes that take a `where` — merge organizationId in as an extra filter.

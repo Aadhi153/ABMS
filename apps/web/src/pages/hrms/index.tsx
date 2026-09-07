@@ -1,40 +1,50 @@
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { CalendarClock, IdCard, UserPlus, Wallet } from "lucide-react";
-import { Card, CardContent } from "@abms/ui";
+import { gql, useQuery } from "@apollo/client";
+import type { EmployeeLite } from "./types";
+import OverviewTab from "./overview-tab";
+import EmployeesTab from "./employees-tab";
+import AttendanceTab from "./attendance-tab";
+import ShiftsTab from "./shifts-tab";
+import LeaveTab from "./leave-tab";
+import AllowancesTab from "./allowances-tab";
+import PromotionsTab from "./promotions-tab";
+import LoansTab from "./loans-tab";
+import PerformanceTab from "./performance-tab";
+import PayrollTab from "./payroll-tab";
 
 const TABS = [
-  {
-    key: "employees",
-    label: "Employees",
-    icon: IdCard,
-    description: "Employee directory — roles, departments, and contact details.",
-  },
-  {
-    key: "attendance",
-    label: "Attendance",
-    icon: CalendarClock,
-    description: "Daily check-in/check-out records and shift tracking.",
-  },
-  {
-    key: "leave",
-    label: "Leave",
-    icon: UserPlus,
-    description: "Leave requests, balances, and approvals.",
-  },
-  {
-    key: "payroll",
-    label: "Payroll",
-    icon: Wallet,
-    description: "Salary runs, payslips, and advances.",
-  },
+  { key: "overview", label: "Overview" },
+  { key: "employees", label: "Employee Management" },
+  { key: "attendance", label: "Attendance Management" },
+  { key: "shifts", label: "Shift Management" },
+  { key: "leave", label: "Leave Management" },
+  { key: "allowances", label: "Allowance & Deduction" },
+  { key: "promotions", label: "Promotion & Salary Increment" },
+  { key: "loans", label: "Loans" },
+  { key: "performance", label: "Performance & Incentives" },
+  { key: "payroll", label: "Payroll & Payslips" },
 ] as const;
+
+const SHELL_QUERY = gql`
+  query HrmsShellData {
+    employees {
+      id
+      employeeCode
+      fullName
+      department
+      designation
+      status
+      avatarUrl
+    }
+  }
+`;
 
 export default function HrmsPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const segment = location.pathname.split("/")[2];
-  const tab = TABS.find((t) => t.key === segment)?.key ?? "employees";
+  const tab = TABS.find((t) => t.key === segment)?.key ?? "overview";
 
   useEffect(() => {
     if (!TABS.some((t) => t.key === segment)) {
@@ -42,26 +52,28 @@ export default function HrmsPage() {
     }
   }, [segment, tab, navigate]);
 
-  const active = TABS.find((t) => t.key === tab)!;
+  const { data, loading, refetch } = useQuery<{ employees: EmployeeLite[] }>(SHELL_QUERY);
+  const employees = data?.employees ?? [];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">HRMS</h1>
-        <p className="text-sm text-muted-foreground">Employees, attendance, leave, and payroll — in one place.</p>
-      </div>
+      {tab !== "attendance" && tab !== "employees" && (
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">HRMS</h1>
+          <p className="text-sm text-muted-foreground">Employees, attendance, leave, payroll, and everything in between.</p>
+        </div>
+      )}
 
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-            <active.icon className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <div>
-            <p className="text-sm font-medium">{active.label} — coming soon</p>
-            <p className="mx-auto max-w-sm text-sm text-muted-foreground">{active.description}</p>
-          </div>
-        </CardContent>
-      </Card>
+      {tab === "overview" && <OverviewTab />}
+      {tab === "employees" && <EmployeesTab employees={employees} loading={loading} onRefetch={refetch} />}
+      {tab === "attendance" && <AttendanceTab employees={employees} loading={loading} />}
+      {tab === "shifts" && <ShiftsTab employees={employees} loading={loading} />}
+      {tab === "leave" && <LeaveTab employees={employees} loading={loading} />}
+      {tab === "allowances" && <AllowancesTab employees={employees} loading={loading} />}
+      {tab === "promotions" && <PromotionsTab employees={employees} loading={loading} />}
+      {tab === "loans" && <LoansTab employees={employees} loading={loading} />}
+      {tab === "performance" && <PerformanceTab employees={employees} loading={loading} />}
+      {tab === "payroll" && <PayrollTab employees={employees} loading={loading} />}
     </div>
   );
 }
