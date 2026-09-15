@@ -8,8 +8,8 @@ import { Roles } from "../../common/decorators/roles.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { AuditService } from "../../common/audit/audit.service";
 import { EmployeesService } from "./employees.service";
-import { EmployeeModel } from "./models/employee.model";
-import { CreateEmployeeInput, EmployeeFilterInput } from "./dto/employee.input";
+import { EmployeeModel, EmployeeDocumentModel } from "./models/employee.model";
+import { AddEmployeeDocumentInput, CreateEmployeeInput, EmployeeFilterInput } from "./dto/employee.input";
 
 @Resolver(() => EmployeeModel)
 @UseGuards(SessionAuthGuard, RolesGuard)
@@ -57,6 +57,30 @@ export class EmployeesResolver {
   async deleteEmployee(@Args("id") id: string, @CurrentUser() actor: User) {
     const deleted = await this.employeesService.delete(id);
     await this.audit.logDelete(actor, "Employee", id, deleted);
+    return true;
+  }
+
+  @Query(() => [EmployeeDocumentModel])
+  employeeDocuments(@Args("employeeId") employeeId: string) {
+    return this.employeesService.employeeDocuments(employeeId);
+  }
+
+  @Query(() => String)
+  employeeDocumentUrl(@Args("documentId") documentId: string) {
+    return this.employeesService.employeeDocumentUrl(documentId);
+  }
+
+  @Mutation(() => EmployeeDocumentModel)
+  async addEmployeeDocument(@Args("input") input: AddEmployeeDocumentInput, @CurrentUser() actor: User) {
+    const document = await this.employeesService.addEmployeeDocument(input);
+    await this.audit.logCreate(actor, "EmployeeDocument", document.id, document);
+    return document;
+  }
+
+  @Mutation(() => Boolean)
+  async deleteEmployeeDocument(@Args("id") id: string, @CurrentUser() actor: User) {
+    const deleted = await this.employeesService.deleteEmployeeDocument(id);
+    await this.audit.logDelete(actor, "EmployeeDocument", id, deleted);
     return true;
   }
 }

@@ -1,6 +1,42 @@
 import { Field, Float, InputType } from "@nestjs/graphql";
-import { IsDate, IsEmail, IsEnum, IsOptional, IsString, Min } from "class-validator";
-import { EmployeeStatus, EmploymentType, Gender } from "@abms/database";
+import { Type } from "class-transformer";
+import { IsArray, IsBoolean, IsDate, IsEmail, IsEnum, IsOptional, IsString, Min, ValidateNested } from "class-validator";
+import { CalculationType, EmployeeDocumentCategory, EmployeeStatus, EmploymentType, Gender, MaritalStatus, PayMode } from "@abms/database";
+
+@InputType()
+export class EmployeeExperienceInput {
+  @Field(() => String)
+  @IsString()
+  organizationName!: string;
+
+  @Field(() => Date)
+  @IsDate()
+  startDate!: Date;
+
+  @Field(() => Date, { nullable: true })
+  @IsOptional()
+  endDate?: Date;
+
+  @Field(() => Float, { nullable: true })
+  @IsOptional()
+  @Min(0)
+  ctc?: number;
+}
+
+@InputType()
+export class SalaryComponentAllocationInput {
+  @Field(() => String)
+  @IsString()
+  code!: string;
+
+  @Field(() => Float)
+  amount!: number;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  isMonthly?: boolean;
+}
 
 @InputType()
 export class CreateEmployeeInput {
@@ -72,6 +108,31 @@ export class CreateEmployeeInput {
   @IsString()
   gradeId?: string;
 
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  branchId?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  biometricId?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  bloodGroup?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsEnum(MaritalStatus)
+  maritalStatus?: MaritalStatus;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  workHoursPerDay?: string;
+
   @Field(() => Float)
   @Min(0)
   monthlyGrossSalary!: number;
@@ -99,7 +160,77 @@ export class CreateEmployeeInput {
   @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
+  aadharNumber?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsEnum(PayMode)
+  payMode?: PayMode;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsEnum(CalculationType)
+  tdsType?: CalculationType;
+
+  @Field(() => Float, { nullable: true })
+  @IsOptional()
+  @Min(0)
+  tdsValue?: number;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  uan?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  esiNumber?: string;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  pfEligible?: boolean;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  esiEligible?: boolean;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  leaveWithPayEligible?: boolean;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  dailyWagesEligible?: boolean;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
   address?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  temporaryAddress?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  fatherOrSpouseName?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  qualification?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  religion?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
@@ -110,6 +241,20 @@ export class CreateEmployeeInput {
   @IsOptional()
   @IsString()
   emergencyContactPhone?: string;
+
+  @Field(() => [EmployeeExperienceInput], { nullable: true })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EmployeeExperienceInput)
+  experiences?: EmployeeExperienceInput[];
+
+  @Field(() => [SalaryComponentAllocationInput], { nullable: true })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SalaryComponentAllocationInput)
+  salaryComponents?: SalaryComponentAllocationInput[];
 
   @Field(() => String, { nullable: true })
   @IsOptional()
@@ -138,4 +283,33 @@ export class EmployeeFilterInput {
   @IsOptional()
   @IsString()
   search?: string;
+}
+
+@InputType()
+export class AddEmployeeDocumentInput {
+  @Field(() => String)
+  @IsString()
+  employeeId!: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  experienceId?: string;
+
+  @Field(() => String)
+  @IsEnum(EmployeeDocumentCategory)
+  category!: EmployeeDocumentCategory;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  label?: string;
+
+  @Field(() => String)
+  @IsString()
+  objectKey!: string;
+
+  @Field(() => String)
+  @IsString()
+  fileName!: string;
 }

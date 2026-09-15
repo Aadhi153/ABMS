@@ -40,6 +40,7 @@ import { fmtDate, inr, titleCase } from "./hrms-helpers";
 import DepartmentsTab from "./departments-tab";
 import DesignationsTab from "./designations-tab";
 import GradesTab from "./grades-tab";
+import BranchesTab from "./branches-tab";
 
 const EMPLOYEES_QUERY = gql`
   query EmployeesTabData {
@@ -59,13 +60,14 @@ const EMPLOYEES_QUERY = gql`
 `;
 
 type SortKey = "employeeCode" | "fullName" | "department" | "designation" | "dateOfJoining";
-type SubTab = "employees" | "departments" | "designations" | "grades";
+type SubTab = "employees" | "departments" | "designations" | "grades" | "branches";
 
 const SUB_TABS: { key: SubTab; label: string }[] = [
   { key: "employees", label: "Employees" },
   { key: "departments", label: "Departments" },
   { key: "designations", label: "Designations" },
   { key: "grades", label: "Grades" },
+  { key: "branches", label: "Branches" },
 ];
 
 export default function EmployeesTab(_props: { employees: EmployeeLite[]; loading: boolean; onRefetch: () => void }) {
@@ -190,6 +192,7 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
       {subTab === "departments" && <DepartmentsTab />}
       {subTab === "designations" && <DesignationsTab />}
       {subTab === "grades" && <GradesTab />}
+      {subTab === "branches" && <BranchesTab />}
 
       {subTab === "employees" && (
         <>

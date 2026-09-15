@@ -1,17 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { IdCard } from "lucide-react";
-import {
-  Input,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Textarea,
-  toast,
-} from "@abms/ui";
+import { Tabs, TabsContent, TabsList, TabsTrigger, toast } from "@abms/ui";
 import {
   FormCancelButton,
   FormErrorBanner,
@@ -19,12 +9,21 @@ import {
   FormPage,
   FormPageHeader,
   FormScrollArea,
-  FormSection,
   FormSubmitButton,
-  RequiredMark,
   useDiscardGuard,
 } from "../products/form-page";
-import { FOCUS_GLOW, holdSuccessThen } from "../products/form-motion";
+import { holdSuccessThen } from "../products/form-motion";
+import {
+  PersonalSection,
+  JobSection,
+  ExperienceSection,
+  ContactSection,
+  DocumentsSection,
+  SalarySection,
+  BankTaxSection,
+  emptyEmployeeForm,
+  type EmployeeFormState,
+} from "./employee-form-sections";
 import type { Department, Designation, Grade, Shift } from "./types";
 
 const EMPLOYEES_ROUTE = "/hrms/employees";
@@ -34,10 +33,14 @@ const FORM_DATA_QUERY = gql`
     shifts {
       id
       name
+      startTime
+      endTime
     }
     grades {
       id
       name
+      minSalary
+      maxSalary
     }
     departments {
       id
@@ -47,22 +50,52 @@ const FORM_DATA_QUERY = gql`
       id
       name
     }
+    branches {
+      id
+      name
+    }
     employees {
       id
       fullName
     }
+    salaryComponents {
+      id
+      code
+      name
+      active
+    }
   }
 `;
+
 const CREATE_EMPLOYEE = gql`
   mutation CreateEmployeePage($input: CreateEmployeeInput!) {
     createEmployee(input: $input) {
+      id
+      experiences {
+        id
+      }
+    }
+  }
+`;
+
+const ADD_EMPLOYEE_DOCUMENT = gql`
+  mutation AddEmployeeDocumentFromNewEmployee($input: AddEmployeeDocumentInput!) {
+    addEmployeeDocument(input: $input) {
       id
     }
   }
 `;
 
-const EMPLOYMENT_TYPES = ["FULL_TIME", "PART_TIME", "CONTRACT", "INTERN", "PROBATION"];
-const GENDERS = ["MALE", "FEMALE", "OTHER"];
+const TABS = [
+  { key: "personal", label: "Personal" },
+  { key: "job", label: "Job" },
+  { key: "experience", label: "Experience" },
+  { key: "contact", label: "Contact" },
+  { key: "documents", label: "Documents" },
+  { key: "salary", label: "Salary" },
+  { key: "bank", label: "Bank/Tax" },
+] as const;
+type TabKey = (typeof TABS)[number]["key"];
 
 export default function NewEmployeePage() {
   const { data } = useQuery<{
@@ -70,77 +103,130 @@ export default function NewEmployeePage() {
     grades: Grade[];
     departments: Department[];
     designations: Designation[];
+    branches: { id: string; name: string }[];
     employees: { id: string; fullName: string }[];
+    salaryComponents: { id: string; code: string; name: string; active: boolean }[];
   }>(FORM_DATA_QUERY);
-  const [createEmployee] = useMutation(CREATE_EMPLOYEE);
+  const [createEmployee] = useMutation(CREATE_EMPLOYEE, { refetchQueries: ["EmployeesTabData"] });
+  const [addEmployeeDocument] = useMutation(ADD_EMPLOYEE_DOCUMENT);
+
   const shifts = data?.shifts ?? [];
   const grades = data?.grades ?? [];
   const departments = data?.departments ?? [];
   const designations = data?.designations ?? [];
+  const branches = data?.branches ?? [];
   const managers = data?.employees ?? [];
+  const salaryComponents = (data?.salaryComponents ?? []).filter((c) => c.active);
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [gender, setGender] = useState("");
-  const [dateOfJoining, setDateOfJoining] = useState(new Date().toISOString().slice(0, 10));
-  const [designation, setDesignation] = useState("");
-  const [department, setDepartment] = useState("");
-  const [employmentType, setEmploymentType] = useState("FULL_TIME");
-  const [reportingManagerId, setReportingManagerId] = useState("");
-  const [shiftId, setShiftId] = useState("");
-  const [gradeId, setGradeId] = useState("");
-  const [monthlyGrossSalary, setMonthlyGrossSalary] = useState("");
-  const [bankAccountNumber, setBankAccountNumber] = useState("");
-  const [bankName, setBankName] = useState("");
-  const [bankIfsc, setBankIfsc] = useState("");
-  const [panNumber, setPanNumber] = useState("");
-  const [address, setAddress] = useState("");
-  const [emergencyContactName, setEmergencyContactName] = useState("");
-  const [emergencyContactPhone, setEmergencyContactPhone] = useState("");
-
-  const [status, setStatus] = useState<"idle" | "submitting" | "success">("idle");
+  const [form, setForm] = useState<EmployeeFormState>(emptyEmployeeForm);
+  const [tab, setTab] = useState<TabKey>("personal");
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<"idle" | "submitting" | "success">("idle");
 
-  const dirty = !!firstName || !!lastName || !!email;
+  const dirty = JSON.stringify(form) !== JSON.stringify(emptyEmployeeForm());
   const { goBack, requestNavigate, leaving, exitTo, discardDialog } = useDiscardGuard(EMPLOYEES_ROUTE, dirty && status === "idle");
+
+  function validate(): TabKey | null {
+    if (!form.branchId || !form.firstName || !form.lastName || !form.maritalStatus || !form.dateOfBirth) return "personal";
+    if (!form.department || !form.designation) return "job";
+    if (!form.phone || !form.email || !form.address) return "contact";
+    if (!form.aadharNumber || !form.panNumber) return "documents";
+    if (!form.monthlyGrossSalary) return "salary";
+    if (form.payMode === "BANK" && (!form.bankAccountNumber || !form.bankIfsc || !form.bankName)) return "bank";
+    return null;
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!firstName || !lastName || !email || !designation || !department || !monthlyGrossSalary) {
+    const invalidTab = validate();
+    if (invalidTab) {
       setError("Please fill in all required fields");
+      setTab(invalidTab);
       return;
     }
     setError(null);
     setStatus("submitting");
     try {
-      await createEmployee({
+      const { data: created } = await createEmployee({
         variables: {
           input: {
-            firstName,
-            lastName,
-            email,
-            phone: phone || undefined,
-            gender: gender || undefined,
-            dateOfJoining,
-            designation,
-            department,
-            employmentType,
-            reportingManagerId: reportingManagerId || undefined,
-            shiftId: shiftId || undefined,
-            gradeId: gradeId || undefined,
-            monthlyGrossSalary: Number(monthlyGrossSalary),
-            bankAccountNumber: bankAccountNumber || undefined,
-            bankName: bankName || undefined,
-            bankIfsc: bankIfsc || undefined,
-            panNumber: panNumber || undefined,
-            address: address || undefined,
-            emergencyContactName: emergencyContactName || undefined,
-            emergencyContactPhone: emergencyContactPhone || undefined,
+            firstName: form.firstName,
+            lastName: form.lastName,
+            email: form.email,
+            phone: form.phone || undefined,
+            gender: form.gender || undefined,
+            dateOfBirth: form.dateOfBirth ? new Date(form.dateOfBirth) : undefined,
+            dateOfJoining: new Date(form.dateOfJoining),
+            designation: form.designation,
+            department: form.department,
+            employmentType: form.employmentType,
+            status: form.status,
+            reportingManagerId: form.reportingManagerId || undefined,
+            shiftId: form.shiftId || undefined,
+            gradeId: form.gradeId || undefined,
+            branchId: form.branchId || undefined,
+            biometricId: form.biometricId || undefined,
+            bloodGroup: form.bloodGroup || undefined,
+            maritalStatus: form.maritalStatus || undefined,
+            workHoursPerDay: form.workHoursPerDay || undefined,
+            monthlyGrossSalary: Number(form.monthlyGrossSalary),
+            bankAccountNumber: form.bankAccountNumber || undefined,
+            bankName: form.bankName || undefined,
+            bankIfsc: form.bankIfsc || undefined,
+            panNumber: form.panNumber || undefined,
+            aadharNumber: form.aadharNumber || undefined,
+            payMode: form.payMode || undefined,
+            tdsType: form.tdsType || undefined,
+            tdsValue: form.tdsValue ? Number(form.tdsValue) : undefined,
+            uan: form.uan || undefined,
+            esiNumber: form.esiNumber || undefined,
+            pfEligible: form.pfEligible,
+            esiEligible: form.esiEligible,
+            leaveWithPayEligible: form.leaveWithPayEligible,
+            dailyWagesEligible: form.dailyWagesEligible,
+            address: form.address || undefined,
+            temporaryAddress: form.temporaryAddress || undefined,
+            fatherOrSpouseName: form.fatherOrSpouseName || undefined,
+            qualification: form.qualification || undefined,
+            religion: form.religion || undefined,
+            emergencyContactName: form.emergencyContactName || undefined,
+            emergencyContactPhone: form.emergencyContactPhone || undefined,
+            experiences: form.experiences.length
+              ? form.experiences.map((exp) => ({
+                  organizationName: exp.organizationName,
+                  startDate: new Date(exp.startDate),
+                  endDate: exp.endDate ? new Date(exp.endDate) : undefined,
+                  ctc: exp.ctc ? Number(exp.ctc) : undefined,
+                }))
+              : undefined,
+            salaryComponents: form.salaryComponents.some((c) => c.amount)
+              ? form.salaryComponents.filter((c) => c.amount).map((c) => ({ code: c.code, amount: Number(c.amount), isMonthly: c.isMonthly }))
+              : undefined,
           },
         },
       });
+
+      const employeeId: string = created.createEmployee.id;
+      const createdExperienceIds: string[] = created.createEmployee.experiences.map((exp: { id: string }) => exp.id);
+
+      await Promise.all(
+        form.documents.map((doc) => {
+          const experienceId = doc.experienceIndex != null ? createdExperienceIds[doc.experienceIndex] : undefined;
+          return addEmployeeDocument({
+            variables: {
+              input: {
+                employeeId,
+                experienceId,
+                category: doc.category,
+                label: doc.label,
+                objectKey: doc.objectKey,
+                fileName: doc.fileName,
+              },
+            },
+          });
+        }),
+      );
+
       setStatus("success");
       toast.success("Employee created");
       holdSuccessThen(() => exitTo(EMPLOYEES_ROUTE));
@@ -167,204 +253,37 @@ export default function NewEmployeePage() {
 
         <FormErrorBanner message={error} />
 
-        <form id="new-employee-form" onSubmit={handleSubmit} className="space-y-6">
-          <FormSection title="Personal information" index={0}>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label>
-                  First name
-                  <RequiredMark />
-                </Label>
-                <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} className={FOCUS_GLOW} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>
-                  Last name
-                  <RequiredMark />
-                </Label>
-                <Input value={lastName} onChange={(e) => setLastName(e.target.value)} className={FOCUS_GLOW} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>
-                  Email
-                  <RequiredMark />
-                </Label>
-                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={FOCUS_GLOW} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Phone</Label>
-                <Input value={phone} onChange={(e) => setPhone(e.target.value)} className={FOCUS_GLOW} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Gender</Label>
-                <Select value={gender} onValueChange={setGender}>
-                  <SelectTrigger className={FOCUS_GLOW}>
-                    <SelectValue placeholder="Select" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {GENDERS.map((g) => (
-                      <SelectItem key={g} value={g}>
-                        {g}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </FormSection>
-
-          <FormSection title="Employment details" index={1}>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label>
-                  Designation
-                  <RequiredMark />
-                </Label>
-                <Select value={designation} onValueChange={setDesignation}>
-                  <SelectTrigger className={FOCUS_GLOW}>
-                    <SelectValue placeholder={designations.length ? "Select designation" : "Add designations first"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {designations.map((d) => (
-                      <SelectItem key={d.id} value={d.name}>
-                        {d.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>
-                  Department
-                  <RequiredMark />
-                </Label>
-                <Select value={department} onValueChange={setDepartment}>
-                  <SelectTrigger className={FOCUS_GLOW}>
-                    <SelectValue placeholder={departments.length ? "Select department" : "Add departments first"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map((d) => (
-                      <SelectItem key={d.id} value={d.name}>
-                        {d.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>
-                  Date of joining
-                  <RequiredMark />
-                </Label>
-                <Input type="date" value={dateOfJoining} onChange={(e) => setDateOfJoining(e.target.value)} className={FOCUS_GLOW} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Employment type</Label>
-                <Select value={employmentType} onValueChange={setEmploymentType}>
-                  <SelectTrigger className={FOCUS_GLOW}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {EMPLOYMENT_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t.replaceAll("_", " ")}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Reporting manager</Label>
-                <Select value={reportingManagerId} onValueChange={setReportingManagerId}>
-                  <SelectTrigger className={FOCUS_GLOW}>
-                    <SelectValue placeholder="None" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {managers.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.fullName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Shift</Label>
-                <Select value={shiftId} onValueChange={setShiftId}>
-                  <SelectTrigger className={FOCUS_GLOW}>
-                    <SelectValue placeholder="None" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {shifts.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Grade</Label>
-                <Select value={gradeId} onValueChange={setGradeId}>
-                  <SelectTrigger className={FOCUS_GLOW}>
-                    <SelectValue placeholder="None" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {grades.map((g) => (
-                      <SelectItem key={g.id} value={g.id}>
-                        {g.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </FormSection>
-
-          <FormSection title="Salary & banking" index={2}>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label>
-                  Monthly gross salary
-                  <RequiredMark />
-                </Label>
-                <Input type="number" min="0" value={monthlyGrossSalary} onChange={(e) => setMonthlyGrossSalary(e.target.value)} className={FOCUS_GLOW} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>PAN number</Label>
-                <Input value={panNumber} onChange={(e) => setPanNumber(e.target.value)} className={FOCUS_GLOW} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Bank name</Label>
-                <Input value={bankName} onChange={(e) => setBankName(e.target.value)} className={FOCUS_GLOW} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Bank account number</Label>
-                <Input value={bankAccountNumber} onChange={(e) => setBankAccountNumber(e.target.value)} className={FOCUS_GLOW} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>IFSC</Label>
-                <Input value={bankIfsc} onChange={(e) => setBankIfsc(e.target.value)} className={FOCUS_GLOW} />
-              </div>
-            </div>
-          </FormSection>
-
-          <FormSection title="Address & emergency contact" index={3}>
-            <div className="space-y-1.5">
-              <Label>Address</Label>
-              <Textarea value={address} onChange={(e) => setAddress(e.target.value)} className={FOCUS_GLOW} />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label>Emergency contact name</Label>
-                <Input value={emergencyContactName} onChange={(e) => setEmergencyContactName(e.target.value)} className={FOCUS_GLOW} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Emergency contact phone</Label>
-                <Input value={emergencyContactPhone} onChange={(e) => setEmergencyContactPhone(e.target.value)} className={FOCUS_GLOW} />
-              </div>
-            </div>
-          </FormSection>
+        <form id="new-employee-form" onSubmit={handleSubmit} noValidate>
+          <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
+            <TabsList>
+              {TABS.map((t) => (
+                <TabsTrigger key={t.key} value={t.key}>
+                  {t.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <TabsContent value="personal">
+              <PersonalSection form={form} setForm={setForm} branches={branches} />
+            </TabsContent>
+            <TabsContent value="job">
+              <JobSection form={form} setForm={setForm} departments={departments} designations={designations} grades={grades} shifts={shifts} managers={managers} />
+            </TabsContent>
+            <TabsContent value="experience">
+              <ExperienceSection form={form} setForm={setForm} />
+            </TabsContent>
+            <TabsContent value="contact">
+              <ContactSection form={form} setForm={setForm} />
+            </TabsContent>
+            <TabsContent value="documents">
+              <DocumentsSection form={form} setForm={setForm} />
+            </TabsContent>
+            <TabsContent value="salary">
+              <SalarySection form={form} setForm={setForm} orgSalaryComponents={salaryComponents} />
+            </TabsContent>
+            <TabsContent value="bank">
+              <BankTaxSection form={form} setForm={setForm} />
+            </TabsContent>
+          </Tabs>
         </form>
       </FormScrollArea>
 

@@ -1,11 +1,14 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { SCOPED_PRISMA, type ScopedPrismaClient } from "../../common/tenancy/scoped-prisma.service";
-import type { CreateEmployeeInput, EmployeeFilterInput } from "./dto/employee.input";
+import { StorageService } from "../../common/storage/storage.service";
+import type { AddEmployeeDocumentInput, CreateEmployeeInput, EmployeeFilterInput } from "./dto/employee.input";
 
 const EMPLOYEE_INCLUDE = {
   reportingManager: true,
   shift: true,
   grade: true,
+  branch: true,
+  experiences: { orderBy: { sortOrder: "asc" } },
 } as const;
 
 function toModel<
@@ -13,9 +16,11 @@ function toModel<
     firstName: string;
     lastName: string;
     monthlyGrossSalary: unknown;
+    tdsValue: unknown;
     reportingManager: { firstName: string; lastName: string } | null;
     shift: { name: string } | null;
     grade: { name: string } | null;
+    branch: { name: string } | null;
   },
 >(row: T) {
   return {
@@ -24,13 +29,18 @@ function toModel<
     reportingManagerName: row.reportingManager ? `${row.reportingManager.firstName} ${row.reportingManager.lastName}` : null,
     shiftName: row.shift?.name ?? null,
     gradeName: row.grade?.name ?? null,
+    branchName: row.branch?.name ?? null,
     monthlyGrossSalary: Number(row.monthlyGrossSalary),
+    tdsValue: Number(row.tdsValue),
   };
 }
 
 @Injectable()
 export class EmployeesService {
-  constructor(@Inject(SCOPED_PRISMA) private readonly prisma: ScopedPrismaClient) {}
+  constructor(
+    @Inject(SCOPED_PRISMA) private readonly prisma: ScopedPrismaClient,
+    private readonly storage: StorageService,
+  ) {}
 
   async findAll(filter?: EmployeeFilterInput) {
     const search = filter?.search?.trim();
@@ -85,20 +95,72 @@ export class EmployeesService {
         reportingManagerId: input.reportingManagerId,
         shiftId: input.shiftId,
         gradeId: input.gradeId,
+        branchId: input.branchId,
+        biometricId: input.biometricId,
+        bloodGroup: input.bloodGroup,
+        maritalStatus: input.maritalStatus,
+        workHoursPerDay: input.workHoursPerDay,
         monthlyGrossSalary: input.monthlyGrossSalary,
         bankAccountNumber: input.bankAccountNumber,
         bankName: input.bankName,
         bankIfsc: input.bankIfsc,
         panNumber: input.panNumber,
+        aadharNumber: input.aadharNumber,
+        payMode: input.payMode,
+        tdsType: input.tdsType,
+        tdsValue: input.tdsValue,
+        uan: input.uan,
+        esiNumber: input.esiNumber,
+        pfEligible: input.pfEligible,
+        esiEligible: input.esiEligible,
+        leaveWithPayEligible: input.leaveWithPayEligible,
+        dailyWagesEligible: input.dailyWagesEligible,
         address: input.address,
+        temporaryAddress: input.temporaryAddress,
+        fatherOrSpouseName: input.fatherOrSpouseName,
+        qualification: input.qualification,
+        religion: input.religion,
         emergencyContactName: input.emergencyContactName,
         emergencyContactPhone: input.emergencyContactPhone,
         avatarUrl: input.avatarUrl,
         notes: input.notes,
         organizationId,
+        experiences: input.experiences?.length
+          ? {
+              create: input.experiences.map((exp, index) => ({
+                organizationName: exp.organizationName,
+                startDate: exp.startDate,
+                endDate: exp.endDate,
+                ctc: exp.ctc,
+                sortOrder: index,
+              })),
+            }
+          : undefined,
       },
       include: EMPLOYEE_INCLUDE,
     });
+
+    if (input.salaryComponents?.length) {
+      const codes = input.salaryComponents.map((c) => c.code);
+      const components = await this.prisma.salaryComponent.findMany({ where: { organizationId, code: { in: codes } } });
+      const componentByCode = new Map(components.map((c) => [c.code, c]));
+      await Promise.all(
+        input.salaryComponents
+          .filter((alloc) => componentByCode.has(alloc.code))
+          .map((alloc) =>
+            this.prisma.employeeSalaryComponent.create({
+              data: {
+                employeeId: row.id,
+                salaryComponentId: componentByCode.get(alloc.code)!.id,
+                amount: alloc.amount,
+                isMonthly: alloc.isMonthly ?? true,
+                effectiveFrom: row.dateOfJoining,
+              },
+            }),
+          ),
+      );
+    }
+
     return toModel(row);
   }
 
@@ -122,12 +184,31 @@ export class EmployeesService {
         reportingManagerId: input.reportingManagerId,
         shiftId: input.shiftId,
         gradeId: input.gradeId,
+        branchId: input.branchId,
+        biometricId: input.biometricId,
+        bloodGroup: input.bloodGroup,
+        maritalStatus: input.maritalStatus,
+        workHoursPerDay: input.workHoursPerDay,
         monthlyGrossSalary: input.monthlyGrossSalary,
         bankAccountNumber: input.bankAccountNumber,
         bankName: input.bankName,
         bankIfsc: input.bankIfsc,
         panNumber: input.panNumber,
+        aadharNumber: input.aadharNumber,
+        payMode: input.payMode,
+        tdsType: input.tdsType,
+        tdsValue: input.tdsValue,
+        uan: input.uan,
+        esiNumber: input.esiNumber,
+        pfEligible: input.pfEligible,
+        esiEligible: input.esiEligible,
+        leaveWithPayEligible: input.leaveWithPayEligible,
+        dailyWagesEligible: input.dailyWagesEligible,
         address: input.address,
+        temporaryAddress: input.temporaryAddress,
+        fatherOrSpouseName: input.fatherOrSpouseName,
+        qualification: input.qualification,
+        religion: input.religion,
         emergencyContactName: input.emergencyContactName,
         emergencyContactPhone: input.emergencyContactPhone,
         avatarUrl: input.avatarUrl,
@@ -168,5 +249,35 @@ export class EmployeesService {
     }
     await this.prisma.employee.delete({ where: { id } });
     return existing;
+  }
+
+  async employeeDocuments(employeeId: string) {
+    return this.prisma.employeeDocument.findMany({ where: { employeeId }, orderBy: { createdAt: "desc" } });
+  }
+
+  async addEmployeeDocument(input: AddEmployeeDocumentInput) {
+    return this.prisma.employeeDocument.create({
+      data: {
+        employeeId: input.employeeId,
+        experienceId: input.experienceId,
+        category: input.category,
+        label: input.label,
+        objectKey: input.objectKey,
+        fileName: input.fileName,
+      },
+    });
+  }
+
+  async deleteEmployeeDocument(id: string) {
+    const existing = await this.prisma.employeeDocument.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException("Document not found");
+    await this.prisma.employeeDocument.delete({ where: { id } });
+    return true;
+  }
+
+  async employeeDocumentUrl(documentId: string) {
+    const document = await this.prisma.employeeDocument.findUnique({ where: { id: documentId } });
+    if (!document) throw new NotFoundException("Document not found");
+    return this.storage.presignedGetUrl(document.objectKey);
   }
 }
