@@ -23,6 +23,8 @@ import { PayrollService } from "./payroll.service";
 import { PayrollResolver } from "./payroll.resolver";
 import { OverviewService } from "./overview.service";
 import { OverviewResolver } from "./overview.resolver";
+import { AllowanceDeductionService } from "./allowance-deduction.service";
+import { AllowanceDeductionResolver } from "./allowance-deduction.resolver";
 
 @Module({
   providers: [
@@ -50,6 +52,8 @@ import { OverviewResolver } from "./overview.resolver";
     PayrollResolver,
     OverviewService,
     OverviewResolver,
+    AllowanceDeductionService,
+    AllowanceDeductionResolver,
   ],
   exports: [
     EmployeesService,
@@ -64,6 +68,7 @@ import { OverviewResolver } from "./overview.resolver";
     IncentivesService,
     PayrollService,
     OverviewService,
+    AllowanceDeductionService,
   ],
 })
 export class HrmsModule {}

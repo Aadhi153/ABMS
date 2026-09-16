@@ -18,7 +18,7 @@ function toModel<
     monthlyGrossSalary: unknown;
     tdsValue: unknown;
     reportingManager: { firstName: string; lastName: string } | null;
-    shift: { name: string } | null;
+    shift: { name: string; code: string | null } | null;
     grade: { name: string } | null;
     branch: { name: string } | null;
   },
@@ -28,6 +28,7 @@ function toModel<
     fullName: `${row.firstName} ${row.lastName}`,
     reportingManagerName: row.reportingManager ? `${row.reportingManager.firstName} ${row.reportingManager.lastName}` : null,
     shiftName: row.shift?.name ?? null,
+    shiftCode: row.shift?.code ?? null,
     gradeName: row.grade?.name ?? null,
     branchName: row.branch?.name ?? null,
     monthlyGrossSalary: Number(row.monthlyGrossSalary),

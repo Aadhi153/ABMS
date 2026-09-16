@@ -1,18 +1,18 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { AttendanceStatus } from "@abms/database";
 import { SCOPED_PRISMA, type ScopedPrismaClient } from "../../common/tenancy/scoped-prisma.service";
-import type { AttendanceFilterInput, BulkMarkAttendanceInput, MarkAttendanceInput } from "./dto/attendance.input";
+import type { AttendanceFilterInput, BulkMarkAttendanceInput, MarkAttendanceInput, SyncBiometricLogsInput } from "./dto/attendance.input";
 
 const ATTENDANCE_INCLUDE = {
-  employee: true,
+  employee: { include: { branch: true } },
   shift: true,
   markedBy: true,
 } as const;
 
 function toModel<
   T extends {
-    employee: { firstName: string; lastName: string; employeeCode: string };
-    shift: { name: string } | null;
+    employee: { firstName: string; lastName: string; employeeCode: string; department: string; designation: string; branchId: string | null; branch: { name: string } | null };
+    shift: { name: string; code: string | null } | null;
     markedBy: { name: string } | null;
     workedHours: unknown;
   },
@@ -21,7 +21,12 @@ function toModel<
     ...row,
     employeeName: `${row.employee.firstName} ${row.employee.lastName}`,
     employeeCode: row.employee.employeeCode,
+    department: row.employee.department,
+    designation: row.employee.designation,
+    branchId: row.employee.branchId,
+    branchName: row.employee.branch?.name ?? null,
     shiftName: row.shift?.name ?? null,
+    shiftCode: row.shift?.code ?? null,
     markedByName: row.markedBy?.name ?? null,
     workedHours: row.workedHours === null || row.workedHours === undefined ? null : Number(row.workedHours),
   };
@@ -46,11 +51,20 @@ export class AttendanceService {
       where: {
         ...(filter?.employeeId ? { employeeId: filter.employeeId } : {}),
         ...(filter?.status ? { status: filter.status as never } : {}),
+        ...(filter?.shiftId ? { shiftId: filter.shiftId } : {}),
         ...(filter?.from || filter?.to
           ? {
               date: {
                 ...(filter?.from ? { gte: toDateOnly(filter.from) } : {}),
                 ...(filter?.to ? { lte: toDateOnly(filter.to) } : {}),
+              },
+            }
+          : {}),
+        ...(filter?.branchId || filter?.department
+          ? {
+              employee: {
+                ...(filter?.branchId ? { branchId: filter.branchId } : {}),
+                ...(filter?.department ? { department: filter.department } : {}),
               },
             }
           : {}),
@@ -148,7 +162,7 @@ export class AttendanceService {
       input.checkIn && input.checkOut ? Math.max(0, Math.round(((input.checkOut.getTime() - input.checkIn.getTime()) / 3_600_000) * 100) / 100) : undefined;
     const row = await this.prisma.attendanceLog.upsert({
       where: { organizationId_employeeId_date: { organizationId, employeeId: input.employeeId, date } },
-      update: { checkIn: input.checkIn, checkOut: input.checkOut, status: input.status, notes: input.notes, workedHours, markedById },
+      update: { checkIn: input.checkIn, checkOut: input.checkOut, status: input.status, notes: input.notes, workedHours, markedById, shiftId: input.shiftId },
       create: {
         organizationId,
         employeeId: input.employeeId,
@@ -159,6 +173,7 @@ export class AttendanceService {
         notes: input.notes,
         workedHours,
         markedById,
+        shiftId: input.shiftId,
       },
       include: ATTENDANCE_INCLUDE,
     });
@@ -169,10 +184,24 @@ export class AttendanceService {
     const date = toDateOnly(input.date);
     const rows = [];
     for (const entry of input.entries) {
+      const workedHours =
+        entry.checkIn && entry.checkOut
+          ? Math.max(0, Math.round(((entry.checkOut.getTime() - entry.checkIn.getTime()) / 3_600_000) * 100) / 100)
+          : undefined;
       const row = await this.prisma.attendanceLog.upsert({
         where: { organizationId_employeeId_date: { organizationId, employeeId: entry.employeeId, date } },
-        update: { status: entry.status, markedById },
-        create: { organizationId, employeeId: entry.employeeId, date, status: entry.status, markedById },
+        update: { status: entry.status, checkIn: entry.checkIn, checkOut: entry.checkOut, notes: entry.notes, workedHours, markedById },
+        create: {
+          organizationId,
+          employeeId: entry.employeeId,
+          date,
+          status: entry.status,
+          checkIn: entry.checkIn,
+          checkOut: entry.checkOut,
+          notes: entry.notes,
+          workedHours,
+          markedById,
+        },
         include: ATTENDANCE_INCLUDE,
       });
       rows.push(toModel(row));
@@ -185,5 +214,17 @@ export class AttendanceService {
     if (!existing) throw new NotFoundException("Attendance log not found");
     await this.prisma.attendanceLog.delete({ where: { id } });
     return existing;
+  }
+
+  // No eSSL SDK / device is reachable from this environment, so this validates
+  // input and reports honestly rather than faking a hardware sync.
+  async syncBiometricLogs(input: SyncBiometricLogsInput) {
+    const branch = await this.prisma.branch.findUnique({ where: { id: input.branchId } });
+    if (!branch) throw new NotFoundException("Branch not found");
+    return {
+      success: true,
+      syncedCount: 0,
+      message: "No biometric device connected in this environment.",
+    };
   }
 }

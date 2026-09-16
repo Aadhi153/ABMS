@@ -8,8 +8,8 @@ import { Roles } from "../../common/decorators/roles.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { AuditService } from "../../common/audit/audit.service";
 import { AttendanceService } from "./attendance.service";
-import { AttendanceLogModel, AttendanceSummaryModel } from "./models/attendance.model";
-import { AttendanceFilterInput, BulkMarkAttendanceInput, MarkAttendanceInput } from "./dto/attendance.input";
+import { AttendanceLogModel, AttendanceSummaryModel, BiometricSyncResultModel } from "./models/attendance.model";
+import { AttendanceFilterInput, BulkMarkAttendanceInput, MarkAttendanceInput, SyncBiometricLogsInput } from "./dto/attendance.input";
 
 @Resolver(() => AttendanceLogModel)
 @UseGuards(SessionAuthGuard, RolesGuard)
@@ -62,5 +62,10 @@ export class AttendanceResolver {
     const deleted = await this.attendanceService.delete(id);
     await this.audit.logDelete(actor, "AttendanceLog", id, deleted);
     return true;
+  }
+
+  @Mutation(() => BiometricSyncResultModel)
+  async syncBiometricLogs(@Args("input") input: SyncBiometricLogsInput) {
+    return this.attendanceService.syncBiometricLogs(input);
   }
 }
