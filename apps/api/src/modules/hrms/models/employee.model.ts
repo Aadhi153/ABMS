@@ -102,6 +102,9 @@ export class EmployeeModel {
   shiftName?: string | null;
 
   @Field(() => String, { nullable: true })
+  shiftCode?: string | null;
+
+  @Field(() => String, { nullable: true })
   gradeId?: string | null;
 
   @Field(() => String, { nullable: true })

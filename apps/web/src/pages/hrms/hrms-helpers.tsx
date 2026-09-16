@@ -7,6 +7,10 @@ export function fmtDate(value: string | null | undefined) {
   return new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
+export function fmtDateLong(date: Date) {
+  return date.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+}
+
 export function fmtDateTime(value: string | null | undefined) {
   if (!value) return "—";
   return new Date(value).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });

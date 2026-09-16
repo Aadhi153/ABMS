@@ -29,6 +29,11 @@ export class MarkAttendanceInput {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  shiftId?: string | null;
 }
 
 @InputType()
@@ -40,6 +45,19 @@ export class BulkAttendanceEntryInput {
   @Field(() => String)
   @IsEnum(AttendanceStatus)
   status!: AttendanceStatus;
+
+  @Field(() => Date, { nullable: true })
+  @IsOptional()
+  checkIn?: Date;
+
+  @Field(() => Date, { nullable: true })
+  @IsOptional()
+  checkOut?: Date;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }
 
 @InputType()
@@ -75,4 +93,39 @@ export class AttendanceFilterInput {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  branchId?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  department?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  shiftId?: string;
+}
+
+@InputType()
+export class SyncBiometricLogsInput {
+  @Field(() => String)
+  @IsString()
+  branchId!: string;
+
+  @Field(() => Date, { nullable: true })
+  @IsOptional()
+  from?: Date;
+
+  @Field(() => Date, { nullable: true })
+  @IsOptional()
+  to?: Date;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  deviceId?: string;
 }

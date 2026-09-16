@@ -14,6 +14,18 @@ export class AttendanceLogModel {
   @Field(() => String)
   employeeCode!: string;
 
+  @Field(() => String)
+  department!: string;
+
+  @Field(() => String)
+  designation!: string;
+
+  @Field(() => String, { nullable: true })
+  branchId?: string | null;
+
+  @Field(() => String, { nullable: true })
+  branchName?: string | null;
+
   @Field(() => Date)
   date!: Date;
 
@@ -34,6 +46,9 @@ export class AttendanceLogModel {
 
   @Field(() => String, { nullable: true })
   shiftName?: string | null;
+
+  @Field(() => String, { nullable: true })
+  shiftCode?: string | null;
 
   @Field(() => String, { nullable: true })
   notes?: string | null;
@@ -76,4 +91,16 @@ export class AttendanceSummaryModel {
 
   @Field(() => Float)
   totalWorkedHours!: number;
+}
+
+@ObjectType()
+export class BiometricSyncResultModel {
+  @Field(() => Boolean)
+  success!: boolean;
+
+  @Field(() => Float)
+  syncedCount!: number;
+
+  @Field(() => String)
+  message!: string;
 }
