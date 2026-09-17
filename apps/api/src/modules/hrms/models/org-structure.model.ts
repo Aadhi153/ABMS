@@ -43,6 +43,27 @@ export class DesignationModel {
 }
 
 @ObjectType()
+export class BranchModel {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  name!: string;
+
+  @Field(() => String, { nullable: true })
+  code?: string | null;
+
+  @Field(() => String, { nullable: true })
+  address?: string | null;
+
+  @Field(() => Boolean)
+  active!: boolean;
+
+  @Field(() => Int)
+  employeeCount!: number;
+}
+
+@ObjectType()
 export class GradeModel {
   @Field(() => String)
   id!: string;
@@ -61,6 +82,9 @@ export class GradeModel {
 
   @Field(() => Float, { nullable: true })
   maxSalary?: number | null;
+
+  @Field(() => Int, { nullable: true })
+  promotionTenureMonths?: number | null;
 
   @Field(() => String, { nullable: true })
   description?: string | null;
