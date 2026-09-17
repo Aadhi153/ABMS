@@ -46,6 +46,28 @@ export class CreateDesignationInput {
 }
 
 @InputType()
+export class CreateBranchInput {
+  @Field(() => String)
+  @IsString()
+  name!: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  code?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
+}
+
+@InputType()
 export class CreateGradeInput {
   @Field(() => String)
   @IsString()
@@ -70,6 +92,11 @@ export class CreateGradeInput {
   @IsOptional()
   @Min(0)
   maxSalary?: number;
+
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @Min(1)
+  promotionTenureMonths?: number;
 
   @Field(() => String, { nullable: true })
   @IsOptional()

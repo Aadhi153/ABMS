@@ -25,6 +25,12 @@ import { OverviewService } from "./overview.service";
 import { OverviewResolver } from "./overview.resolver";
 import { AllowanceDeductionService } from "./allowance-deduction.service";
 import { AllowanceDeductionResolver } from "./allowance-deduction.resolver";
+import { KpiTemplateService } from "./kpi-template.service";
+import { KpiTemplateResolver } from "./kpi-template.resolver";
+import { IncentiveMatrixRuleService } from "./incentive-matrix-rule.service";
+import { IncentiveMatrixRuleResolver } from "./incentive-matrix-rule.resolver";
+import { PerformanceGoalService } from "./performance-goal.service";
+import { PerformanceGoalResolver } from "./performance-goal.resolver";
 
 @Module({
   providers: [
@@ -54,6 +60,12 @@ import { AllowanceDeductionResolver } from "./allowance-deduction.resolver";
     OverviewResolver,
     AllowanceDeductionService,
     AllowanceDeductionResolver,
+    KpiTemplateService,
+    KpiTemplateResolver,
+    IncentiveMatrixRuleService,
+    IncentiveMatrixRuleResolver,
+    PerformanceGoalService,
+    PerformanceGoalResolver,
   ],
   exports: [
     EmployeesService,
@@ -69,6 +81,9 @@ import { AllowanceDeductionResolver } from "./allowance-deduction.resolver";
     PayrollService,
     OverviewService,
     AllowanceDeductionService,
+    KpiTemplateService,
+    IncentiveMatrixRuleService,
+    PerformanceGoalService,
   ],
 })
 export class HrmsModule {}

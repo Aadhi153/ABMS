@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { SCOPED_PRISMA, type ScopedPrismaClient } from "../../common/tenancy/scoped-prisma.service";
-import type { CreateDepartmentInput, CreateDesignationInput, CreateGradeInput } from "./dto/org-structure.input";
+import type { CreateBranchInput, CreateDepartmentInput, CreateDesignationInput, CreateGradeInput } from "./dto/org-structure.input";
 
 @Injectable()
 export class OrgStructureService {
@@ -74,6 +74,40 @@ export class OrgStructureService {
     return { ...existing, employeeCount: 0 };
   }
 
+  // --- Branches ---
+
+  async findBranches() {
+    const rows = await this.prisma.branch.findMany({ orderBy: { name: "asc" } });
+    return Promise.all(rows.map(async (b) => ({ ...b, employeeCount: await this.prisma.employee.count({ where: { branchId: b.id } }) })));
+  }
+
+  async createBranch(input: CreateBranchInput, organizationId: string) {
+    const row = await this.prisma.branch.create({
+      data: { name: input.name, code: input.code, address: input.address, active: input.active, organizationId },
+    });
+    return { ...row, employeeCount: 0 };
+  }
+
+  async updateBranch(id: string, input: CreateBranchInput) {
+    const existing = await this.prisma.branch.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException("Branch not found");
+    const row = await this.prisma.branch.update({
+      where: { id },
+      data: { name: input.name, code: input.code, address: input.address, active: input.active },
+    });
+    const employeeCount = await this.prisma.employee.count({ where: { branchId: row.id } });
+    return { ...row, employeeCount };
+  }
+
+  async deleteBranch(id: string) {
+    const existing = await this.prisma.branch.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException("Branch not found");
+    const employeeCount = await this.prisma.employee.count({ where: { branchId: id } });
+    if (employeeCount > 0) throw new BadRequestException("This branch has employees assigned to it and cannot be deleted");
+    await this.prisma.branch.delete({ where: { id } });
+    return { ...existing, employeeCount: 0 };
+  }
+
   // --- Grades ---
 
   private async toGradeModel<T extends { id: string; minSalary: unknown; maxSalary: unknown }>(row: T) {
@@ -99,6 +133,7 @@ export class OrgStructureService {
         level: input.level,
         minSalary: input.minSalary,
         maxSalary: input.maxSalary,
+        promotionTenureMonths: input.promotionTenureMonths,
         description: input.description,
         active: input.active,
         organizationId,
@@ -118,6 +153,7 @@ export class OrgStructureService {
         level: input.level,
         minSalary: input.minSalary,
         maxSalary: input.maxSalary,
+        promotionTenureMonths: input.promotionTenureMonths,
         description: input.description,
         active: input.active,
       },

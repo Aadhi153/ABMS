@@ -112,24 +112,24 @@ function SettingsLanding() {
         {SETTINGS_CATEGORIES.map((category, index) => {
           const motion = sectionMotion(index);
           return (
-          <Card
-            key={category.key}
-            className={cn("p-5 transition-shadow duration-200 ease-out hover:shadow-sm", motion.className)}
-            style={motion.style}
-          >
-            <h2 className="text-sm font-medium text-foreground">{category.title}</h2>
-            <p className="mb-3.5 mt-0.5 text-xs text-muted-foreground">{category.description}</p>
-            <div className="grid grid-cols-1 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
-              {category.cards.map((card) => (
-                <SettingCard
-                  key={card.key}
-                  card={card}
-                  onClick={() => goWithExit(`/settings/${card.key}`)}
-                  extra={card.key === "users" ? <PendingInvitesBadge /> : null}
-                />
-              ))}
-            </div>
-          </Card>
+            <Card
+              key={category.key}
+              className={cn("p-5 transition-shadow duration-200 ease-out hover:shadow-sm", motion.className)}
+              style={motion.style}
+            >
+              <h2 className="text-sm font-medium text-foreground">{category.title}</h2>
+              <p className="mb-3.5 mt-0.5 text-xs text-muted-foreground">{category.description}</p>
+              <div className="grid grid-cols-1 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+                {category.cards.map((card) => (
+                  <SettingCard
+                    key={card.key}
+                    card={card}
+                    onClick={() => goWithExit(`/settings/${card.key}`)}
+                    extra={card.key === "users" ? <PendingInvitesBadge /> : null}
+                  />
+                ))}
+              </div>
+            </Card>
           );
         })}
       </div>
@@ -757,138 +757,138 @@ function UsersTab() {
 
   return (
     <div className="space-y-6">
-    <Card className="transition-shadow duration-200 ease-out">
-      <CardHeader className="flex-row items-center justify-between space-y-0">
-        <div>
-          <CardTitle>Users & Teams</CardTitle>
-          <CardDescription>Invite teammates by email — they set their own password.</CardDescription>
-        </div>
-        <Button size="sm" onClick={() => navigate("/settings/users/invite")}>
-          <Plus className="h-4 w-4" />
-          Invite User
-        </Button>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <TableSkeleton columns={5} />
-        ) : data?.users.length === 0 ? (
-          <EmptyState label="user" onAdd={() => navigate("/settings/users/invite")} />
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-muted-foreground">
-                <th className="py-2 font-medium">Name</th>
-                <th className="py-2 font-medium">Email</th>
-                <th className="py-2 font-medium">Role</th>
-                <th className="py-2 font-medium">Status</th>
-                <th className="py-2 font-medium text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data?.users.map((u) => (
-                <tr key={u.id} className="border-b border-border transition-colors duration-150 ease-out last:border-0 hover:bg-muted/40">
-                  <td className="py-2">{u.name}</td>
-                  <td className="py-2 text-muted-foreground">{u.email}</td>
-                  <td className="py-2">
-                    <Select value={u.role} onValueChange={(role) => handleRoleChange(u, role as Role)}>
-                      <SelectTrigger className="h-8 w-36">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ALL_ROLES.map((role) => (
-                          <SelectItem key={role} value={role}>
-                            {ROLE_LABELS[role]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </td>
-                  <td className="py-2">
-                    <Badge tone={u.active ? "success" : "muted"}>{u.active ? "Active" : "Inactive"}</Badge>
-                  </td>
-                  <td className="py-2 text-right">
-                    <Button variant="ghost" size="sm" onClick={() => setEditing(u)}>
-                      {u.active ? "Deactivate" : "Reactivate"}
-                    </Button>
-                  </td>
+      <Card className="transition-shadow duration-200 ease-out">
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle>Users & Teams</CardTitle>
+            <CardDescription>Invite teammates by email — they set their own password.</CardDescription>
+          </div>
+          <Button size="sm" onClick={() => navigate("/settings/users/invite")}>
+            <Plus className="h-4 w-4" />
+            Invite User
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <TableSkeleton columns={5} />
+          ) : data?.users.length === 0 ? (
+            <EmptyState label="user" onAdd={() => navigate("/settings/users/invite")} />
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-muted-foreground">
+                  <th className="py-2 font-medium">Name</th>
+                  <th className="py-2 font-medium">Email</th>
+                  <th className="py-2 font-medium">Role</th>
+                  <th className="py-2 font-medium">Status</th>
+                  <th className="py-2 font-medium text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </CardContent>
-      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editing?.active ? "Deactivate" : "Reactivate"} user</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            {editing?.active
-              ? `${editing?.name} will no longer be able to log in.`
-              : `${editing?.name} will regain access to log in.`}
-          </p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditing(null)}>
-              Cancel
-            </Button>
-            <Button variant={editing?.active ? "destructive" : "default"} onClick={() => editing && handleToggleActive(editing)}>
-              Confirm
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </Card>
-
-    <Card className="transition-shadow duration-200 ease-out">
-      <CardHeader>
-        <CardTitle>Pending Invites</CardTitle>
-        <CardDescription>Invites awaiting acceptance. Resend if the link expired, or revoke to cancel.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {invitesLoading ? (
-          <TableSkeleton columns={4} rows={2} />
-        ) : !inviteData?.pendingInvites.length ? (
-          <p className="text-sm text-muted-foreground">No pending invites.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-muted-foreground">
-                <th className="py-2 font-medium">Email</th>
-                <th className="py-2 font-medium">Role</th>
-                <th className="py-2 font-medium">Status</th>
-                <th className="py-2 font-medium text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {inviteData.pendingInvites.map((invite) => {
-                const expired = new Date(invite.expiresAt).getTime() < Date.now();
-                return (
-                  <tr key={invite.id} className="border-b border-border transition-colors duration-150 ease-out last:border-0 hover:bg-muted/40">
-                    <td className="py-2 text-muted-foreground">{invite.email}</td>
-                    <td className="py-2">{ROLE_LABELS[invite.role]}</td>
+              </thead>
+              <tbody>
+                {data?.users.map((u) => (
+                  <tr key={u.id} className="border-b border-border transition-colors duration-150 ease-out last:border-0 hover:bg-muted/40">
+                    <td className="py-2">{u.name}</td>
+                    <td className="py-2 text-muted-foreground">{u.email}</td>
                     <td className="py-2">
-                      <Badge tone={expired ? "muted" : "warning"}>
-                        {expired ? "Expired" : `Expires ${new Date(invite.expiresAt).toLocaleDateString()}`}
-                      </Badge>
+                      <Select value={u.role} onValueChange={(role) => handleRoleChange(u, role as Role)}>
+                        <SelectTrigger className="h-8 w-36">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ALL_ROLES.map((role) => (
+                            <SelectItem key={role} value={role}>
+                              {ROLE_LABELS[role]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="py-2">
+                      <Badge tone={u.active ? "success" : "muted"}>{u.active ? "Active" : "Inactive"}</Badge>
                     </td>
                     <td className="py-2 text-right">
-                      <Button variant="ghost" size="sm" onClick={() => handleResendInvite(invite)}>
-                        <RefreshCw className="h-4 w-4" />
-                        Resend
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleRevokeInvite(invite)}>
-                        <Ban className="h-4 w-4" />
-                        Revoke
+                      <Button variant="ghost" size="sm" onClick={() => setEditing(u)}>
+                        {u.active ? "Deactivate" : "Reactivate"}
                       </Button>
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </CardContent>
-    </Card>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </CardContent>
+        <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editing?.active ? "Deactivate" : "Reactivate"} user</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              {editing?.active
+                ? `${editing?.name} will no longer be able to log in.`
+                : `${editing?.name} will regain access to log in.`}
+            </p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditing(null)}>
+                Cancel
+              </Button>
+              <Button variant={editing?.active ? "destructive" : "default"} onClick={() => editing && handleToggleActive(editing)}>
+                Confirm
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </Card>
+
+      <Card className="transition-shadow duration-200 ease-out">
+        <CardHeader>
+          <CardTitle>Pending Invites</CardTitle>
+          <CardDescription>Invites awaiting acceptance. Resend if the link expired, or revoke to cancel.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {invitesLoading ? (
+            <TableSkeleton columns={4} rows={2} />
+          ) : !inviteData?.pendingInvites.length ? (
+            <p className="text-sm text-muted-foreground">No pending invites.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-muted-foreground">
+                  <th className="py-2 font-medium">Email</th>
+                  <th className="py-2 font-medium">Role</th>
+                  <th className="py-2 font-medium">Status</th>
+                  <th className="py-2 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {inviteData.pendingInvites.map((invite) => {
+                  const expired = new Date(invite.expiresAt).getTime() < Date.now();
+                  return (
+                    <tr key={invite.id} className="border-b border-border transition-colors duration-150 ease-out last:border-0 hover:bg-muted/40">
+                      <td className="py-2 text-muted-foreground">{invite.email}</td>
+                      <td className="py-2">{ROLE_LABELS[invite.role]}</td>
+                      <td className="py-2">
+                        <Badge tone={expired ? "muted" : "warning"}>
+                          {expired ? "Expired" : `Expires ${new Date(invite.expiresAt).toLocaleDateString()}`}
+                        </Badge>
+                      </td>
+                      <td className="py-2 text-right">
+                        <Button variant="ghost" size="sm" onClick={() => handleResendInvite(invite)}>
+                          <RefreshCw className="h-4 w-4" />
+                          Resend
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleRevokeInvite(invite)}>
+                          <Ban className="h-4 w-4" />
+                          Revoke
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

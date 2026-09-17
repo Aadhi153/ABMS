@@ -8,8 +8,8 @@ import { Roles } from "../../common/decorators/roles.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { AuditService } from "../../common/audit/audit.service";
 import { OrgStructureService } from "./org-structure.service";
-import { DepartmentModel, DesignationModel, GradeModel } from "./models/org-structure.model";
-import { CreateDepartmentInput, CreateDesignationInput, CreateGradeInput } from "./dto/org-structure.input";
+import { BranchModel, DepartmentModel, DesignationModel, GradeModel } from "./models/org-structure.model";
+import { CreateBranchInput, CreateDepartmentInput, CreateDesignationInput, CreateGradeInput } from "./dto/org-structure.input";
 
 @Resolver(() => DepartmentModel)
 @UseGuards(SessionAuthGuard, RolesGuard)
@@ -73,6 +73,34 @@ export class OrgStructureResolver {
   async deleteDesignation(@Args("id") id: string, @CurrentUser() actor: User) {
     const deleted = await this.orgStructureService.deleteDesignation(id);
     await this.audit.logDelete(actor, "Designation", id, deleted);
+    return true;
+  }
+
+  // --- Branches ---
+
+  @Query(() => [BranchModel])
+  branches() {
+    return this.orgStructureService.findBranches();
+  }
+
+  @Mutation(() => BranchModel)
+  async createBranch(@Args("input") input: CreateBranchInput, @CurrentUser() actor: User) {
+    const branch = await this.orgStructureService.createBranch(input, actor.organizationId);
+    await this.audit.logCreate(actor, "Branch", branch.id, branch);
+    return branch;
+  }
+
+  @Mutation(() => BranchModel)
+  async updateBranch(@Args("id") id: string, @Args("input") input: CreateBranchInput, @CurrentUser() actor: User) {
+    const branch = await this.orgStructureService.updateBranch(id, input);
+    await this.audit.logUpdate(actor, "Branch", id, null, branch);
+    return branch;
+  }
+
+  @Mutation(() => Boolean)
+  async deleteBranch(@Args("id") id: string, @CurrentUser() actor: User) {
+    const deleted = await this.orgStructureService.deleteBranch(id);
+    await this.audit.logDelete(actor, "Branch", id, deleted);
     return true;
   }
 
