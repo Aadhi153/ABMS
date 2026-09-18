@@ -8,3 +8,12 @@ export class PresignedUploadModel {
   @Field(() => String)
   publicUrl!: string;
 }
+
+@ObjectType()
+export class PresignedPrivateUploadModel {
+  @Field(() => String)
+  uploadUrl!: string;
+
+  @Field(() => String)
+  objectKey!: string;
+}
