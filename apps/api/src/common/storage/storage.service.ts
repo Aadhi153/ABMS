@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { Client } from "minio";
 
 const UPLOAD_URL_TTL_SECS = 5 * 60;
+const DOWNLOAD_URL_TTL_SECS = 5 * 60;
 const PUBLIC_PREFIXES = ["avatars", "logos"];
 
 /**
@@ -53,6 +54,11 @@ export class StorageService implements OnModuleInit {
 
   async presignedPutUrl(key: string): Promise<string> {
     return this.client.presignedPutObject(this.bucket, key, UPLOAD_URL_TTL_SECS);
+  }
+
+  /** For private objects (e.g. `employee-docs/`) that aren't covered by the public-read bucket policy. */
+  async presignedGetUrl(key: string): Promise<string> {
+    return this.client.presignedGetObject(this.bucket, key, DOWNLOAD_URL_TTL_SECS);
   }
 
   publicUrl(key: string): string {

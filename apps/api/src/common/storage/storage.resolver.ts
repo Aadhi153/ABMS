@@ -8,7 +8,7 @@ import { RolesGuard } from "../guards/roles.guard";
 import { Roles } from "../decorators/roles.decorator";
 import { CurrentUser } from "../decorators/current-user.decorator";
 import { StorageService } from "./storage.service";
-import { PresignedUploadModel } from "./models/presigned-upload.model";
+import { PresignedPrivateUploadModel, PresignedUploadModel } from "./models/presigned-upload.model";
 
 const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   "image/png": "png",
@@ -17,6 +17,12 @@ const ALLOWED_IMAGE_TYPES: Record<string, string> = {
 };
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
+const ALLOWED_DOCUMENT_TYPES: Record<string, string> = {
+  ...ALLOWED_IMAGE_TYPES,
+  "application/pdf": "pdf",
+};
+const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+
 function assertImageUpload(contentType: string, fileSizeBytes: number): string {
   const ext = ALLOWED_IMAGE_TYPES[contentType];
   if (!ext) {
@@ -24,6 +30,17 @@ function assertImageUpload(contentType: string, fileSizeBytes: number): string {
   }
   if (fileSizeBytes <= 0 || fileSizeBytes > MAX_IMAGE_BYTES) {
     throw new BadRequestException("Image must be under 5MB");
+  }
+  return ext;
+}
+
+function assertDocumentUpload(contentType: string, fileSizeBytes: number): string {
+  const ext = ALLOWED_DOCUMENT_TYPES[contentType];
+  if (!ext) {
+    throw new BadRequestException("Only PNG, JPEG, WEBP, or PDF files are allowed");
+  }
+  if (fileSizeBytes <= 0 || fileSizeBytes > MAX_DOCUMENT_BYTES) {
+    throw new BadRequestException("File must be under 10MB");
   }
   return ext;
 }
@@ -59,6 +76,24 @@ export class StorageResolver {
     return {
       uploadUrl: await this.storage.presignedPutUrl(key),
       publicUrl: this.storage.publicUrl(key),
+    };
+  }
+
+  @Mutation(() => PresignedPrivateUploadModel)
+  @Roles(Role.ADMIN)
+  async requestEmployeeDocumentUploadUrl(
+    @Args("contentType") contentType: string,
+    @Args("fileSizeBytes", { type: () => Int }) fileSizeBytes: number,
+    @CurrentUser() actor: User,
+  ) {
+    // No employeeId in the key: documents are uploaded before the employee row
+    // exists (during New Employee creation) — the DB row is what links this
+    // object back to an employee, via EmployeeDocument.employeeId.
+    const ext = assertDocumentUpload(contentType, fileSizeBytes);
+    const key = `employee-docs/${actor.organizationId}/${crypto.randomUUID()}.${ext}`;
+    return {
+      uploadUrl: await this.storage.presignedPutUrl(key),
+      objectKey: key,
     };
   }
 }

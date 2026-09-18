@@ -15,6 +15,7 @@ const GRADES_QUERY = gql`
       level
       minSalary
       maxSalary
+      promotionTenureMonths
       description
       active
       employeeCount
@@ -41,7 +42,7 @@ const DELETE_GRADE = gql`
   }
 `;
 
-const EMPTY_FORM = { name: "", code: "", level: "", minSalary: "", maxSalary: "", description: "" };
+const EMPTY_FORM = { name: "", code: "", level: "", minSalary: "", maxSalary: "", promotionTenureMonths: "", description: "" };
 
 export default function GradesTab() {
   const { data, loading, refetch } = useQuery<{ grades: Grade[] }>(GRADES_QUERY);
@@ -68,6 +69,7 @@ export default function GradesTab() {
       level: g.level !== null ? String(g.level) : "",
       minSalary: g.minSalary !== null ? String(g.minSalary) : "",
       maxSalary: g.maxSalary !== null ? String(g.maxSalary) : "",
+      promotionTenureMonths: g.promotionTenureMonths !== null ? String(g.promotionTenureMonths) : "",
       description: g.description ?? "",
     });
     setEditing(g);
@@ -87,6 +89,7 @@ export default function GradesTab() {
         level: form.level ? Number(form.level) : undefined,
         minSalary: form.minSalary ? Number(form.minSalary) : undefined,
         maxSalary: form.maxSalary ? Number(form.maxSalary) : undefined,
+        promotionTenureMonths: form.promotionTenureMonths ? Number(form.promotionTenureMonths) : undefined,
         description: form.description || undefined,
       };
       if (editing) {
@@ -136,6 +139,7 @@ export default function GradesTab() {
               <th className="px-4 py-2.5 font-medium">Name</th>
               <th className="px-4 py-2.5 font-medium text-right">Level</th>
               <th className="px-4 py-2.5 font-medium text-right">Salary band</th>
+              <th className="px-4 py-2.5 font-medium text-right">Promotion tenure</th>
               <th className="px-4 py-2.5 font-medium text-right">Employees</th>
               <th className="px-4 py-2.5 font-medium">Active</th>
               <th className="w-16" />
@@ -144,7 +148,7 @@ export default function GradesTab() {
           <tbody>
             {!loading && grades.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
+                <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
                   <Layers className="mx-auto mb-2 h-6 w-6 opacity-50" />
                   No grades configured yet.
                 </td>
@@ -164,6 +168,7 @@ export default function GradesTab() {
                 <td className="px-4 py-2.5 text-right text-muted-foreground">
                   {g.minSalary !== null || g.maxSalary !== null ? `${inr(g.minSalary ?? 0)} – ${inr(g.maxSalary ?? 0)}` : "—"}
                 </td>
+                <td className="px-4 py-2.5 text-right text-muted-foreground">{g.promotionTenureMonths ?? 12} mo</td>
                 <td className="px-4 py-2.5 text-right">{g.employeeCount}</td>
                 <td className="px-4 py-2.5">
                   <Badge tone={g.active ? "success" : "muted"}>{g.active ? "Active" : "Inactive"}</Badge>
@@ -211,6 +216,17 @@ export default function GradesTab() {
               <Label>Max salary</Label>
               <Input type="number" min="0" value={form.maxSalary} onChange={(e) => setForm({ ...form, maxSalary: e.target.value })} />
             </div>
+            <div className="space-y-1.5">
+              <Label>Promotion tenure (months)</Label>
+              <Input
+                type="number"
+                min="1"
+                placeholder="12"
+                value={form.promotionTenureMonths}
+                onChange={(e) => setForm({ ...form, promotionTenureMonths: e.target.value })}
+              />
+            </div>
+            <div />
             <div className="col-span-2 space-y-1.5">
               <Label>Description</Label>
               <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
