@@ -4,20 +4,23 @@ import type { StatusTone } from "@abms/shared";
 import { STATUS_TONE } from "@abms/shared";
 import { cn } from "../lib/utils";
 
-const badgeVariants = cva("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", {
-  variants: {
-    tone: {
-      success: "bg-success-bg text-success",
-      warning: "bg-warning-bg text-warning",
-      danger: "bg-danger-bg text-danger",
-      info: "bg-info-bg text-info",
-      muted: "bg-muted text-muted-foreground",
+const badgeVariants = cva(
+  "inline-flex items-center rounded-[var(--badge-radius,9999px)] px-2.5 py-0.5 text-xs font-medium [text-transform:var(--badge-text-transform,none)] tracking-[var(--badge-tracking,normal)]",
+  {
+    variants: {
+      tone: {
+        success: "bg-success-bg text-success",
+        warning: "bg-warning-bg text-warning",
+        danger: "bg-danger-bg text-danger",
+        info: "bg-info-bg text-info",
+        muted: "bg-muted text-muted-foreground",
+      },
+    },
+    defaultVariants: {
+      tone: "muted",
     },
   },
-  defaultVariants: {
-    tone: "muted",
-  },
-});
+);
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement>, VariantProps<typeof badgeVariants> {}
 

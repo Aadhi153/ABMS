@@ -153,7 +153,7 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="theme-cool-dense -m-3 min-h-full space-y-6 bg-background p-3 sm:-m-5 sm:p-5">
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <FormBreadcrumb items={[{ label: "HRMS", to: "/hrms/overview" }, { label: "Employee Management" }]} />
@@ -180,8 +180,8 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
                 {summaryVisible ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                 {summaryVisible ? "Hide Summary" : "Show Summary"}
               </Button>
-              <Button onClick={() => navigate("/hrms/employees/new")} className={cn("gap-1.5", BUTTON_PRESS)}>
-                <Plus className="h-4 w-4" />
+              <Button size="sm" onClick={() => navigate("/hrms/employees/new")} className={cn("gap-1.5", BUTTON_PRESS)}>
+                <Plus className="h-3.5 w-3.5" />
                 New Employee
               </Button>
             </div>
@@ -197,29 +197,27 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
       {subTab === "employees" && (
         <>
           {summaryVisible && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-px overflow-hidden rounded-sm border border-border bg-border sm:grid-cols-4">
               {stats.map((w, idx) => (
-                <Card
+                <div
                   key={w.label}
-                  className="animate-in fade-in slide-in-from-top-1 border-border duration-150 ease-out transition-shadow hover:shadow-md"
+                  className="animate-in fade-in bg-card p-3 duration-150 ease-out"
                   style={{ animationDelay: `${idx * 30}ms`, animationFillMode: "backwards" }}
                 >
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{w.label}</p>
-                      <w.icon className={cn("h-4 w-4 shrink-0", w.color)} />
-                    </div>
-                    <p className="mt-1.5 text-2xl font-bold tracking-tight text-foreground">{w.value}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{w.caption}</p>
-                  </CardContent>
-                </Card>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">{w.label}</p>
+                    <w.icon className={cn("h-3.5 w-3.5 shrink-0", w.color)} />
+                  </div>
+                  <p className="mt-1 text-lg font-bold tracking-tight text-foreground">{w.value}</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">{w.caption}</p>
+                </div>
               ))}
             </div>
           )}
 
           <Card>
-            <CardContent className="p-4">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <CardContent className="p-3">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -276,25 +274,25 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full border-collapse text-sm">
                   <thead>
-                    <tr className="border-b border-border bg-muted/30 text-left text-muted-foreground">
-                      <th className="w-10 px-4 py-2.5 font-medium">#</th>
+                    <tr className="border-b border-border bg-muted text-left text-muted-foreground">
+                      <th className="w-10 border-r border-border px-2.5 py-2 font-medium">#</th>
                       <SortHeader label="Code" k="employeeCode" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                       <SortHeader label="Name" k="fullName" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                      {visibleCols.email && <th className="px-4 py-2.5 font-medium">Email</th>}
+                      {visibleCols.email && <th className="border-r border-border px-2.5 py-2 font-medium">Email</th>}
                       <SortHeader label="Department" k="department" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                       <SortHeader label="Designation" k="designation" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                      {visibleCols.type && <th className="px-4 py-2.5 font-medium">Employment Type</th>}
-                      <th className="px-4 py-2.5 font-medium">Status</th>
+                      {visibleCols.type && <th className="border-r border-border px-2.5 py-2 font-medium">Employment Type</th>}
+                      <th className="border-r border-border px-2.5 py-2 font-medium">Status</th>
                       <SortHeader label="Joined" k="dateOfJoining" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                      <th className="w-10 px-4 py-2.5" />
+                      <th className="w-10 px-2.5 py-2" />
                     </tr>
                   </thead>
                   <tbody>
                     {!loading && sorted.length === 0 && (
                       <tr>
-                        <td colSpan={10} className="px-4 py-10 text-center text-muted-foreground">
+                        <td colSpan={10} className="px-2.5 py-10 text-center text-muted-foreground">
                           <IdCard className="mx-auto mb-2 h-6 w-6 opacity-50" />
                           No employees found.
                         </td>
@@ -303,11 +301,11 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
                     {sorted.map((e, idx) => (
                       <tr
                         key={e.id}
-                        className="animate-in fade-in slide-in-from-top-1 border-b border-border duration-150 ease-out last:border-0 hover:bg-muted/40"
+                        className="animate-in fade-in slide-in-from-top-1 border-t border-border duration-150 ease-out first:border-t-0 hover:bg-muted/40"
                         style={{ animationDelay: `${idx * 25}ms`, animationFillMode: "backwards" }}
                       >
-                        <td className="px-4 py-2.5 text-muted-foreground">{idx + 1}</td>
-                        <td className="px-4 py-2.5">
+                        <td className="border-r border-border px-2.5 py-2 text-muted-foreground">{idx + 1}</td>
+                        <td className="border-r border-border px-2.5 py-2">
                           <button
                             onClick={() => navigate(`/hrms/employees/${e.id}`)}
                             className="font-mono text-xs font-medium text-primary transition-colors hover:underline"
@@ -315,18 +313,23 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
                             {e.employeeCode}
                           </button>
                         </td>
-                        <td className="px-4 py-2.5 cursor-pointer font-medium text-foreground" onClick={() => navigate(`/hrms/employees/${e.id}`)}>
+                        <td
+                          className="cursor-pointer border-r border-border px-2.5 py-2 font-medium text-foreground"
+                          onClick={() => navigate(`/hrms/employees/${e.id}`)}
+                        >
                           {e.fullName}
                         </td>
-                        {visibleCols.email && <td className="px-4 py-2.5 text-muted-foreground">{e.email}</td>}
-                        <td className="px-4 py-2.5">{e.department}</td>
-                        <td className="px-4 py-2.5">{e.designation}</td>
-                        {visibleCols.type && <td className="px-4 py-2.5 text-muted-foreground">{titleCase(e.employmentType)}</td>}
-                        <td className="px-4 py-2.5">
+                        {visibleCols.email && <td className="border-r border-border px-2.5 py-2 text-muted-foreground">{e.email}</td>}
+                        <td className="border-r border-border px-2.5 py-2">{e.department}</td>
+                        <td className="border-r border-border px-2.5 py-2">{e.designation}</td>
+                        {visibleCols.type && (
+                          <td className="border-r border-border px-2.5 py-2 text-muted-foreground">{titleCase(e.employmentType)}</td>
+                        )}
+                        <td className="border-r border-border px-2.5 py-2">
                           <StatusBadge status={e.status} />
                         </td>
-                        <td className="px-4 py-2.5 text-muted-foreground">{fmtDate(e.dateOfJoining)}</td>
-                        <td className="px-4 py-2.5">
+                        <td className="border-r border-border px-2.5 py-2 text-muted-foreground">{fmtDate(e.dateOfJoining)}</td>
+                        <td className="px-2.5 py-2">
                           <Button variant="ghost" size="icon" className={BUTTON_PRESS} onClick={() => navigate(`/hrms/employees/${e.id}`)}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
@@ -359,7 +362,7 @@ function SortHeader({
 }) {
   const active = sortKey === k;
   return (
-    <th className="px-4 py-2.5 font-medium">
+    <th className="border-r border-border px-2.5 py-2 font-medium">
       <button className={cn("flex items-center gap-1 whitespace-nowrap transition-colors hover:text-foreground", active && "text-foreground")} onClick={() => onSort(k)}>
         {label}
         {active ? sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" /> : <ChevronsUpDown className="h-3 w-3 opacity-60" />}

@@ -109,6 +109,85 @@
     --auth-ring: 214 52% 24%;
   }
 
+  /*
+   * "Cool & Dense" theme — trial restyle scoped to a single page (currently
+   * HRMS Employee Management) via the `.theme-cool-dense` wrapper class,
+   * exactly like `.auth-theme` above scopes the auth flow's accent. Redefining
+   * the same token set the rest of the app reads means every Card/Button/
+   * Badge/table under the wrapper repaints for free — no component edits.
+   * If this direction is approved app-wide, promote this block's values into
+   * :root/.dark and delete the scoping class.
+   */
+  .theme-cool-dense {
+    --background: 210 22% 96%;   /* #F4F6F8 */
+    --foreground: 209 32% 15%;   /* #1A2733 */
+
+    --card: 0 0% 100%;           /* #FFFFFF */
+    --card-foreground: 209 32% 15%;
+
+    --border: 210 20% 86%;       /* #D5DCE3 */
+    --input: 210 20% 86%;
+    --ring: 205 64% 34%;
+
+    /* Cooler blue accent replacing the app-wide amber, dark enough that
+       white foreground text clears AA contrast (~6.9:1) without needing the
+       dark-on-bright pairing the amber accent requires. */
+    --primary: 205 64% 34%;      /* #1F5E8C */
+    --primary-foreground: 0 0% 100%;
+    --primary-bg: 205 45% 93%;
+
+    --muted: 207 27% 94%;        /* #EAEFF3 — table header row bg */
+    --muted-foreground: 211 13% 48%; /* #6B7A8A */
+
+    --success: 137 43% 30%;      /* #2C6E3F */
+    --success-bg: 135 27% 91%;   /* #E3EFE6 */
+    --warning: 37 80% 30%;       /* #8A5A0F */
+    --warning-bg: 40 80% 92%;    /* #FBF0DA */
+    /* Not part of the requested palette (only success/warning were specified)
+       — derived to match the cooler family so the "New Joinees" stat tile and
+       any info-toned badges stay coherent. --danger is intentionally left
+       inherited from :root since nothing on this page uses it. */
+    --info: 199 55% 45%;
+    --info-bg: 199 40% 93%;
+
+    --radius: 0.25rem;           /* 4px — sharper, denser corners app-wide via existing lg/md/sm mapping */
+
+    /* Badge shape hooks — see badge.tsx. Unset everywhere else, so this is
+       the only scope where status pills go from full-pill to sharp corners. */
+    --badge-radius: 3px;
+    --badge-text-transform: uppercase;
+    --badge-tracking: 0.02em;
+  }
+
+  .dark .theme-cool-dense {
+    --background: 215 28% 9%;
+    --foreground: 210 20% 92%;
+
+    --card: 215 25% 13%;
+    --card-foreground: 210 20% 92%;
+
+    --border: 215 18% 24%;
+    --input: 215 18% 24%;
+    --ring: 205 55% 58%;
+
+    /* Brightened for dark-bg contrast; dark navy foreground (not white) since
+       the lightened blue is too light for white text to clear AA — same
+       lightness-carries-the-contrast logic as the amber theme's dark mode. */
+    --primary: 205 55% 58%;
+    --primary-foreground: 215 40% 12%;
+    --primary-bg: 205 40% 18%;
+
+    --muted: 215 20% 16%;
+    --muted-foreground: 211 15% 68%;
+
+    --success: 137 40% 55%;
+    --success-bg: 137 30% 16%;
+    --warning: 37 70% 55%;
+    --warning-bg: 37 45% 16%;
+    --info: 199 50% 60%;
+    --info-bg: 199 35% 18%;
+  }
+
   * {
     @apply border-border;
   }
