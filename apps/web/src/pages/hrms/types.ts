@@ -503,6 +503,19 @@ export interface DepartmentHeadcount {
   count: number;
 }
 
+export interface LoanPortfolioSummary {
+  totalOutstanding: number;
+  activeAgreements: number;
+  pendingApprovals: number;
+}
+
+export interface LeaveTypeSnapshot {
+  leaveTypeName: string;
+  color: string;
+  usedDays: number;
+  allocatedDays: number;
+}
+
 export interface HrmsOverview {
   totalEmployees: number;
   activeEmployees: number;
@@ -515,6 +528,11 @@ export interface HrmsOverview {
   pendingIncentiveApprovals: number;
   upcomingPayrollRun: PayrollRun | null;
   headcountByDepartment: DepartmentHeadcount[];
-  recentJoiners: EmployeeLite[];
+  recentJoiners: (EmployeeLite & { monthlyGrossSalary: number })[];
   recentPayrollRuns: PayrollRun[];
+  activeDivisions: number;
+  attendancePct: number;
+  monthlyPayrollEstimate: number;
+  loanPortfolio: LoanPortfolioSummary;
+  leaveBalanceSnapshot: LeaveTypeSnapshot[];
 }

@@ -239,6 +239,7 @@ export default function NewEmployeePage() {
   }
 
   return (
+    <div className="theme-cool-dense -m-3 min-h-full bg-background p-3 sm:-m-5 sm:p-5">
     <FormPage leaving={leaving}>
       <FormScrollArea>
         <FormPageHeader
@@ -300,5 +301,6 @@ export default function NewEmployeePage() {
       </FormFooter>
       {discardDialog}
     </FormPage>
+    </div>
   );
 }
