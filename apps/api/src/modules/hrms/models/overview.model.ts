@@ -1,4 +1,4 @@
-import { Field, Int, ObjectType } from "@nestjs/graphql";
+import { Field, Float, Int, ObjectType } from "@nestjs/graphql";
 import { EmployeeModel } from "./employee.model";
 import { PayrollRunModel } from "./payroll.model";
 
@@ -9,6 +9,33 @@ export class DepartmentHeadcountModel {
 
   @Field(() => Int)
   count!: number;
+}
+
+@ObjectType()
+export class LoanPortfolioModel {
+  @Field(() => Float)
+  totalOutstanding!: number;
+
+  @Field(() => Int)
+  activeAgreements!: number;
+
+  @Field(() => Int)
+  pendingApprovals!: number;
+}
+
+@ObjectType()
+export class LeaveTypeSnapshotModel {
+  @Field(() => String)
+  leaveTypeName!: string;
+
+  @Field(() => String)
+  color!: string;
+
+  @Field(() => Float)
+  usedDays!: number;
+
+  @Field(() => Float)
+  allocatedDays!: number;
 }
 
 @ObjectType()
@@ -51,4 +78,19 @@ export class HrmsOverviewModel {
 
   @Field(() => [PayrollRunModel])
   recentPayrollRuns!: PayrollRunModel[];
+
+  @Field(() => Int)
+  activeDivisions!: number;
+
+  @Field(() => Float)
+  attendancePct!: number;
+
+  @Field(() => Float)
+  monthlyPayrollEstimate!: number;
+
+  @Field(() => LoanPortfolioModel)
+  loanPortfolio!: LoanPortfolioModel;
+
+  @Field(() => [LeaveTypeSnapshotModel])
+  leaveBalanceSnapshot!: LeaveTypeSnapshotModel[];
 }
