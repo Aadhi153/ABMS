@@ -216,7 +216,7 @@ export default function EmployeeDetailPage() {
 
   if (loading && !data) {
     return (
-      <div className="theme-cool-dense -m-3 min-h-full bg-background p-3 sm:-m-5 sm:p-5">
+      <div className="-m-3 min-h-full bg-background p-3 sm:-m-5 sm:p-5">
       <FormPage>
         <div className="mx-auto w-full max-w-5xl space-y-6">
           <Skeleton className="h-8 w-64" />
@@ -228,7 +228,7 @@ export default function EmployeeDetailPage() {
   }
   if (!loading && !employee) {
     return (
-      <div className="theme-cool-dense -m-3 min-h-full bg-background p-3 sm:-m-5 sm:p-5">
+      <div className="-m-3 min-h-full bg-background p-3 sm:-m-5 sm:p-5">
       <FormPage>
         <div className="mx-auto w-full max-w-5xl space-y-6">
           <Button variant="ghost" size="sm" onClick={() => goWithExit(EMPLOYEES_ROUTE)} className={cn("-ml-2 mb-1 gap-1.5 px-2 text-xs text-muted-foreground hover:bg-transparent", BUTTON_PRESS)}>
@@ -242,7 +242,7 @@ export default function EmployeeDetailPage() {
   }
 
   return (
-    <div className="theme-cool-dense -m-3 min-h-full bg-background p-3 sm:-m-5 sm:p-5">
+    <div className="-m-3 min-h-full bg-background p-3 sm:-m-5 sm:p-5">
     <FormPage leaving={leaving}>
       <div className="mx-auto w-full max-w-5xl space-y-6">
         <div className="space-y-3">

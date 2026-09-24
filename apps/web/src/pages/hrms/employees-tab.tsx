@@ -153,7 +153,7 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
   ];
 
   return (
-    <div className="theme-cool-dense -m-3 min-h-full space-y-6 bg-background p-3 sm:-m-5 sm:p-5">
+    <div className="-m-3 min-h-full space-y-6 bg-background p-3 sm:-m-5 sm:p-5">
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <FormBreadcrumb items={[{ label: "HRMS", to: "/hrms/overview" }, { label: "Employee Management" }]} />
