@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { gql, useMutation, useQuery } from "@apollo/client";
-import { Building2, Pencil, Plus, Trash2 } from "lucide-react";
-import { Badge, Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input, Label, cn, toast } from "@abms/ui";
+import { Building2, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Badge, Button, Card, CardContent, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input, Label, cn, toast } from "@abms/ui";
 import { BUTTON_PRESS } from "../products/form-motion";
 import type { Department } from "./types";
 
@@ -51,6 +51,13 @@ export default function DepartmentsTab() {
   const [deleteTarget, setDeleteTarget] = useState<Department | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return departments;
+    return departments.filter((d) => d.name.toLowerCase().includes(q) || (d.code ?? "").toLowerCase().includes(q));
+  }, [departments, search]);
 
   function openCreate() {
     setForm(EMPTY_FORM);
@@ -111,55 +118,65 @@ export default function DepartmentsTab() {
           New Department
         </Button>
       </div>
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/30 text-left text-muted-foreground">
-              <th className="px-4 py-2.5 font-medium">Name</th>
-              <th className="px-4 py-2.5 font-medium">Code</th>
-              <th className="px-4 py-2.5 font-medium">Description</th>
-              <th className="px-4 py-2.5 font-medium text-right">Employees</th>
-              <th className="px-4 py-2.5 font-medium">Active</th>
-              <th className="w-16" />
-            </tr>
-          </thead>
-          <tbody>
-            {!loading && departments.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
-                  <Building2 className="mx-auto mb-2 h-6 w-6 opacity-50" />
-                  No departments configured yet.
-                </td>
-              </tr>
-            )}
-            {departments.map((d, idx) => (
-              <tr
-                key={d.id}
-                className="animate-in fade-in slide-in-from-top-1 border-b border-border duration-150 ease-out last:border-0"
-                style={{ animationDelay: `${idx * 25}ms`, animationFillMode: "backwards" }}
-              >
-                <td className="px-4 py-2.5 font-medium text-foreground">{d.name}</td>
-                <td className="px-4 py-2.5 text-muted-foreground">{d.code ?? "—"}</td>
-                <td className="px-4 py-2.5 text-muted-foreground">{d.description ?? "—"}</td>
-                <td className="px-4 py-2.5 text-right">{d.employeeCount}</td>
-                <td className="px-4 py-2.5">
-                  <Badge tone={d.active ? "success" : "muted"}>{d.active ? "Active" : "Inactive"}</Badge>
-                </td>
-                <td className="px-4 py-2.5">
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" className={BUTTON_PRESS} onClick={() => openEdit(d)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className={BUTTON_PRESS} onClick={() => setDeleteTarget(d)}>
-                      <Trash2 className="h-3.5 w-3.5 text-danger" />
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Card>
+        <CardContent className="p-3">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Search by name or code…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-56 pl-8" />
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-muted-foreground">
+                  <th className="px-2.5 py-2.5 font-medium">Name</th>
+                  <th className="px-2.5 py-2.5 font-medium">Code</th>
+                  <th className="px-2.5 py-2.5 font-medium">Description</th>
+                  <th className="px-2.5 py-2.5 font-medium text-right">Employees</th>
+                  <th className="px-2.5 py-2.5 font-medium">Active</th>
+                  <th className="w-16" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {!loading && filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-2.5 py-10 text-center text-muted-foreground">
+                      <Building2 className="mx-auto mb-2 h-6 w-6 opacity-50" />
+                      No departments configured yet.
+                    </td>
+                  </tr>
+                )}
+                {filtered.map((d, idx) => (
+                  <tr
+                    key={d.id}
+                    className="animate-in fade-in slide-in-from-top-1 duration-150 ease-out hover:bg-muted/40"
+                    style={{ animationDelay: `${idx * 25}ms`, animationFillMode: "backwards" }}
+                  >
+                    <td className="px-2.5 py-2.5 font-medium text-foreground">{d.name}</td>
+                    <td className="px-2.5 py-2.5 text-muted-foreground">{d.code ?? "—"}</td>
+                    <td className="px-2.5 py-2.5 text-muted-foreground">{d.description ?? "—"}</td>
+                    <td className="px-2.5 py-2.5 text-right">{d.employeeCount}</td>
+                    <td className="px-2.5 py-2.5">
+                      <Badge tone={d.active ? "success" : "muted"}>{d.active ? "Active" : "Inactive"}</Badge>
+                    </td>
+                    <td className="px-2.5 py-2.5">
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className={BUTTON_PRESS} onClick={() => openEdit(d)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className={BUTTON_PRESS} onClick={() => setDeleteTarget(d)}>
+                          <Trash2 className="h-3.5 w-3.5 text-danger" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>

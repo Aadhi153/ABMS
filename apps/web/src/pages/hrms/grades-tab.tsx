@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { gql, useMutation, useQuery } from "@apollo/client";
-import { Layers, Pencil, Plus, Trash2 } from "lucide-react";
-import { Badge, Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input, Label, cn, toast } from "@abms/ui";
+import { Layers, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Badge, Button, Card, CardContent, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input, Label, cn, toast } from "@abms/ui";
 import { BUTTON_PRESS } from "../products/form-motion";
 import type { Grade } from "./types";
 import { inr } from "./hrms-helpers";
@@ -56,6 +56,13 @@ export default function GradesTab() {
   const [deleteTarget, setDeleteTarget] = useState<Grade | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return grades;
+    return grades.filter((g) => g.name.toLowerCase().includes(q) || (g.code ?? "").toLowerCase().includes(q));
+  }, [grades, search]);
 
   function openCreate() {
     setForm(EMPTY_FORM);
@@ -132,62 +139,72 @@ export default function GradesTab() {
           New Grade
         </Button>
       </div>
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/30 text-left text-muted-foreground">
-              <th className="px-4 py-2.5 font-medium">Name</th>
-              <th className="px-4 py-2.5 font-medium text-right">Level</th>
-              <th className="px-4 py-2.5 font-medium text-right">Salary band</th>
-              <th className="px-4 py-2.5 font-medium text-right">Promotion tenure</th>
-              <th className="px-4 py-2.5 font-medium text-right">Employees</th>
-              <th className="px-4 py-2.5 font-medium">Active</th>
-              <th className="w-16" />
-            </tr>
-          </thead>
-          <tbody>
-            {!loading && grades.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
-                  <Layers className="mx-auto mb-2 h-6 w-6 opacity-50" />
-                  No grades configured yet.
-                </td>
-              </tr>
-            )}
-            {grades.map((g, idx) => (
-              <tr
-                key={g.id}
-                className="animate-in fade-in slide-in-from-top-1 border-b border-border duration-150 ease-out last:border-0"
-                style={{ animationDelay: `${idx * 25}ms`, animationFillMode: "backwards" }}
-              >
-                <td className="px-4 py-2.5 font-medium text-foreground">
-                  {g.name}
-                  {g.code && <span className="ml-1.5 text-xs text-muted-foreground">({g.code})</span>}
-                </td>
-                <td className="px-4 py-2.5 text-right">{g.level ?? "—"}</td>
-                <td className="px-4 py-2.5 text-right text-muted-foreground">
-                  {g.minSalary !== null || g.maxSalary !== null ? `${inr(g.minSalary ?? 0)} – ${inr(g.maxSalary ?? 0)}` : "—"}
-                </td>
-                <td className="px-4 py-2.5 text-right text-muted-foreground">{g.promotionTenureMonths ?? 12} mo</td>
-                <td className="px-4 py-2.5 text-right">{g.employeeCount}</td>
-                <td className="px-4 py-2.5">
-                  <Badge tone={g.active ? "success" : "muted"}>{g.active ? "Active" : "Inactive"}</Badge>
-                </td>
-                <td className="px-4 py-2.5">
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" className={BUTTON_PRESS} onClick={() => openEdit(g)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className={BUTTON_PRESS} onClick={() => setDeleteTarget(g)}>
-                      <Trash2 className="h-3.5 w-3.5 text-danger" />
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Card>
+        <CardContent className="p-3">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Search by name or code…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-56 pl-8" />
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-muted-foreground">
+                  <th className="px-2.5 py-2.5 font-medium">Name</th>
+                  <th className="px-2.5 py-2.5 font-medium text-right">Level</th>
+                  <th className="px-2.5 py-2.5 font-medium text-right">Salary band</th>
+                  <th className="px-2.5 py-2.5 font-medium text-right">Promotion tenure</th>
+                  <th className="px-2.5 py-2.5 font-medium text-right">Employees</th>
+                  <th className="px-2.5 py-2.5 font-medium">Active</th>
+                  <th className="w-16" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {!loading && filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-2.5 py-10 text-center text-muted-foreground">
+                      <Layers className="mx-auto mb-2 h-6 w-6 opacity-50" />
+                      No grades configured yet.
+                    </td>
+                  </tr>
+                )}
+                {filtered.map((g, idx) => (
+                  <tr
+                    key={g.id}
+                    className="animate-in fade-in slide-in-from-top-1 duration-150 ease-out hover:bg-muted/40"
+                    style={{ animationDelay: `${idx * 25}ms`, animationFillMode: "backwards" }}
+                  >
+                    <td className="px-2.5 py-2.5 font-medium text-foreground">
+                      {g.name}
+                      {g.code && <span className="ml-1.5 text-xs text-muted-foreground">({g.code})</span>}
+                    </td>
+                    <td className="px-2.5 py-2.5 text-right">{g.level ?? "—"}</td>
+                    <td className="px-2.5 py-2.5 text-right text-muted-foreground">
+                      {g.minSalary !== null || g.maxSalary !== null ? `${inr(g.minSalary ?? 0)} – ${inr(g.maxSalary ?? 0)}` : "—"}
+                    </td>
+                    <td className="px-2.5 py-2.5 text-right text-muted-foreground">{g.promotionTenureMonths ?? 12} mo</td>
+                    <td className="px-2.5 py-2.5 text-right">{g.employeeCount}</td>
+                    <td className="px-2.5 py-2.5">
+                      <Badge tone={g.active ? "success" : "muted"}>{g.active ? "Active" : "Inactive"}</Badge>
+                    </td>
+                    <td className="px-2.5 py-2.5">
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className={BUTTON_PRESS} onClick={() => openEdit(g)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className={BUTTON_PRESS} onClick={() => setDeleteTarget(g)}>
+                          <Trash2 className="h-3.5 w-3.5 text-danger" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
