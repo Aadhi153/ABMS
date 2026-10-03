@@ -49,6 +49,11 @@ export class CreateEmployeeInput {
   @IsString()
   firstName!: string;
 
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  middleName?: string;
+
   @Field(() => String)
   @IsString()
   lastName!: string;
@@ -66,6 +71,11 @@ export class CreateEmployeeInput {
   @IsOptional()
   @IsEnum(Gender)
   gender?: Gender;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  nationality?: string;
 
   @Field(() => Date, { nullable: true })
   @IsOptional()

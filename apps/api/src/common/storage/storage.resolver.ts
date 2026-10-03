@@ -79,6 +79,23 @@ export class StorageResolver {
     };
   }
 
+  @Mutation(() => PresignedUploadModel)
+  @Roles(Role.ADMIN)
+  async requestEmployeeAvatarUploadUrl(
+    @Args("contentType") contentType: string,
+    @Args("fileSizeBytes", { type: () => Int }) fileSizeBytes: number,
+    @CurrentUser() actor: User,
+  ) {
+    // Org-keyed, not employee-keyed: the employee row doesn't exist yet during
+    // New Employee creation, same reasoning as requestEmployeeDocumentUploadUrl below.
+    const ext = assertImageUpload(contentType, fileSizeBytes);
+    const key = `employee-avatars/${actor.organizationId}/${crypto.randomUUID()}.${ext}`;
+    return {
+      uploadUrl: await this.storage.presignedPutUrl(key),
+      publicUrl: this.storage.publicUrl(key),
+    };
+  }
+
   @Mutation(() => PresignedPrivateUploadModel)
   @Roles(Role.ADMIN)
   async requestEmployeeDocumentUploadUrl(

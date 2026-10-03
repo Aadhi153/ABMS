@@ -14,6 +14,7 @@ const EMPLOYEE_INCLUDE = {
 function toModel<
   T extends {
     firstName: string;
+    middleName?: string | null;
     lastName: string;
     monthlyGrossSalary: unknown;
     tdsValue: unknown;
@@ -25,7 +26,7 @@ function toModel<
 >(row: T) {
   return {
     ...row,
-    fullName: `${row.firstName} ${row.lastName}`,
+    fullName: [row.firstName, row.middleName, row.lastName].filter(Boolean).join(" "),
     reportingManagerName: row.reportingManager ? `${row.reportingManager.firstName} ${row.reportingManager.lastName}` : null,
     shiftName: row.shift?.name ?? null,
     shiftCode: row.shift?.code ?? null,
@@ -83,10 +84,12 @@ export class EmployeesService {
         employeeCode,
         userId: input.userId,
         firstName: input.firstName,
+        middleName: input.middleName,
         lastName: input.lastName,
         email: input.email,
         phone: input.phone,
         gender: input.gender,
+        nationality: input.nationality,
         dateOfBirth: input.dateOfBirth,
         dateOfJoining: input.dateOfJoining,
         designation: input.designation,
@@ -173,10 +176,12 @@ export class EmployeesService {
       data: {
         userId: input.userId,
         firstName: input.firstName,
+        middleName: input.middleName,
         lastName: input.lastName,
         email: input.email,
         phone: input.phone,
         gender: input.gender,
+        nationality: input.nationality,
         dateOfBirth: input.dateOfBirth,
         dateOfJoining: input.dateOfJoining,
         designation: input.designation,

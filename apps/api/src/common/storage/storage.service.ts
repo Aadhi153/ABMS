@@ -3,14 +3,14 @@ import { Client } from "minio";
 
 const UPLOAD_URL_TTL_SECS = 5 * 60;
 const DOWNLOAD_URL_TTL_SECS = 5 * 60;
-const PUBLIC_PREFIXES = ["avatars", "logos"];
+const PUBLIC_PREFIXES = ["avatars", "logos", "employee-avatars"];
 
 /**
- * One shared MinIO bucket for the whole deployment. Only the `avatars/` and
- * `logos/` prefixes are made public-read (via an explicit bucket policy) since
- * those URLs are already rendered directly as <img src> all over the app;
- * anything else ever written to this bucket in the future stays private by
- * default.
+ * One shared MinIO bucket for the whole deployment. Only the `avatars/`,
+ * `logos/`, and `employee-avatars/` prefixes are made public-read (via an
+ * explicit bucket policy) since those URLs are already rendered directly as
+ * <img src> all over the app; anything else ever written to this bucket in
+ * the future stays private by default.
  */
 @Injectable()
 export class StorageService implements OnModuleInit {

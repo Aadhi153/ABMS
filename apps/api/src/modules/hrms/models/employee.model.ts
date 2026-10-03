@@ -53,6 +53,9 @@ export class EmployeeModel {
   @Field(() => String)
   firstName!: string;
 
+  @Field(() => String, { nullable: true })
+  middleName?: string | null;
+
   @Field(() => String)
   lastName!: string;
 
@@ -67,6 +70,9 @@ export class EmployeeModel {
 
   @Field(() => String, { nullable: true })
   gender?: string | null;
+
+  @Field(() => String, { nullable: true })
+  nationality?: string | null;
 
   @Field(() => Date, { nullable: true })
   dateOfBirth?: Date | null;
