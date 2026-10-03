@@ -92,24 +92,32 @@ export function FormBreadcrumb({
 export function FormPageHeader({
   breadcrumb,
   title,
+  titleBadges,
   subtitle,
   icon,
   backLabel,
   onBack,
   onNavigate,
   backPosition,
+  compact,
 }: {
   breadcrumb: BreadcrumbItem[];
   title: string;
+  /** Chips rendered inline after the title (e.g. an EMP code, a "Draft Autosaved" pill). */
+  titleBadges?: ReactNode;
   subtitle?: string;
   icon?: ReactNode;
   backLabel: string;
   onBack: () => void;
   onNavigate?: (to: string) => void;
   backPosition?: "top" | "right";
+  /** Tighter padding/type scale for pages that need the vertical space back (e.g. a
+   * form with its own step stepper below the header). Opt-in — default matches every
+   * other FormPageHeader usage. */
+  compact?: boolean;
 }) {
   return (
-    <div className="space-y-3">
+    <div className={compact ? "space-y-1.5" : "space-y-3"}>
       {breadcrumb && breadcrumb.length > 0 && (
         <FormBreadcrumb items={breadcrumb} onNavigate={onNavigate} />
       )}
@@ -128,14 +136,22 @@ export function FormPageHeader({
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
           {icon && (
-            <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/5 text-primary">
+            <div
+              className={cn(
+                "flex shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/5 text-primary",
+                compact ? "h-8 w-8" : "mt-1 h-10 w-10",
+              )}
+            >
               {icon}
             </div>
           )}
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className={cn("font-bold tracking-tight", compact ? "text-lg" : "text-2xl")}>{title}</h1>
+              {titleBadges}
+            </div>
             {subtitle && (
-              <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
+              <p className={cn("text-muted-foreground", compact ? "text-xs" : "mt-1 text-sm")}>{subtitle}</p>
             )}
           </div>
         </div>
@@ -163,13 +179,24 @@ export function FormSection({
   title,
   description,
   icon,
+  iconTone,
   index,
+  badge,
+  compact,
   children,
 }: {
   title: string;
   description?: string;
   icon?: ReactNode;
+  /** Renders `icon` inside a tinted rounded box instead of bare — use sparingly to draw
+   * the eye to a card that carries extra weight (e.g. a compliance/statutory section). */
+  iconTone?: "primary" | "success";
   index: number;
+  /** Optional corner label (e.g. "Step 2.1") for forms broken into several numbered cards. */
+  badge?: ReactNode;
+  /** Tighter header (smaller icon/title/description, less margin) for multi-card steps
+   * that need the vertical space back. Opt-in — default matches every other usage. */
+  compact?: boolean;
   children: ReactNode;
 }) {
   const motion = sectionMotion(index);
@@ -178,14 +205,31 @@ export function FormSection({
       className={cn("p-3", motion.className)}
       style={motion.style as CSSProperties}
     >
-      <div className="mb-2 flex items-center gap-2">
-        {icon && <div className="text-muted-foreground">{icon}</div>}
-        <div>
-          <h2 className="text-base font-semibold text-foreground">{title}</h2>
-          {description && (
-            <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
+      <div className={cn("flex items-start justify-between gap-2", compact ? "mb-1.5" : "mb-2")}>
+        <div className="flex items-center gap-2">
+          {icon && (
+            iconTone ? (
+              <div
+                className={cn(
+                  "flex shrink-0 items-center justify-center rounded-md",
+                  compact ? "h-7 w-7" : "h-8 w-8",
+                  iconTone === "primary" ? "bg-primary/10 text-primary" : "bg-success/10 text-success",
+                )}
+              >
+                {icon}
+              </div>
+            ) : (
+              <div className={cn("text-muted-foreground", compact && "[&_svg]:h-4 [&_svg]:w-4")}>{icon}</div>
+            )
           )}
+          <div>
+            <h2 className={cn("font-semibold text-foreground", compact ? "text-sm" : "text-base")}>{title}</h2>
+            {description && (
+              <p className={cn("text-muted-foreground", compact ? "text-xs" : "mt-0.5 text-sm")}>{description}</p>
+            )}
+          </div>
         </div>
+        {badge && <div className="shrink-0 text-xs font-medium text-muted-foreground">{badge}</div>}
       </div>
       <div className="space-y-3">{children}</div>
     </Card>

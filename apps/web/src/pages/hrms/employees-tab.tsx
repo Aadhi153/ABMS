@@ -388,29 +388,29 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
   ];
 
   return (
-    <div className="-m-3 min-h-full space-y-5 bg-background p-3 sm:-m-5 sm:p-5">
+    <div className="-m-3 min-h-full space-y-3 bg-background p-3 sm:-m-5 sm:p-5">
       <FormBreadcrumb items={[{ label: "HRMS", to: "/hrms/overview" }, { label: "Employee Management" }]} />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <h1 className="text-[28px] font-extrabold tracking-tight text-foreground">Employee Management</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-bold tracking-tight text-foreground">Employee Management</h1>
           {subTab === "employees" && (
-            <span className="rounded-full border border-primary/30 bg-primary-bg px-2.5 py-1 text-xs font-semibold text-primary">
+            <span className="rounded-full border border-primary/30 bg-primary-bg px-2 py-0.5 text-[11px] font-semibold text-primary">
               {employees.length} Team Members
             </span>
           )}
         </div>
         {subTab === "employees" && (
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setSummaryVisible((v) => !v)} className={cn("gap-1.5", BUTTON_PRESS)}>
+          <div className="flex items-center gap-1.5">
+            <Button variant="outline" size="sm" onClick={() => setSummaryVisible((v) => !v)} className={cn("gap-1.5", BUTTON_PRESS)}>
               {summaryVisible ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
               {summaryVisible ? "Hide Summary" : "Show Summary"}
             </Button>
-            <Button variant="outline" onClick={handleExportCsv} className={cn("gap-1.5", BUTTON_PRESS)}>
+            <Button variant="outline" size="sm" onClick={handleExportCsv} className={cn("gap-1.5", BUTTON_PRESS)}>
               <Download className="h-3.5 w-3.5" />
               Export CSV
             </Button>
-            <Button onClick={() => navigate("/hrms/employees/new")} className={cn("gap-1.5", BUTTON_PRESS)}>
+            <Button size="sm" onClick={() => navigate("/hrms/employees/new")} className={cn("gap-1.5", BUTTON_PRESS)}>
               <Plus className="h-3.5 w-3.5" />
               New Employee
             </Button>
@@ -418,13 +418,13 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
         )}
       </div>
 
-      <div className="flex items-center gap-5 border-b border-border">
+      <div className="flex items-center gap-3 border-b border-border">
         {SUB_TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setSubTab(t.key)}
             className={cn(
-              "flex items-center gap-1.5 border-b-2 pb-2.5 text-sm font-medium transition-colors",
+              "flex items-center gap-1 border-b-2 pb-1 text-xs font-medium transition-colors",
               subTab === t.key ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
@@ -432,7 +432,7 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
             {t.key === "employees" && (
               <span
                 className={cn(
-                  "rounded-full px-1.5 py-0.5 text-[11px] font-semibold",
+                  "rounded-full px-1 py-0.5 text-[10px] font-semibold",
                   subTab === t.key ? "bg-primary-bg text-primary" : "bg-muted text-muted-foreground",
                 )}
               >
@@ -451,26 +451,30 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
       {subTab === "employees" && (
         <>
           {summaryVisible && (
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
               {stats.map((w, idx) => (
                 <Card
                   key={w.label}
                   className="animate-in fade-in duration-150 ease-out"
                   style={{ animationDelay: `${idx * 30}ms`, animationFillMode: "backwards" }}
                 >
-                  <CardContent className="p-4">
+                  <CardContent className="p-2.5">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">{w.label}</p>
-                      <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", w.tone.bg)}>
-                        <w.icon className={cn("h-4 w-4", w.tone.text)} />
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">{w.label}</p>
+                      <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md", w.tone.bg)}>
+                        <w.icon className={cn("h-3 w-3", w.tone.text)} />
                       </div>
                     </div>
-                    <div className="mt-2 flex items-baseline gap-2">
-                      <p className="text-2xl font-bold tracking-tight text-foreground">{w.value}</p>
-                      {w.delta && <Badge tone={w.deltaTone}>{w.delta}</Badge>}
+                    <div className="mt-1 flex items-baseline gap-1.5">
+                      <p className="text-lg font-bold tracking-tight text-foreground">{w.value}</p>
+                      {w.delta && (
+                        <Badge tone={w.deltaTone} className="px-1.5 py-0 text-[10px]">
+                          {w.delta}
+                        </Badge>
+                      )}
                     </div>
-                    <div className="mt-2.5 border-t border-border pt-2">
-                      <p className="text-xs text-muted-foreground">{w.caption}</p>
+                    <div className="mt-1.5 border-t border-border pt-1">
+                      <p className="text-[10px] text-muted-foreground">{w.caption}</p>
                     </div>
                   </CardContent>
                 </Card>
