@@ -8,14 +8,29 @@ export class EmployeeExperienceModel {
   @Field(() => String)
   organizationName!: string;
 
+  @Field(() => String, { nullable: true })
+  designation?: string | null;
+
   @Field(() => Date)
   startDate!: Date;
 
   @Field(() => Date, { nullable: true })
   endDate?: Date | null;
 
+  @Field(() => Boolean)
+  currentlyServing!: boolean;
+
   @Field(() => Float, { nullable: true })
   ctc?: number | null;
+
+  @Field(() => Float, { nullable: true })
+  fixedCtc?: number | null;
+
+  @Field(() => Float, { nullable: true })
+  bonusCtc?: number | null;
+
+  @Field(() => String, { nullable: true })
+  reasonForLeaving?: string | null;
 }
 
 @ObjectType()
@@ -138,13 +153,40 @@ export class EmployeeModel {
   fatherOrSpouseName?: string | null;
 
   @Field(() => String, { nullable: true })
+  fatherOrSpouseRelation?: string | null;
+
+  @Field(() => String, { nullable: true })
   qualification?: string | null;
 
   @Field(() => String, { nullable: true })
   religion?: string | null;
 
   @Field(() => String, { nullable: true })
-  temporaryAddress?: string | null;
+  addressLine?: string | null;
+
+  @Field(() => String, { nullable: true })
+  addressCity?: string | null;
+
+  @Field(() => String, { nullable: true })
+  addressState?: string | null;
+
+  @Field(() => String, { nullable: true })
+  addressPincode?: string | null;
+
+  @Field(() => Boolean)
+  temporaryAddressSameAsPermanent!: boolean;
+
+  @Field(() => String, { nullable: true })
+  temporaryAddressLine?: string | null;
+
+  @Field(() => String, { nullable: true })
+  temporaryAddressCity?: string | null;
+
+  @Field(() => String, { nullable: true })
+  temporaryAddressState?: string | null;
+
+  @Field(() => String, { nullable: true })
+  temporaryAddressPincode?: string | null;
 
   @Field(() => String, { nullable: true })
   aadharNumber?: string | null;
@@ -192,13 +234,13 @@ export class EmployeeModel {
   panNumber?: string | null;
 
   @Field(() => String, { nullable: true })
-  address?: string | null;
-
-  @Field(() => String, { nullable: true })
   emergencyContactName?: string | null;
 
   @Field(() => String, { nullable: true })
   emergencyContactPhone?: string | null;
+
+  @Field(() => String, { nullable: true })
+  emergencyContactRelation?: string | null;
 
   @Field(() => [EmployeeExperienceModel])
   experiences!: EmployeeExperienceModel[];

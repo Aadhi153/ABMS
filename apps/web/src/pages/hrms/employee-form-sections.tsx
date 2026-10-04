@@ -12,6 +12,7 @@ import {
   FileText,
   History,
   Landmark,
+  Loader2,
   Paperclip,
   Phone,
   Plus,
@@ -40,7 +41,6 @@ import {
   SelectTrigger,
   SelectValue,
   StatusBadge,
-  Textarea,
   cn,
   toast,
 } from "@abms/ui";
@@ -66,7 +66,7 @@ const CREATE_DEPARTMENT = gql`
   }
 `;
 
-const RELIGION_OPTIONS = ["Hindu", "Muslim", "Christian", "Sikh", "Buddhist", "Jain", "Other"];
+const RELATION_OPTIONS = ["Father", "Mother", "Spouse", "Guardian", "Other"];
 const NATIONALITY_OPTIONS: { value: string; flag: string; label: string }[] = [
   { value: "Indian", flag: "🇮🇳", label: "India (Resident)" },
   { value: "Other", flag: "🌐", label: "Other / Foreign National" },
@@ -163,13 +163,21 @@ export interface StagedDocument {
   experienceIndex?: number;
   objectKey: string;
   fileName: string;
+  /** Captured from the `File` object at upload time for the file-chip size tag — not
+   * persisted server-side (EmployeeDocument has no size column), so it's lost on reload. */
+  fileSizeBytes?: number;
 }
 
 export interface EmployeeExperienceRow {
   organizationName: string;
+  designation: string;
   startDate: string;
   endDate: string;
+  currentlyServing: boolean;
   ctc: string;
+  fixedCtc: string;
+  bonusCtc: string;
+  reasonForLeaving: string;
 }
 
 export interface SalaryComponentRow {
@@ -200,16 +208,26 @@ export interface EmployeeFormState {
   employmentType: string;
   status: string;
   reportingManagerId: string;
+  isFresher: boolean;
   experiences: EmployeeExperienceRow[];
   phone: string;
   emergencyContactPhone: string;
   email: string;
   fatherOrSpouseName: string;
+  fatherOrSpouseRelation: string;
   qualification: string;
   religion: string;
-  address: string;
-  temporaryAddress: string;
+  addressLine: string;
+  addressCity: string;
+  addressState: string;
+  addressPincode: string;
+  temporaryAddressSameAsPermanent: boolean;
+  temporaryAddressLine: string;
+  temporaryAddressCity: string;
+  temporaryAddressState: string;
+  temporaryAddressPincode: string;
   emergencyContactName: string;
+  emergencyContactRelation: string;
   aadharNumber: string;
   panNumber: string;
   uan: string;
@@ -251,16 +269,26 @@ export function emptyEmployeeForm(): EmployeeFormState {
     employmentType: "FULL_TIME",
     status: "ACTIVE",
     reportingManagerId: "",
+    isFresher: false,
     experiences: [],
     phone: "",
     emergencyContactPhone: "",
     email: "",
     fatherOrSpouseName: "",
+    fatherOrSpouseRelation: "Father",
     qualification: "",
     religion: "",
-    address: "",
-    temporaryAddress: "",
+    addressLine: "",
+    addressCity: "",
+    addressState: "",
+    addressPincode: "",
+    temporaryAddressSameAsPermanent: false,
+    temporaryAddressLine: "",
+    temporaryAddressCity: "",
+    temporaryAddressState: "",
+    temporaryAddressPincode: "",
     emergencyContactName: "",
+    emergencyContactRelation: "Father",
     aadharNumber: "",
     panNumber: "",
     uan: "",
@@ -286,16 +314,22 @@ interface SectionProps {
   setForm: (updater: (f: EmployeeFormState) => EmployeeFormState) => void;
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function useDocumentUpload() {
   const [requestUploadUrl] = useMutation(REQUEST_EMPLOYEE_DOCUMENT_UPLOAD_URL);
 
-  async function upload(file: File): Promise<{ objectKey: string; fileName: string } | null> {
+  async function upload(file: File): Promise<{ objectKey: string; fileName: string; fileSizeBytes: number } | null> {
     try {
       const { data } = await requestUploadUrl({ variables: { contentType: file.type, fileSizeBytes: file.size } });
       const { uploadUrl, objectKey } = data.requestEmployeeDocumentUploadUrl;
       const putResponse = await fetch(uploadUrl, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
       if (!putResponse.ok) throw new Error("Upload to storage failed");
-      return { objectKey, fileName: file.name };
+      return { objectKey, fileName: file.name, fileSizeBytes: file.size };
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to upload file");
       return null;
@@ -303,32 +337,6 @@ function useDocumentUpload() {
   }
 
   return upload;
-}
-
-function DocumentUploadButton({
-  onUploaded,
-}: {
-  onUploaded: (result: { objectKey: string; fileName: string }) => void;
-}) {
-  const upload = useDocumentUpload();
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  async function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    const result = await upload(file);
-    if (result) onUploaded(result);
-  }
-
-  return (
-    <>
-      <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp,application/pdf" className="hidden" onChange={handleChange} />
-      <Button type="button" variant="outline" size="icon" className={BUTTON_PRESS} onClick={() => inputRef.current?.click()}>
-        <Upload className="h-4 w-4" />
-      </Button>
-    </>
-  );
 }
 
 /** Single bordered toggle group (vs. the separate pill buttons of `SegmentedControl` below) —
@@ -928,9 +936,151 @@ export function JobSection({
   );
 }
 
+const DOCUMENT_UPLOAD_ACCEPT = "image/png,image/jpeg,image/webp,application/pdf";
+// Mirrors assertDocumentUpload's MAX_DOCUMENT_BYTES in apps/api/src/common/storage/storage.resolver.ts —
+// matching it client-side turns a server 400 into an inline toast before the request even fires.
+const MAX_DOCUMENT_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+/** Dashed-border drag-and-drop target shared by every document upload surface on this form
+ * (statutory ID scans, additional documents, experience proof) so they all get the same
+ * affordance — click, drag-drop, busy spinner — instead of the bare icon-only button. */
+function DocumentDropzone({
+  hint,
+  compact,
+  onUploaded,
+}: {
+  /** Caption under the call-to-action, e.g. "Aadhaar card · PDF, PNG, JPG up to 10MB". */
+  hint: string;
+  /** Tighter padding for use inside an already-bordered statutory card. */
+  compact?: boolean;
+  onUploaded: (result: { objectKey: string; fileName: string; fileSizeBytes: number }) => void;
+}) {
+  const upload = useDocumentUpload();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function handleFile(file: File | undefined) {
+    if (!file) return;
+    if (file.size > MAX_DOCUMENT_UPLOAD_BYTES) {
+      toast.error("File must be under 10MB");
+      return;
+    }
+    setBusy(true);
+    const result = await upload(file);
+    setBusy(false);
+    if (result) onUploaded(result);
+  }
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => inputRef.current?.click()}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        handleFile(e.dataTransfer.files?.[0]);
+      }}
+      className={cn(
+        "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed text-center transition-colors duration-150",
+        compact ? "p-2.5" : "p-3",
+        dragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30",
+      )}
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        accept={DOCUMENT_UPLOAD_ACCEPT}
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          handleFile(file);
+        }}
+      />
+      {busy ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Upload className="h-4 w-4 text-muted-foreground" />}
+      <p className="text-xs font-medium text-foreground">{busy ? "Uploading…" : "Drag & drop or click to upload"}</p>
+      <p className="text-[11px] text-muted-foreground">{hint}</p>
+    </div>
+  );
+}
+
+/** File chip shown once a document is attached — name, size, "Uploaded" badge, remove —
+ * shared by the statutory cards, additional documents list, and experience proof rows. */
+function UploadedDocumentChip({ fileName, fileSizeBytes, onRemove }: { fileName: string; fileSizeBytes?: number; onRemove: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted/30 px-2.5 py-1.5 text-xs">
+      <span className="flex min-w-0 items-center gap-1.5 text-foreground">
+        <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <span className="truncate font-medium">{fileName}</span>
+        {fileSizeBytes != null && <span className="shrink-0 text-muted-foreground">({formatFileSize(fileSizeBytes)})</span>}
+      </span>
+      <span className="flex shrink-0 items-center gap-1.5">
+        <Badge tone="success" className="gap-1 px-1.5 py-0 text-[10px]">
+          <CheckCircle2 className="h-2.5 w-2.5" />
+          Uploaded
+        </Badge>
+        <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={onRemove}>
+          <Trash2 className="h-3 w-3 text-danger" />
+        </Button>
+      </span>
+    </div>
+  );
+}
+
+/** Years + remaining months between a start date and (end date, or today when still
+ * serving) — null while data is incomplete so the tenure badge just doesn't render yet. */
+function calculateTenure(startDate: string, endDate: string, currentlyServing: boolean): { years: number; months: number } | null {
+  if (!startDate) return null;
+  const start = new Date(startDate);
+  if (Number.isNaN(start.getTime())) return null;
+  const endRef = currentlyServing ? new Date() : endDate ? new Date(endDate) : null;
+  if (!endRef || Number.isNaN(endRef.getTime())) return null;
+  let totalMonths = (endRef.getFullYear() - start.getFullYear()) * 12 + (endRef.getMonth() - start.getMonth());
+  if (endRef.getDate() < start.getDate()) totalMonths--;
+  if (totalMonths < 0) return null;
+  return { years: Math.floor(totalMonths / 12), months: totalMonths % 12 };
+}
+
+function formatCtcPreview(ctc: string): string | null {
+  const n = Number(ctc);
+  if (!ctc || Number.isNaN(n) || n <= 0) return null;
+  return `₹ ${n.toLocaleString("en-IN")} / year`;
+}
+
+/** Compact lakhs notation (₹16.2L) for the Fixed/Bonus breakdown line — distinct from
+ * formatCtcPreview's full-rupee format, matching how compensation benchmarking is
+ * normally skimmed in INR-denominated HR workflows. */
+function formatLakhs(n: number): string {
+  return `₹${(n / 100000).toFixed(1)}L`;
+}
+
 export function ExperienceSection({ form, setForm }: SectionProps) {
+  function setFresher(checked: boolean) {
+    setForm((f) => ({
+      ...f,
+      isFresher: checked,
+      experiences: checked ? [] : f.experiences,
+      documents: checked ? f.documents.filter((d) => d.experienceIndex == null) : f.documents,
+    }));
+  }
   function addExperience() {
-    setForm((f) => ({ ...f, experiences: [...f.experiences, { organizationName: "", startDate: "", endDate: "", ctc: "" }] }));
+    setForm((f) => ({
+      ...f,
+      experiences: [
+        ...f.experiences,
+        { organizationName: "", designation: "", startDate: "", endDate: "", currentlyServing: false, ctc: "", fixedCtc: "", bonusCtc: "", reasonForLeaving: "" },
+      ],
+    }));
   }
   function removeExperience(idx: number) {
     setForm((f) => ({
@@ -942,7 +1092,7 @@ export function ExperienceSection({ form, setForm }: SectionProps) {
   function updateExperience(idx: number, patch: Partial<EmployeeExperienceRow>) {
     setForm((f) => ({ ...f, experiences: f.experiences.map((e, i) => (i === idx ? { ...e, ...patch } : e)) }));
   }
-  function handleUploadDoc(idx: number, result: { objectKey: string; fileName: string }) {
+  function handleUploadDoc(idx: number, result: { objectKey: string; fileName: string; fileSizeBytes: number }) {
     setForm((f) => ({
       ...f,
       documents: [...f.documents, { key: crypto.randomUUID(), category: "EXPERIENCE", experienceIndex: idx, ...result }],
@@ -953,28 +1103,90 @@ export function ExperienceSection({ form, setForm }: SectionProps) {
   }
 
   return (
-    <FormSection title="Experience" description="Previous employment history" icon={<History className="h-5 w-5" />} index={0}>
-      <div className="flex justify-end">
-        <Button type="button" variant="outline" size="xs" onClick={addExperience} className={BUTTON_PRESS}>
-          <Plus className="h-3.5 w-3.5" />
-          Add Organisation
-        </Button>
+    <FormSection
+      title="Experience"
+      description={
+        form.isFresher
+          ? "Previous employment history"
+          : "Record verified employment history and benchmark compensation for role grading"
+      }
+      icon={<History className="h-5 w-5" />}
+      index={0}
+      badge={
+        !form.isFresher && form.experiences.length > 0 ? (
+          <Badge tone="info">
+            {form.experiences.length} Record{form.experiences.length > 1 ? "s" : ""} Added
+          </Badge>
+        ) : undefined
+      }
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/20 px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <Checkbox id="is-fresher" checked={form.isFresher} onCheckedChange={(v) => setFresher(!!v)} />
+          <Label htmlFor="is-fresher" className="font-normal text-foreground">
+            Fresher <span className="text-muted-foreground">(no prior work experience — skip this step)</span>
+          </Label>
+        </div>
+        {!form.isFresher && (
+          <Button type="button" variant="outline" size="xs" onClick={addExperience} className={BUTTON_PRESS}>
+            <Plus className="h-3.5 w-3.5" />
+            Add Organisation
+          </Button>
+        )}
       </div>
-      {form.experiences.length === 0 ? (
+
+      {form.isFresher ? (
+        <p className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+          Marked as a fresher — no employment history required.
+        </p>
+      ) : form.experiences.length === 0 ? (
         <p className="text-sm text-muted-foreground">No previous experience added yet.</p>
       ) : (
         form.experiences.map((exp, idx) => {
           const docs = form.documents.filter((d) => d.experienceIndex === idx);
+          const tenure = calculateTenure(exp.startDate, exp.endDate, exp.currentlyServing);
+          const ctcPreview = formatCtcPreview(exp.ctc);
+          const fixedNum = Number(exp.fixedCtc);
+          const bonusNum = Number(exp.bonusCtc);
+          const hasFixed = exp.fixedCtc !== "" && !Number.isNaN(fixedNum) && fixedNum > 0;
+          const hasBonus = exp.bonusCtc !== "" && !Number.isNaN(bonusNum) && bonusNum > 0;
+          const ctcBreakdown =
+            hasFixed || hasBonus
+              ? `Fixed: ${hasFixed ? formatLakhs(fixedNum) : "—"} | Performance Bonus: ${hasBonus ? formatLakhs(bonusNum) : "—"}`
+              : null;
           return (
             <div key={idx} className="rounded-lg border border-border p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-foreground">Organisation #{idx + 1}</h3>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Organisation #{idx + 1}
+                    {idx === 0 && <span className="text-muted-foreground"> (Most Recent)</span>}
+                  </h3>
+                  {idx === 0 && <Badge tone="info">Last Employer</Badge>}
+                  {exp.currentlyServing && (
+                    <Badge tone="info" className="gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-info" />
+                      Currently Serving
+                    </Badge>
+                  )}
+                  {tenure && (
+                    <Badge tone="muted" className="font-mono">
+                      Tenure: {tenure.years} yrs {tenure.months} mos
+                    </Badge>
+                  )}
+                  {tenure && docs.length > 0 && (
+                    <Badge tone="success" className="gap-1">
+                      <CheckCircle2 className="h-2.5 w-2.5" />
+                      Verified
+                    </Badge>
+                  )}
+                </div>
                 <Button type="button" variant="ghost" size="icon" onClick={() => removeExperience(idx)} aria-label="Remove organisation">
                   <Trash2 className="h-4 w-4 text-danger" />
                 </Button>
               </div>
               <div className="grid gap-2.5 sm:grid-cols-2">
-                <div className="space-y-1.5 sm:col-span-2">
+                <div className="space-y-1.5">
                   <Label>Company/Organization Name</Label>
                   <Input
                     placeholder="e.g. Google DeepMind"
@@ -984,51 +1196,160 @@ export function ExperienceSection({ form, setForm }: SectionProps) {
                   />
                 </div>
                 <div className="space-y-1.5">
+                  <Label>Designation / Role</Label>
+                  <Input
+                    placeholder="e.g. Senior Software Engineer"
+                    value={exp.designation}
+                    onChange={(e) => updateExperience(idx, { designation: e.target.value })}
+                    className={FOCUS_GLOW}
+                  />
+                </div>
+                <div className="space-y-1.5">
                   <Label>Start Date</Label>
                   <Input type="date" value={exp.startDate} onChange={(e) => updateExperience(idx, { startDate: e.target.value })} className={FOCUS_GLOW} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>End Date</Label>
-                  <Input type="date" value={exp.endDate} onChange={(e) => updateExperience(idx, { endDate: e.target.value })} className={FOCUS_GLOW} />
+                  <div className="flex items-center justify-between gap-2">
+                    <Label>End Date</Label>
+                    <label className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
+                      <Checkbox
+                        checked={exp.currentlyServing}
+                        onCheckedChange={(v) => updateExperience(idx, { currentlyServing: !!v, endDate: v ? "" : exp.endDate, reasonForLeaving: v ? "" : exp.reasonForLeaving })}
+                      />
+                      Currently serving
+                    </label>
+                  </div>
+                  <Input
+                    type="date"
+                    disabled={exp.currentlyServing}
+                    value={exp.endDate}
+                    onChange={(e) => updateExperience(idx, { endDate: e.target.value })}
+                    className={FOCUS_GLOW}
+                  />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>CTC / Last Drawn Salary</Label>
-                  <Input type="number" min="0" placeholder="50000" value={exp.ctc} onChange={(e) => updateExperience(idx, { ctc: e.target.value })} className={FOCUS_GLOW} />
+                  <Label>CTC / Last Drawn Salary (Annual)</Label>
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₹</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      placeholder="1500000"
+                      value={exp.ctc}
+                      onChange={(e) => updateExperience(idx, { ctc: e.target.value })}
+                      className={cn("pl-6", FOCUS_GLOW)}
+                    />
+                  </div>
+                  {ctcPreview && <p className="text-xs text-muted-foreground">{ctcPreview}</p>}
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="Fixed component"
+                        value={exp.fixedCtc}
+                        onChange={(e) => updateExperience(idx, { fixedCtc: e.target.value })}
+                        className={cn("h-8 pl-6 text-xs", FOCUS_GLOW)}
+                      />
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="Performance bonus"
+                        value={exp.bonusCtc}
+                        onChange={(e) => updateExperience(idx, { bonusCtc: e.target.value })}
+                        className={cn("h-8 pl-6 text-xs", FOCUS_GLOW)}
+                      />
+                    </div>
+                  </div>
+                  {ctcBreakdown && <p className="text-[11px] text-muted-foreground">{ctcBreakdown}</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Reason for Leaving</Label>
+                  <Input
+                    placeholder="e.g. Career growth"
+                    value={exp.reasonForLeaving}
+                    disabled={exp.currentlyServing}
+                    onChange={(e) => updateExperience(idx, { reasonForLeaving: e.target.value })}
+                    className={FOCUS_GLOW}
+                  />
                 </div>
               </div>
-              <div className="mt-3 flex items-center justify-between border-t border-border pt-2.5">
+              <div className="mt-3 space-y-2 border-t border-border pt-2.5">
                 <span className="flex items-center gap-1.5 text-xs font-medium uppercase text-muted-foreground">
                   <FileText className="h-3.5 w-3.5" />
                   Experience Documents
                 </span>
-                <DocumentUploadButton onUploaded={(r) => handleUploadDoc(idx, r)} />
+                <DocumentDropzone hint="Relieving letter, payslips · PDF, PNG, JPG up to 10MB" onUploaded={(r) => handleUploadDoc(idx, r)} />
+                {docs.length > 0 && (
+                  <ul className="space-y-1.5">
+                    {docs.map((d) => (
+                      <li key={d.key}>
+                        <UploadedDocumentChip fileName={d.fileName} fileSizeBytes={d.fileSizeBytes} onRemove={() => removeDoc(d.key)} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
-              {docs.length > 0 && (
-                <ul className="mt-2 space-y-1">
-                  {docs.map((d) => (
-                    <li key={d.key} className="flex items-center justify-between rounded-md bg-muted/40 px-2 py-1 text-xs">
-                      <span className="flex items-center gap-1.5 text-foreground">
-                        <Paperclip className="h-3 w-3" />
-                        {d.fileName}
-                      </span>
-                      <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeDoc(d.key)}>
-                        <Trash2 className="h-3 w-3 text-danger" />
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
             </div>
           );
         })
+      )}
+
+      {!form.isFresher && form.experiences.length > 0 && (
+        <button
+          type="button"
+          onClick={addExperience}
+          className={cn(
+            "w-full rounded-lg border border-dashed border-border py-2.5 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:border-primary/50 hover:text-primary",
+            BUTTON_PRESS,
+          )}
+        >
+          + Add Previous Organization #{form.experiences.length + 1} (Prior Employer)
+        </button>
       )}
     </FormSection>
   );
 }
 
 export function ContactSection({ form, setForm }: SectionProps) {
+  function toggleSameAsPermanent(checked: boolean) {
+    setForm((f) => ({
+      ...f,
+      temporaryAddressSameAsPermanent: checked,
+      ...(checked
+        ? {
+            temporaryAddressLine: f.addressLine,
+            temporaryAddressCity: f.addressCity,
+            temporaryAddressState: f.addressState,
+            temporaryAddressPincode: f.addressPincode,
+          }
+        : {}),
+    }));
+  }
+
+  /** Updates a permanent-address field and, while the sync toggle is on, mirrors the same
+   * value into the matching temporary-address field so the two never drift apart. */
+  function setPermanent(patch: Partial<Pick<EmployeeFormState, "addressLine" | "addressCity" | "addressState" | "addressPincode">>) {
+    setForm((f) => ({
+      ...f,
+      ...patch,
+      ...(f.temporaryAddressSameAsPermanent
+        ? {
+            temporaryAddressLine: patch.addressLine ?? f.addressLine,
+            temporaryAddressCity: patch.addressCity ?? f.addressCity,
+            temporaryAddressState: patch.addressState ?? f.addressState,
+            temporaryAddressPincode: patch.addressPincode ?? f.addressPincode,
+          }
+        : {}),
+    }));
+  }
+
   return (
-    <FormSection title="Contact" description="Reachability and personal details" icon={<Phone className="h-5 w-5" />} index={0}>
+    <FormSection title="Contact" description="Reachability, guardian details & residential records" icon={<Phone className="h-5 w-5" />} index={0}>
       <FormSubsection title="Contact Details">
         <div className="space-y-1.5">
           <Label>
@@ -1039,7 +1360,22 @@ export function ContactSection({ form, setForm }: SectionProps) {
         </div>
         <div className="space-y-1.5">
           <Label>Emergency Contact</Label>
-          <Input value={form.emergencyContactPhone} onChange={(e) => setForm((f) => ({ ...f, emergencyContactPhone: e.target.value }))} className={FOCUS_GLOW} />
+          <div className="flex gap-1.5">
+            <Select value={form.emergencyContactRelation} onValueChange={(v) => setForm((f) => ({ ...f, emergencyContactRelation: v }))}>
+              <SelectTrigger className={cn("w-28 shrink-0", FOCUS_GLOW)}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RELATION_OPTIONS.map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {r}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input placeholder="Name" value={form.emergencyContactName} onChange={(e) => setForm((f) => ({ ...f, emergencyContactName: e.target.value }))} className={FOCUS_GLOW} />
+          </div>
+          <Input placeholder="Phone number" value={form.emergencyContactPhone} onChange={(e) => setForm((f) => ({ ...f, emergencyContactPhone: e.target.value }))} className={FOCUS_GLOW} />
         </div>
         <div className="space-y-1.5">
           <Label>
@@ -1050,40 +1386,90 @@ export function ContactSection({ form, setForm }: SectionProps) {
         </div>
         <div className="space-y-1.5">
           <Label>Father / Spouse</Label>
-          <Input value={form.fatherOrSpouseName} onChange={(e) => setForm((f) => ({ ...f, fatherOrSpouseName: e.target.value }))} className={FOCUS_GLOW} />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Qualification</Label>
-          <Input value={form.qualification} onChange={(e) => setForm((f) => ({ ...f, qualification: e.target.value }))} className={FOCUS_GLOW} />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Religion</Label>
-          <Select value={form.religion} onValueChange={(v) => setForm((f) => ({ ...f, religion: v }))}>
-            <SelectTrigger className={FOCUS_GLOW}>
-              <SelectValue placeholder="Select" />
-            </SelectTrigger>
-            <SelectContent>
-              {RELIGION_OPTIONS.map((r) => (
-                <SelectItem key={r} value={r}>
-                  {r}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex gap-1.5">
+            <Select value={form.fatherOrSpouseRelation} onValueChange={(v) => setForm((f) => ({ ...f, fatherOrSpouseRelation: v }))}>
+              <SelectTrigger className={cn("w-28 shrink-0", FOCUS_GLOW)}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RELATION_OPTIONS.map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {r}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input placeholder="Full name" value={form.fatherOrSpouseName} onChange={(e) => setForm((f) => ({ ...f, fatherOrSpouseName: e.target.value }))} className={FOCUS_GLOW} />
+          </div>
         </div>
       </FormSubsection>
-      <FormSubsection title="Address" className="sm:grid-cols-1">
-        <div className="grid gap-2.5 sm:grid-cols-2">
-          <div className="space-y-1.5">
+
+      <FormSubsection title="Address Details" className="sm:grid-cols-1">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">Structured residential records for statutory filings</p>
+          <div className="flex items-center gap-2">
+            <Checkbox id="addr-sync" checked={form.temporaryAddressSameAsPermanent} onCheckedChange={(v) => toggleSameAsPermanent(!!v)} />
+            <Label htmlFor="addr-sync" className="font-normal text-xs">
+              Temporary address same as permanent
+            </Label>
+            {form.temporaryAddressSameAsPermanent && (
+              <Badge tone="success" className="gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                Synchronized
+              </Badge>
+            )}
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2.5">
             <Label>
               Permanent Address
               <RequiredMark />
             </Label>
-            <Textarea value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} className={FOCUS_GLOW} />
+            <Input
+              placeholder="Door / Flat No, Building & Street"
+              value={form.addressLine}
+              onChange={(e) => setPermanent({ addressLine: e.target.value })}
+              className={FOCUS_GLOW}
+            />
+            <div className="grid grid-cols-3 gap-2">
+              <Input placeholder="City / District" value={form.addressCity} onChange={(e) => setPermanent({ addressCity: e.target.value })} className={FOCUS_GLOW} />
+              <Input placeholder="State" value={form.addressState} onChange={(e) => setPermanent({ addressState: e.target.value })} className={FOCUS_GLOW} />
+              <Input placeholder="PIN Code" value={form.addressPincode} onChange={(e) => setPermanent({ addressPincode: e.target.value })} className={FOCUS_GLOW} />
+            </div>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2.5">
             <Label>Temporary Address</Label>
-            <Textarea value={form.temporaryAddress} onChange={(e) => setForm((f) => ({ ...f, temporaryAddress: e.target.value }))} className={FOCUS_GLOW} />
+            <Input
+              placeholder="Door / Flat No, Building & Street"
+              value={form.temporaryAddressLine}
+              disabled={form.temporaryAddressSameAsPermanent}
+              onChange={(e) => setForm((f) => ({ ...f, temporaryAddressLine: e.target.value }))}
+              className={FOCUS_GLOW}
+            />
+            <div className="grid grid-cols-3 gap-2">
+              <Input
+                placeholder="City / District"
+                value={form.temporaryAddressCity}
+                disabled={form.temporaryAddressSameAsPermanent}
+                onChange={(e) => setForm((f) => ({ ...f, temporaryAddressCity: e.target.value }))}
+                className={FOCUS_GLOW}
+              />
+              <Input
+                placeholder="State"
+                value={form.temporaryAddressState}
+                disabled={form.temporaryAddressSameAsPermanent}
+                onChange={(e) => setForm((f) => ({ ...f, temporaryAddressState: e.target.value }))}
+                className={FOCUS_GLOW}
+              />
+              <Input
+                placeholder="PIN Code"
+                value={form.temporaryAddressPincode}
+                disabled={form.temporaryAddressSameAsPermanent}
+                onChange={(e) => setForm((f) => ({ ...f, temporaryAddressPincode: e.target.value }))}
+                className={FOCUS_GLOW}
+              />
+            </div>
           </div>
         </div>
       </FormSubsection>
@@ -1091,10 +1477,73 @@ export function ContactSection({ form, setForm }: SectionProps) {
   );
 }
 
+/** `XXXX XXXX 1234` for a 12-digit Aadhaar number, leaving the rest of the string alone
+ * (so a still-being-typed or invalid value shows as typed rather than silently vanishing). */
+function maskAadhaar(value: string): string {
+  const digits = value.replace(/\s/g, "");
+  return digits.length === 12 ? `XXXX XXXX ${digits.slice(-4)}` : value;
+}
+
+/** One statutory ID scan slot (Aadhaar/PAN) — echoes the number entered on the Personal
+ * tab next to a match indicator, so whoever uploads the scan can eyeball it against the
+ * typed value instead of flipping back to the Personal tab to double check. */
+function StatutoryDocumentCard({
+  title,
+  enteredNumber,
+  numberValid,
+  complianceTag,
+  dropzoneHint,
+  doc,
+  onUpload,
+  onRemove,
+}: {
+  title: string;
+  enteredNumber: string;
+  numberValid: boolean;
+  complianceTag: string;
+  dropzoneHint: string;
+  doc?: StagedDocument;
+  onUpload: (result: { objectKey: string; fileName: string; fileSizeBytes: number }) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-lg border border-border p-3">
+      <div className="flex items-start justify-between gap-2">
+        <Label>{title}</Label>
+        {numberValid ? (
+          <Badge tone="success" className="shrink-0 gap-1">
+            <CheckCircle2 className="h-3 w-3" />
+            Matched
+          </Badge>
+        ) : (
+          <Badge tone="warning" className="shrink-0">
+            Not entered
+          </Badge>
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Number entered: <span className="font-mono text-foreground">{enteredNumber || "—"}</span>
+      </p>
+      {doc ? (
+        <>
+          <UploadedDocumentChip fileName={doc.fileName} fileSizeBytes={doc.fileSizeBytes} onRemove={onRemove} />
+          {numberValid && <Badge tone="info">{complianceTag}</Badge>}
+        </>
+      ) : (
+        <DocumentDropzone compact hint={dropzoneHint} onUploaded={onUpload} />
+      )}
+    </div>
+  );
+}
+
 export function DocumentsSection({ form, setForm }: SectionProps) {
   const additionalDocs = form.documents.filter((d) => d.category === "ADDITIONAL");
+  const aadharDoc = form.documents.find((d) => d.category === "AADHAR");
+  const panDoc = form.documents.find((d) => d.category === "PAN");
+  const aadharValid = /^\d{12}$/.test(form.aadharNumber.replace(/\s/g, ""));
+  const panValid = /^[A-Z]{5}\d{4}[A-Z]$/.test(form.panNumber);
 
-  function handleUpload(category: StagedDocument["category"], result: { objectKey: string; fileName: string }) {
+  function handleUpload(category: StagedDocument["category"], result: { objectKey: string; fileName: string; fileSizeBytes: number }) {
     setForm((f) => ({
       ...f,
       documents: [...f.documents.filter((d) => d.category !== category || category === "ADDITIONAL"), { key: crypto.randomUUID(), category, ...result }],
@@ -1106,44 +1555,45 @@ export function DocumentsSection({ form, setForm }: SectionProps) {
 
   return (
     <FormSection title="Documents" description="Identity documents and uploads" icon={<FileText className="h-5 w-5" />} index={0}>
-      <FormSubsection title="Identity Documents" description="Aadhar and PAN numbers are entered on the Personal tab — upload the scanned cards here">
-        <div className="space-y-1.5">
-          <Label>Aadhar card scan</Label>
-          <div className="flex items-center gap-2">
-            <DocumentUploadButton onUploaded={(r) => handleUpload("AADHAR", r)} />
-            <span className="truncate text-sm text-muted-foreground">
-              {form.documents.find((d) => d.category === "AADHAR")?.fileName ?? "No file uploaded"}
-            </span>
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          <Label>PAN card scan</Label>
-          <div className="flex items-center gap-2">
-            <DocumentUploadButton onUploaded={(r) => handleUpload("PAN", r)} />
-            <span className="truncate text-sm text-muted-foreground">
-              {form.documents.find((d) => d.category === "PAN")?.fileName ?? "No file uploaded"}
-            </span>
-          </div>
-        </div>
+      <FormSubsection
+        title="Mandatory Statutory Identifiers"
+        description="Aadhaar and PAN numbers are entered on the Personal tab — upload the scanned cards here"
+      >
+        <StatutoryDocumentCard
+          title="Aadhaar card scan"
+          enteredNumber={maskAadhaar(form.aadharNumber)}
+          numberValid={aadharValid}
+          complianceTag="UIDAI-linked"
+          dropzoneHint="Aadhaar card · PDF, PNG, JPG up to 10MB"
+          doc={aadharDoc}
+          onUpload={(r) => handleUpload("AADHAR", r)}
+          onRemove={() => aadharDoc && removeDoc(aadharDoc.key)}
+        />
+        <StatutoryDocumentCard
+          title="PAN card scan"
+          enteredNumber={form.panNumber}
+          numberValid={panValid}
+          complianceTag="NSDL TDS-linked"
+          dropzoneHint="PAN card · PDF, PNG, JPG up to 10MB"
+          doc={panDoc}
+          onUpload={(r) => handleUpload("PAN", r)}
+          onRemove={() => panDoc && removeDoc(panDoc.key)}
+        />
       </FormSubsection>
 
-      <FormSubsection title="Additional Documents" className="sm:grid-cols-1">
-        <div className="flex justify-end">
-          <DocumentUploadButton onUploaded={(r) => handleUpload("ADDITIONAL", r)} />
-        </div>
+      <FormSubsection
+        title="Additional Supporting Documents"
+        description="Offer letter, degree certificate, background verification, or anything else relevant"
+        className="sm:grid-cols-1"
+      >
+        <DocumentDropzone hint="Offer letter, certificates, BGV · PDF, PNG, JPG up to 10MB" onUploaded={(r) => handleUpload("ADDITIONAL", r)} />
         {additionalDocs.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">No additional documents added.</p>
+          <p className="text-center text-xs text-muted-foreground">No additional documents added yet.</p>
         ) : (
-          <ul className="space-y-1">
+          <ul className="space-y-1.5">
             {additionalDocs.map((d) => (
-              <li key={d.key} className="flex items-center justify-between rounded-md bg-muted/40 px-2.5 py-1.5 text-sm">
-                <span className="flex items-center gap-1.5 text-foreground">
-                  <Paperclip className="h-3.5 w-3.5" />
-                  {d.fileName}
-                </span>
-                <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeDoc(d.key)}>
-                  <Trash2 className="h-3.5 w-3.5 text-danger" />
-                </Button>
+              <li key={d.key}>
+                <UploadedDocumentChip fileName={d.fileName} fileSizeBytes={d.fileSizeBytes} onRemove={() => removeDoc(d.key)} />
               </li>
             ))}
           </ul>
@@ -1155,23 +1605,63 @@ export function DocumentsSection({ form, setForm }: SectionProps) {
 
 const SALARY_COMPONENT_CODES_HANDLED_ELSEWHERE = new Set(["PF", "PT", "TDS"]);
 
+interface OrgSalaryComponent {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  calculationType: string;
+  value: number;
+}
+
 export function SalarySection({
   form,
   setForm,
   orgSalaryComponents,
-}: SectionProps & { orgSalaryComponents: { id: string; code: string; name: string }[] }) {
+  grades,
+}: SectionProps & { orgSalaryComponents: OrgSalaryComponent[]; grades: Grade[] }) {
   const visibleComponents = orgSalaryComponents.filter((c) => !SALARY_COMPONENT_CODES_HANDLED_ELSEWHERE.has(c.code));
+  const pfComponent = orgSalaryComponents.find((c) => c.code === "PF");
+  const ptComponent = orgSalaryComponents.find((c) => c.code === "PT");
   const busRow = form.salaryComponents.find((c) => c.code === "BUS");
+  const grade = grades.find((g) => g.id === form.gradeId);
+  const basic = Number(form.monthlyGrossSalary) || 0;
 
   useEffect(() => {
     if (visibleComponents.length === 0) return;
     setForm((f) =>
       f.salaryComponents.length > 0
         ? f
-        : { ...f, salaryComponents: visibleComponents.map((c) => ({ code: c.code, name: c.name, amount: "", isMonthly: true })) },
+        : {
+            ...f,
+            salaryComponents: visibleComponents.map((c) => ({
+              code: c.code,
+              name: c.name,
+              amount: c.calculationType === "PERCENTAGE" ? String(Math.round((basic * c.value) / 100)) : String(c.value),
+              isMonthly: true,
+            })),
+          },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleComponents.length]);
+
+  // Keeps every PERCENTAGE-of-basic row (e.g. HRA) in sync as Basic changes — those rows
+  // are rendered read-only, so this effect is the only thing that ever writes their amount.
+  useEffect(() => {
+    setForm((f) => {
+      let changed = false;
+      const next = f.salaryComponents.map((row) => {
+        const comp = visibleComponents.find((c) => c.code === row.code);
+        if (comp?.calculationType !== "PERCENTAGE") return row;
+        const computed = String(Math.round((basic * comp.value) / 100));
+        if (row.amount === computed) return row;
+        changed = true;
+        return { ...row, amount: computed };
+      });
+      return changed ? { ...f, salaryComponents: next } : f;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [basic, visibleComponents.length]);
 
   function updateAmount(code: string, amount: string) {
     setForm((f) => ({ ...f, salaryComponents: f.salaryComponents.map((c) => (c.code === code ? { ...c, amount } : c)) }));
@@ -1180,9 +1670,27 @@ export function SalarySection({
     setForm((f) => ({ ...f, salaryComponents: f.salaryComponents.map((c) => (c.code === "BUS" ? { ...c, isMonthly: checked } : c)) }));
   }
 
+  const grossMonthly =
+    basic +
+    form.salaryComponents
+      .filter((row) => visibleComponents.find((c) => c.code === row.code)?.type === "EARNING")
+      .reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+  const annualCtc = grossMonthly * 12;
+
   return (
-    <FormSection title="Salary" description="Compensation breakdown and eligibility" icon={<Banknote className="h-5 w-5" />} index={0}>
-      <FormSubsection title="Compensation">
+    <FormSection
+      title="Compensation Structure & Statutory Setup"
+      description="Monthly breakdown, CTC projection, and payroll eligibility"
+      icon={<Banknote className="h-5 w-5" />}
+      index={0}
+      badge={
+        <Badge tone="muted" className="font-normal">
+          Wage Template: {grade?.name ?? "Not set in Job step"}
+        </Badge>
+      }
+      compact
+    >
+      <FormSubsection title="Monthly Compensation Breakdown">
         <div className="space-y-1.5">
           <Label>
             Basic Salary (₹)
@@ -1190,39 +1698,73 @@ export function SalarySection({
           </Label>
           <Input type="number" min="0" value={form.monthlyGrossSalary} onChange={(e) => setForm((f) => ({ ...f, monthlyGrossSalary: e.target.value }))} className={FOCUS_GLOW} />
         </div>
-        {form.salaryComponents.map((c) => (
-          <div key={c.code} className="space-y-1.5">
-            <Label>{c.name} (₹)</Label>
-            <Input type="number" min="0" value={c.amount} onChange={(e) => updateAmount(c.code, e.target.value)} className={FOCUS_GLOW} />
-          </div>
-        ))}
+        {form.salaryComponents.map((row) => {
+          const comp = visibleComponents.find((c) => c.code === row.code);
+          const isPercentage = comp?.calculationType === "PERCENTAGE";
+          return (
+            <div key={row.code} className="space-y-1.5">
+              <Label className="flex items-center gap-1.5">
+                {row.name} (₹)
+                {isPercentage && (
+                  <Badge tone="muted" className="font-normal">
+                    {comp!.value}% Basic
+                  </Badge>
+                )}
+              </Label>
+              <Input
+                type="number"
+                min="0"
+                value={row.amount}
+                disabled={isPercentage}
+                onChange={(e) => updateAmount(row.code, e.target.value)}
+                className={cn(isPercentage && "bg-muted/40", FOCUS_GLOW)}
+              />
+            </div>
+          );
+        })}
       </FormSubsection>
 
-      <FormSubsection title="Eligibility">
-        <div className="flex items-center gap-2">
-          <Checkbox id="e-pf" checked={form.pfEligible} onCheckedChange={(v) => setForm((f) => ({ ...f, pfEligible: !!v }))} />
-          <Label htmlFor="e-pf" className="font-normal">
-            PF Eligible
-          </Label>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Gross Monthly</p>
+          <p className="text-base font-semibold text-primary">₹ {grossMonthly.toLocaleString("en-IN")} / mo</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Checkbox id="e-esi" checked={form.esiEligible} onCheckedChange={(v) => setForm((f) => ({ ...f, esiEligible: !!v }))} />
-          <Label htmlFor="e-esi" className="font-normal">
-            ESI Eligible
-          </Label>
+        <div className="h-6 w-px bg-border" />
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Annual CTC</p>
+          <p className="text-base font-semibold text-primary">₹ {annualCtc.toLocaleString("en-IN")} / annum</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Checkbox id="e-lwp" checked={form.leaveWithPayEligible} onCheckedChange={(v) => setForm((f) => ({ ...f, leaveWithPayEligible: !!v }))} />
-          <Label htmlFor="e-lwp" className="font-normal">
-            Leave With Pay
-          </Label>
-        </div>
-        <div className="flex items-center gap-2">
-          <Checkbox id="e-daily" checked={form.dailyWagesEligible} onCheckedChange={(v) => setForm((f) => ({ ...f, dailyWagesEligible: !!v }))} />
-          <Label htmlFor="e-daily" className="font-normal">
-            Daily Wages
-          </Label>
-        </div>
+      </div>
+
+      <FormSubsection title="Statutory Eligibility & Payroll Rules">
+        <label htmlFor="e-pf" className="flex cursor-pointer items-start gap-2 rounded-md border border-border p-2">
+          <Checkbox id="e-pf" checked={form.pfEligible} onCheckedChange={(v) => setForm((f) => ({ ...f, pfEligible: !!v }))} className="mt-0.5" />
+          <span>
+            <span className="block text-sm font-medium text-foreground">PF Eligible</span>
+            <span className="block text-xs text-muted-foreground">{pfComponent ? `${pfComponent.value}% of Basic` : "Provident Fund deduction"}</span>
+          </span>
+        </label>
+        <label htmlFor="e-esi" className="flex cursor-pointer items-start gap-2 rounded-md border border-border p-2">
+          <Checkbox id="e-esi" checked={form.esiEligible} onCheckedChange={(v) => setForm((f) => ({ ...f, esiEligible: !!v }))} className="mt-0.5" />
+          <span>
+            <span className="block text-sm font-medium text-foreground">ESI Eligible</span>
+            <span className="block text-xs text-muted-foreground">Threshold: ₹21,000 gross/mo</span>
+          </span>
+        </label>
+        <label htmlFor="e-lwp" className="flex cursor-pointer items-start gap-2 rounded-md border border-border p-2">
+          <Checkbox id="e-lwp" checked={form.leaveWithPayEligible} onCheckedChange={(v) => setForm((f) => ({ ...f, leaveWithPayEligible: !!v }))} className="mt-0.5" />
+          <span>
+            <span className="block text-sm font-medium text-foreground">Leave With Pay</span>
+            <span className="block text-xs text-muted-foreground">1.75 days / mo accrual</span>
+          </span>
+        </label>
+        <label htmlFor="e-daily" className="flex cursor-pointer items-start gap-2 rounded-md border border-border p-2">
+          <Checkbox id="e-daily" checked={form.dailyWagesEligible} onCheckedChange={(v) => setForm((f) => ({ ...f, dailyWagesEligible: !!v }))} className="mt-0.5" />
+          <span>
+            <span className="block text-sm font-medium text-foreground">Daily Wages</span>
+            <span className="block text-xs text-muted-foreground">Pay by attendance, not fixed CTC</span>
+          </span>
+        </label>
         {busRow && (
           <div className="flex items-center gap-2 rounded-md bg-info/10 px-3 py-2 sm:col-span-2">
             <Checkbox id="e-bus-monthly" checked={busRow.isMonthly} onCheckedChange={(v) => toggleBusMonthly(!!v)} />
@@ -1231,6 +1773,12 @@ export function SalarySection({
             </Label>
           </div>
         )}
+        <div className="flex items-center justify-between rounded-md border border-warning/30 bg-warning/10 px-3 py-2 sm:col-span-2">
+          <span className="text-xs font-medium text-foreground">Professional Tax (state statutory slab)</span>
+          <Badge tone="warning" className="font-normal">
+            ₹{ptComponent?.value ?? 200}/mo
+          </Badge>
+        </div>
       </FormSubsection>
     </FormSection>
   );

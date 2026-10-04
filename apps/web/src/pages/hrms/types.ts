@@ -40,9 +40,18 @@ export interface Employee {
   maritalStatus: string | null;
   workHoursPerDay: string | null;
   fatherOrSpouseName: string | null;
+  fatherOrSpouseRelation: string | null;
   qualification: string | null;
   religion: string | null;
-  temporaryAddress: string | null;
+  addressLine: string | null;
+  addressCity: string | null;
+  addressState: string | null;
+  addressPincode: string | null;
+  temporaryAddressSameAsPermanent: boolean;
+  temporaryAddressLine: string | null;
+  temporaryAddressCity: string | null;
+  temporaryAddressState: string | null;
+  temporaryAddressPincode: string | null;
   aadharNumber: string | null;
   pfEligible: boolean;
   esiEligible: boolean;
@@ -58,9 +67,9 @@ export interface Employee {
   bankName: string | null;
   bankIfsc: string | null;
   panNumber: string | null;
-  address: string | null;
   emergencyContactName: string | null;
   emergencyContactPhone: string | null;
+  emergencyContactRelation: string | null;
   experiences: EmployeeExperience[];
   avatarUrl: string | null;
   notes: string | null;
@@ -80,9 +89,14 @@ export interface Branch {
 export interface EmployeeExperience {
   id: string;
   organizationName: string;
+  designation: string | null;
   startDate: string;
   endDate: string | null;
+  currentlyServing: boolean;
   ctc: number | null;
+  fixedCtc: number | null;
+  bonusCtc: number | null;
+  reasonForLeaving: string | null;
 }
 
 export interface EmployeeDocument {

@@ -69,6 +69,9 @@ const FORM_DATA_QUERY = gql`
       id
       code
       name
+      type
+      calculationType
+      value
       active
     }
   }
@@ -145,7 +148,7 @@ const TAB_REQUIRED_FIELDS: Record<TabKey, FieldKey[]> = {
   personal: ["branchId", "firstName", "lastName", "maritalStatus", "dateOfBirth", "aadharNumber", "panNumber"],
   job: ["department", "designation"],
   experience: [],
-  contact: ["phone", "email", "address"],
+  contact: ["phone", "email", "addressLine", "addressCity", "addressState", "addressPincode"],
   documents: [],
   salary: ["monthlyGrossSalary"],
   bank: [],
@@ -195,7 +198,7 @@ export default function NewEmployeePage() {
     designations: Designation[];
     branches: { id: string; name: string }[];
     employees: ManagerOption[];
-    salaryComponents: { id: string; code: string; name: string; active: boolean }[];
+    salaryComponents: { id: string; code: string; name: string; type: string; calculationType: string; value: number; active: boolean }[];
   }>(FORM_DATA_QUERY);
   const [createEmployee] = useMutation(CREATE_EMPLOYEE, { refetchQueries: ["EmployeesTabData"] });
   const [addEmployeeDocument] = useMutation(ADD_EMPLOYEE_DOCUMENT);
@@ -330,19 +333,33 @@ export default function NewEmployeePage() {
             esiEligible: form.esiEligible,
             leaveWithPayEligible: form.leaveWithPayEligible,
             dailyWagesEligible: form.dailyWagesEligible,
-            address: form.address || undefined,
-            temporaryAddress: form.temporaryAddress || undefined,
+            addressLine: form.addressLine || undefined,
+            addressCity: form.addressCity || undefined,
+            addressState: form.addressState || undefined,
+            addressPincode: form.addressPincode || undefined,
+            temporaryAddressSameAsPermanent: form.temporaryAddressSameAsPermanent,
+            temporaryAddressLine: form.temporaryAddressLine || undefined,
+            temporaryAddressCity: form.temporaryAddressCity || undefined,
+            temporaryAddressState: form.temporaryAddressState || undefined,
+            temporaryAddressPincode: form.temporaryAddressPincode || undefined,
             fatherOrSpouseName: form.fatherOrSpouseName || undefined,
+            fatherOrSpouseRelation: form.fatherOrSpouseRelation || undefined,
             qualification: form.qualification || undefined,
             religion: form.religion || undefined,
             emergencyContactName: form.emergencyContactName || undefined,
             emergencyContactPhone: form.emergencyContactPhone || undefined,
+            emergencyContactRelation: form.emergencyContactRelation || undefined,
             experiences: form.experiences.length
               ? form.experiences.map((exp) => ({
                   organizationName: exp.organizationName,
+                  designation: exp.designation || undefined,
                   startDate: new Date(exp.startDate),
                   endDate: exp.endDate ? new Date(exp.endDate) : undefined,
+                  currentlyServing: exp.currentlyServing,
                   ctc: exp.ctc ? Number(exp.ctc) : undefined,
+                  fixedCtc: exp.fixedCtc ? Number(exp.fixedCtc) : undefined,
+                  bonusCtc: exp.bonusCtc ? Number(exp.bonusCtc) : undefined,
+                  reasonForLeaving: exp.reasonForLeaving || undefined,
                 }))
               : undefined,
             salaryComponents: form.salaryComponents.some((c) => c.amount)
@@ -450,7 +467,7 @@ export default function NewEmployeePage() {
                 <DocumentsSection form={form} setForm={setForm} />
               </TabsContent>
               <TabsContent value="salary">
-                <SalarySection form={form} setForm={setForm} orgSalaryComponents={salaryComponents} />
+                <SalarySection form={form} setForm={setForm} orgSalaryComponents={salaryComponents} grades={grades} />
               </TabsContent>
               <TabsContent value="bank">
                 <BankTaxSection form={form} setForm={setForm} />

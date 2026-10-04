@@ -53,7 +53,10 @@ const EMPLOYEE_QUERY = gql`
       bankName
       bankIfsc
       panNumber
-      address
+      addressLine
+      addressCity
+      addressState
+      addressPincode
       emergencyContactName
       emergencyContactPhone
     }
