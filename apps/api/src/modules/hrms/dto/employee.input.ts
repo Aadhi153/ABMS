@@ -9,6 +9,11 @@ export class EmployeeExperienceInput {
   @IsString()
   organizationName!: string;
 
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  designation?: string;
+
   @Field(() => Date)
   @IsDate()
   startDate!: Date;
@@ -17,10 +22,30 @@ export class EmployeeExperienceInput {
   @IsOptional()
   endDate?: Date;
 
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  currentlyServing?: boolean;
+
   @Field(() => Float, { nullable: true })
   @IsOptional()
   @Min(0)
   ctc?: number;
+
+  @Field(() => Float, { nullable: true })
+  @IsOptional()
+  @Min(0)
+  fixedCtc?: number;
+
+  @Field(() => Float, { nullable: true })
+  @IsOptional()
+  @Min(0)
+  bonusCtc?: number;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  reasonForLeaving?: string;
 }
 
 @InputType()
@@ -220,17 +245,57 @@ export class CreateEmployeeInput {
   @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
-  address?: string;
+  addressLine?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
-  temporaryAddress?: string;
+  addressCity?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  addressState?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  addressPincode?: string;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  temporaryAddressSameAsPermanent?: boolean;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  temporaryAddressLine?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  temporaryAddressCity?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  temporaryAddressState?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  temporaryAddressPincode?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   fatherOrSpouseName?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  fatherOrSpouseRelation?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()
@@ -251,6 +316,11 @@ export class CreateEmployeeInput {
   @IsOptional()
   @IsString()
   emergencyContactPhone?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  emergencyContactRelation?: string;
 
   @Field(() => [EmployeeExperienceInput], { nullable: true })
   @IsOptional()
