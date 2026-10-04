@@ -31,6 +31,8 @@ export interface EmployeeLiveRailProps {
   totalSteps: number;
   /** Omitted once the last tab is active. */
   nextStep?: { label: string; description: string } | null;
+  /** Swaps the compliance callout to a bank-specific reminder while the Bank/Tax tab is active. */
+  activeTab?: string;
 }
 
 /** Sticky right-rail summary shown alongside the New Employee form: a provisional ID-card
@@ -45,6 +47,7 @@ export function EmployeeLiveRail({
   completedSteps,
   totalSteps,
   nextStep,
+  activeTab,
 }: EmployeeLiveRailProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -52,6 +55,8 @@ export function EmployeeLiveRail({
 
   const hasName = Boolean(form.firstName || form.lastName);
   const displayName = hasName ? [form.firstName, form.lastName].filter(Boolean).join(" ") : "New Employee";
+  const allComplete = completedSteps === totalSteps;
+  const profileStatus = allComplete ? "Ready to Finalize" : "Drafting Profile";
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -128,7 +133,7 @@ export function EmployeeLiveRail({
           <div>
             <p className={cn("text-base font-semibold leading-tight", !hasName && "text-muted-foreground")}>{displayName}</p>
             {form.designation && <p className="mt-0.5 text-xs font-medium text-primary">{form.designation}</p>}
-            <p className="mt-0.5 font-mono text-xs text-muted-foreground">{employeeCodePreview} · Drafting Profile</p>
+            <p className="mt-0.5 font-mono text-xs text-muted-foreground">{employeeCodePreview} · {profileStatus}</p>
           </div>
 
           <div className="grid w-full grid-cols-2 gap-2">
@@ -154,9 +159,12 @@ export function EmployeeLiveRail({
         <div className="h-1.5 overflow-hidden rounded-full bg-muted">
           <div className="h-full rounded-full bg-primary transition-[width] duration-300" style={{ width: `${overallPct}%` }} />
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          {completedSteps === totalSteps ? "All onboard milestones complete" : `${completedSteps} of ${totalSteps} total onboard milestones completed`}
-        </p>
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">{completedSteps} of {totalSteps} total onboard milestones completed</p>
+          {allComplete && (
+            <span className="shrink-0 rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success">Ready to Finalize</span>
+          )}
+        </div>
         {nextStep && (
           <div className="mt-3 flex gap-2 rounded-md border border-primary/20 bg-primary/5 p-2.5">
             <ArrowRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
@@ -171,10 +179,19 @@ export function EmployeeLiveRail({
       <Card className="flex gap-3 border-warning/30 bg-warning-bg p-4">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
         <div>
-          <p className="text-xs font-semibold text-foreground">Statutory Notice</p>
+          <p className="text-xs font-semibold text-foreground">{activeTab === "bank" ? "Statutory Bank Notice" : "Statutory Notice"}</p>
           <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-            Aadhaar and PAN details are mandatory for Step 6 (Salary &amp; CTC Structuring) and generating compliant PF/ESI returns. Ensure
-            spelling precisely matches official documents.
+            {activeTab === "bank" ? (
+              <>
+                Aadhaar, PAN, and bank account holder name must match{hasName ? ` (${displayName})` : ""} for seamless PF return generation,
+                ESI coverage, and automated bank disbursement.
+              </>
+            ) : (
+              <>
+                Aadhaar and PAN details are mandatory for Salary &amp; CTC structuring and generating compliant PF/ESI returns. Ensure
+                spelling precisely matches official documents.
+              </>
+            )}
           </p>
         </div>
       </Card>

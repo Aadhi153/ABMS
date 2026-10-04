@@ -91,6 +91,7 @@ function MaskedIdentityInput({
   onChange,
   uppercase,
   validated,
+  disabled,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -99,6 +100,7 @@ function MaskedIdentityInput({
    * format — a lighter-weight signal than a full badge, for fields with their own badge
    * elsewhere (or that don't need one). */
   validated?: boolean;
+  disabled?: boolean;
 }) {
   const [visible, setVisible] = useState(false);
   return (
@@ -106,6 +108,7 @@ function MaskedIdentityInput({
       <Input
         type={visible ? "text" : "password"}
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(uppercase ? e.target.value.toUpperCase() : e.target.value)}
         className={cn("pr-9", validated && "pr-14", FOCUS_GLOW)}
       />
@@ -236,6 +239,8 @@ export interface EmployeeFormState {
   tdsValue: string;
   payMode: string;
   bankAccountNumber: string;
+  /** UI-only re-entry check to catch typos before submit — never read by the mutation. */
+  bankAccountNumberConfirm: string;
   bankIfsc: string;
   bankName: string;
   monthlyGrossSalary: string;
@@ -297,6 +302,7 @@ export function emptyEmployeeForm(): EmployeeFormState {
     tdsValue: "0",
     payMode: "BANK",
     bankAccountNumber: "",
+    bankAccountNumberConfirm: "",
     bankIfsc: "",
     bankName: "",
     monthlyGrossSalary: "",
@@ -1540,6 +1546,7 @@ export function DocumentsSection({ form, setForm }: SectionProps) {
   const additionalDocs = form.documents.filter((d) => d.category === "ADDITIONAL");
   const aadharDoc = form.documents.find((d) => d.category === "AADHAR");
   const panDoc = form.documents.find((d) => d.category === "PAN");
+  const passbookDoc = form.documents.find((d) => d.category === "BANK_PASSBOOK");
   const aadharValid = /^\d{12}$/.test(form.aadharNumber.replace(/\s/g, ""));
   const panValid = /^[A-Z]{5}\d{4}[A-Z]$/.test(form.panNumber);
 
@@ -1579,6 +1586,35 @@ export function DocumentsSection({ form, setForm }: SectionProps) {
           onUpload={(r) => handleUpload("PAN", r)}
           onRemove={() => panDoc && removeDoc(panDoc.key)}
         />
+      </FormSubsection>
+
+      <FormSubsection
+        title="Bank Disbursement Proof"
+        description="Cancelled cheque or first page of the passbook — referenced on the Bank/Tax tab to confirm salary disbursement details"
+        className="sm:grid-cols-1"
+      >
+        {passbookDoc ? (
+          <div className="space-y-2 rounded-lg border border-border p-3">
+            <div className="flex items-start justify-between gap-2">
+              <Label>Bank Passbook / Cancelled Cheque</Label>
+              <Badge tone="success" className="shrink-0 gap-1">
+                <CheckCircle2 className="h-3 w-3" />
+                Uploaded
+              </Badge>
+            </div>
+            <UploadedDocumentChip fileName={passbookDoc.fileName} fileSizeBytes={passbookDoc.fileSizeBytes} onRemove={() => removeDoc(passbookDoc.key)} />
+          </div>
+        ) : (
+          <div className="space-y-2 rounded-lg border border-border p-3">
+            <div className="flex items-start justify-between gap-2">
+              <Label>Bank Passbook / Cancelled Cheque</Label>
+              <Badge tone="warning" className="shrink-0">
+                Not uploaded
+              </Badge>
+            </div>
+            <DocumentDropzone compact hint="First page of passbook or a cancelled cheque · PDF, PNG, JPG up to 10MB" onUploaded={(r) => handleUpload("BANK_PASSBOOK", r)} />
+          </div>
+        )}
       </FormSubsection>
 
       <FormSubsection
@@ -1784,20 +1820,102 @@ export function SalarySection({
   );
 }
 
-export function BankTaxSection({ form, setForm }: SectionProps) {
+const IFSC_FORMAT = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+const UAN_FORMAT = /^\d{12}$/;
+
+interface IfscLookupState {
+  status: "idle" | "loading" | "found" | "error";
+  bank?: string;
+  branch?: string;
+  city?: string;
+}
+
+/** Looks up an IFSC against Razorpay's free, keyless public registry so HR doesn't have to
+ * hand-type the bank name/branch (a common source of bounced-disbursement typos). Network
+ * failures (offline, blocked egress) just fall back to the manual Bank Name field — nothing
+ * else in this form depends on the lookup succeeding. */
+function useIfscLookup() {
+  const [state, setState] = useState<IfscLookupState>({ status: "idle" });
+
+  async function lookup(code: string) {
+    if (!IFSC_FORMAT.test(code)) {
+      setState({ status: "idle" });
+      return null;
+    }
+    setState({ status: "loading" });
+    try {
+      const res = await fetch(`https://ifsc.razorpay.com/${code}`);
+      if (!res.ok) {
+        setState({ status: "error" });
+        return null;
+      }
+      const data: { BANK?: string; BRANCH?: string; CITY?: string } = await res.json();
+      setState({ status: "found", bank: data.BANK, branch: data.BRANCH, city: data.CITY });
+      return data;
+    } catch {
+      setState({ status: "error" });
+      return null;
+    }
+  }
+
+  return { ifsc: state, lookup };
+}
+
+export function BankTaxSection({ form, setForm, onViewDocuments }: SectionProps & { onViewDocuments?: () => void }) {
+  const passbookDoc = form.documents.find((d) => d.category === "BANK_PASSBOOK");
+  const uanValid = UAN_FORMAT.test(form.uan.replace(/\s/g, ""));
+  const accountsMatch = form.bankAccountNumberConfirm === "" || form.bankAccountNumberConfirm === form.bankAccountNumber;
+  const basic = Number(form.monthlyGrossSalary) || 0;
+  const grossMonthly = basic + form.salaryComponents.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+  const estimatedTax = form.tdsType === "FIXED" ? Number(form.tdsValue) || 0 : Math.round((grossMonthly * (Number(form.tdsValue) || 0)) / 100);
+  const bankFieldsDisabled = form.payMode !== "BANK";
+  const { ifsc, lookup } = useIfscLookup();
+
+  async function handleIfscBlur() {
+    const code = form.bankIfsc.trim().toUpperCase();
+    if (code !== form.bankIfsc) setForm((f) => ({ ...f, bankIfsc: code }));
+    const data = await lookup(code);
+    if (data?.BANK) {
+      setForm((f) => (f.bankName ? f : { ...f, bankName: data.BANK! }));
+    }
+  }
+
   return (
-    <FormSection title="Bank / Tax" description="Statutory and banking details" icon={<Landmark className="h-5 w-5" />} index={0}>
-      <FormSubsection title="Statutory">
+    <FormSection
+      title="Bank & Statutory Tax Registrations"
+      description="Configure employee statutory identifiers, income tax regime, and verified salary bank account"
+      icon={<Landmark className="h-5 w-5" />}
+      index={0}
+      badge={
+        (form.pfEligible || form.esiEligible) && (
+          <Badge tone="info" className="font-normal">
+            {form.pfEligible && form.esiEligible ? "PF & ESI Linked" : form.pfEligible ? "PF Linked" : "ESI Linked"}
+          </Badge>
+        )
+      }
+      compact
+    >
+      <FormSubsection title="Statutory Identifiers & Taxation">
         <div className="space-y-1.5">
-          <Label>UAN</Label>
-          <Input value={form.uan} onChange={(e) => setForm((f) => ({ ...f, uan: e.target.value }))} className={FOCUS_GLOW} />
+          <Label className="flex items-center gap-1.5">
+            UAN (Universal Account Number)
+            {uanValid && (
+              <Badge tone="success" className="gap-1 font-normal">
+                <CheckCircle2 className="h-3 w-3" />
+                Valid format
+              </Badge>
+            )}
+          </Label>
+          <Input value={form.uan} onChange={(e) => setForm((f) => ({ ...f, uan: e.target.value }))} className={FOCUS_GLOW} placeholder="1012 3456 7890" />
+          <p className="text-xs text-muted-foreground">12-digit Employee Provident Fund number</p>
         </div>
         <div className="space-y-1.5">
-          <Label>ESI No.</Label>
-          <Input value={form.esiNumber} onChange={(e) => setForm((f) => ({ ...f, esiNumber: e.target.value }))} className={FOCUS_GLOW} />
+          <Label>ESI Number (IP No.)</Label>
+          <Input value={form.esiNumber} onChange={(e) => setForm((f) => ({ ...f, esiNumber: e.target.value }))} className={FOCUS_GLOW} placeholder="31-00-123456-000-0001" />
+          <p className="text-xs text-muted-foreground">17-digit ESIC insurance registration</p>
         </div>
         <div className="space-y-1.5">
-          <Label>TDS Type</Label>
+          <Label>TDS Deduction Type</Label>
           <Select value={form.tdsType} onValueChange={(v) => setForm((f) => ({ ...f, tdsType: v }))}>
             <SelectTrigger className={FOCUS_GLOW}>
               <SelectValue />
@@ -1807,14 +1925,18 @@ export function BankTaxSection({ form, setForm }: SectionProps) {
               <SelectItem value="FIXED">Fixed Amount</SelectItem>
             </SelectContent>
           </Select>
+          <p className="text-xs text-muted-foreground">
+            {form.tdsType === "FIXED" ? "Flat amount deducted every payroll run" : "Standard fixed deduction rate applied to gross"}
+          </p>
         </div>
         <div className="space-y-1.5">
           <Label>TDS {form.tdsType === "FIXED" ? "Amount (₹)" : "Percentage (%)"}</Label>
           <Input type="number" min="0" value={form.tdsValue} onChange={(e) => setForm((f) => ({ ...f, tdsValue: e.target.value }))} className={FOCUS_GLOW} />
+          <p className="text-xs text-muted-foreground">Calculated estimated tax: ₹{estimatedTax.toLocaleString("en-IN")} / month</p>
         </div>
       </FormSubsection>
 
-      <FormSubsection title="Bank Details">
+      <FormSubsection title="Bank Disbursement Details">
         <div className="space-y-1.5">
           <Label>Pay Mode</Label>
           <Select value={form.payMode} onValueChange={(v) => setForm((f) => ({ ...f, payMode: v }))}>
@@ -1829,30 +1951,87 @@ export function BankTaxSection({ form, setForm }: SectionProps) {
               ))}
             </SelectContent>
           </Select>
+          <p className="text-xs text-muted-foreground">{form.payMode === "BANK" ? "Primary channel for monthly disbursement" : "Paid in cash — bank details not required"}</p>
         </div>
         <div className="space-y-1.5">
           <Label>
             Bank A/C No.
             {form.payMode === "BANK" && <RequiredMark />}
           </Label>
-          <div className="flex gap-2">
-            <Input value={form.bankAccountNumber} onChange={(e) => setForm((f) => ({ ...f, bankAccountNumber: e.target.value }))} className={cn("flex-1", FOCUS_GLOW)} />
-          </div>
+          <MaskedIdentityInput
+            value={form.bankAccountNumber}
+            onChange={(v) => setForm((f) => ({ ...f, bankAccountNumber: v }))}
+            disabled={bankFieldsDisabled}
+          />
         </div>
         <div className="space-y-1.5">
           <Label>
             IFSC
             {form.payMode === "BANK" && <RequiredMark />}
           </Label>
-          <Input value={form.bankIfsc} onChange={(e) => setForm((f) => ({ ...f, bankIfsc: e.target.value }))} className={FOCUS_GLOW} />
+          <div className="relative">
+            <Input
+              value={form.bankIfsc}
+              onChange={(e) => setForm((f) => ({ ...f, bankIfsc: e.target.value.toUpperCase() }))}
+              onBlur={handleIfscBlur}
+              disabled={bankFieldsDisabled}
+              className={cn("pr-8", FOCUS_GLOW)}
+              placeholder="HDFC0001234"
+            />
+            {ifsc.status === "loading" && <Loader2 className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />}
+            {ifsc.status === "found" && <CheckCircle2 className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-success" />}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {ifsc.status === "loading" && "Looking up branch…"}
+            {ifsc.status === "found" && `Branch: ${ifsc.branch ?? "—"}${ifsc.city ? `, ${ifsc.city}` : ""}`}
+            {ifsc.status === "error" && "Couldn't verify this IFSC — double check it manually"}
+            {ifsc.status === "idle" && "11-character bank branch code"}
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label>
+            Confirm Bank A/C No.
+            {form.payMode === "BANK" && <RequiredMark />}
+          </Label>
+          <MaskedIdentityInput
+            value={form.bankAccountNumberConfirm}
+            onChange={(v) => setForm((f) => ({ ...f, bankAccountNumberConfirm: v }))}
+            disabled={bankFieldsDisabled}
+            validated={!bankFieldsDisabled && form.bankAccountNumberConfirm !== "" && accountsMatch}
+          />
+          {!accountsMatch && <p className="text-xs text-danger">Account numbers don't match</p>}
         </div>
         <div className="space-y-1.5">
           <Label>
             Bank Name
             {form.payMode === "BANK" && <RequiredMark />}
           </Label>
-          <Input value={form.bankName} onChange={(e) => setForm((f) => ({ ...f, bankName: e.target.value }))} className={FOCUS_GLOW} />
+          <Input value={form.bankName} onChange={(e) => setForm((f) => ({ ...f, bankName: e.target.value }))} disabled={bankFieldsDisabled} className={FOCUS_GLOW} />
+          {ifsc.status === "found" && ifsc.bank && <p className="text-xs text-muted-foreground">{ifsc.bank}</p>}
         </div>
+
+        {passbookDoc ? (
+          <div className="flex items-center justify-between gap-2 rounded-md border border-success/30 bg-success-bg px-3 py-2 sm:col-span-2">
+            <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+              <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+              Cancelled cheque / passbook verified against Step 5 Documents ({passbookDoc.fileName})
+            </span>
+            {onViewDocuments && (
+              <Button type="button" variant="ghost" size="xs" onClick={onViewDocuments} className={BUTTON_PRESS}>
+                Preview
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-2 rounded-md border border-warning/30 bg-warning-bg px-3 py-2 sm:col-span-2">
+            <span className="text-xs font-medium text-foreground">No bank passbook / cancelled cheque uploaded yet</span>
+            {onViewDocuments && (
+              <Button type="button" variant="outline" size="xs" onClick={onViewDocuments} className={BUTTON_PRESS}>
+                Add in Documents
+              </Button>
+            )}
+          </div>
+        )}
       </FormSubsection>
     </FormSection>
   );

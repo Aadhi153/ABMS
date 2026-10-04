@@ -166,7 +166,8 @@ function filledRatio(form: EmployeeFormState, keys: FieldKey[]): number {
 function tabFraction(key: TabKey, form: EmployeeFormState): number {
   if (key === "bank") {
     if (form.payMode !== "BANK") return 1;
-    return filledRatio(form, ["bankAccountNumber", "bankIfsc", "bankName"]);
+    if (form.bankAccountNumberConfirm !== form.bankAccountNumber) return 0;
+    return filledRatio(form, ["bankAccountNumber", "bankAccountNumberConfirm", "bankIfsc", "bankName"]);
   }
   return filledRatio(form, TAB_REQUIRED_FIELDS[key]);
 }
@@ -175,7 +176,7 @@ function tabFraction(key: TabKey, form: EmployeeFormState): number {
  * Experience and Documents have no required fields, so tabFraction trivially reads 1 before
  * the user has touched them — showing a checkmark there on a blank form would be misleading. */
 function tabHasCheckmark(key: TabKey, form: EmployeeFormState): boolean {
-  const requiredCount = key === "bank" && form.payMode === "BANK" ? 3 : TAB_REQUIRED_FIELDS[key].length;
+  const requiredCount = key === "bank" && form.payMode === "BANK" ? 4 : TAB_REQUIRED_FIELDS[key].length;
   return requiredCount > 0 && tabFraction(key, form) >= 1;
 }
 
@@ -470,7 +471,7 @@ export default function NewEmployeePage() {
                 <SalarySection form={form} setForm={setForm} orgSalaryComponents={salaryComponents} grades={grades} />
               </TabsContent>
               <TabsContent value="bank">
-                <BankTaxSection form={form} setForm={setForm} />
+                <BankTaxSection form={form} setForm={setForm} onViewDocuments={() => setTab("documents")} />
               </TabsContent>
             </Tabs>
           </form>
@@ -484,6 +485,7 @@ export default function NewEmployeePage() {
             completedSteps={completedSteps}
             totalSteps={TABS.length}
             nextStep={nextStep}
+            activeTab={tab}
           />
         </div>
       </div>
