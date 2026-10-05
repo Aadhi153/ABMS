@@ -11,6 +11,7 @@ import {
   ChevronsUpDown,
   ChevronUp,
   Download,
+  Eye,
   IdCard,
   MoreVertical,
   Pencil,
@@ -70,12 +71,19 @@ const EMPLOYEES_QUERY = gql`
       employeeCode
       fullName
       email
+      phone
       department
       designation
       employmentType
       status
       dateOfJoining
       monthlyGrossSalary
+      branchId
+      branchName
+    }
+    branches {
+      id
+      name
     }
   }
 `;
@@ -83,6 +91,14 @@ const EMPLOYEES_QUERY = gql`
 const UPDATE_EMPLOYEE_STATUS = gql`
   mutation UpdateEmployeeStatusBulk($id: String!, $status: String!) {
     updateEmployeeStatus(id: $id, status: $status) {
+      id
+    }
+  }
+`;
+
+const UPDATE_EMPLOYEE_BRANCH = gql`
+  mutation UpdateEmployeeBranchBulk($id: String!, $branchId: String!) {
+    updateEmployeeBranch(id: $id, branchId: $branchId) {
       id
     }
   }
@@ -177,10 +193,15 @@ function pageNumbers(current: number, total: number): (number | "…")[] {
 export default function EmployeesTab(_props: { employees: EmployeeLite[]; loading: boolean; onRefetch: () => void }) {
   const navigate = useNavigate();
   const [subTab, setSubTab] = useState<SubTab>("employees");
-  const { data, loading, refetch } = useQuery<{ employees: Employee[] }>(EMPLOYEES_QUERY, { skip: subTab !== "employees" });
+  const { data, loading, refetch } = useQuery<{ employees: Employee[]; branches: { id: string; name: string }[] }>(EMPLOYEES_QUERY, {
+    skip: subTab !== "employees",
+  });
   const [updateStatus] = useMutation(UPDATE_EMPLOYEE_STATUS);
+  const [updateBranch] = useMutation(UPDATE_EMPLOYEE_BRANCH);
   const [deleteEmployee] = useMutation(DELETE_EMPLOYEE);
   const employees = data?.employees ?? [];
+  const branches = data?.branches ?? [];
+  const [quickViewEmployee, setQuickViewEmployee] = useState<Employee | null>(null);
 
   const [summaryVisible, setSummaryVisible] = useState(true);
   const [search, setSearch] = useState("");
@@ -293,6 +314,24 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
       await refetch();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update status");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function handleAssignBranch(ids: string[], branchId: string) {
+    setActionBusy(true);
+    try {
+      await Promise.all(ids.map((id) => updateBranch({ variables: { id, branchId } })));
+      toast.success(`Assigned branch for ${ids.length} employee${ids.length === 1 ? "" : "s"}`);
+      setSelected((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.delete(id));
+        return next;
+      });
+      await refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to assign branch");
     } finally {
       setActionBusy(false);
     }
@@ -583,6 +622,20 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="xs" disabled={actionBusy || branches.length === 0} className={cn("gap-1.5", BUTTON_PRESS)}>
+                      Assign branch
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {branches.map((b) => (
+                      <DropdownMenuItem key={b.id} onSelect={() => handleAssignBranch(Array.from(selected), b.id)}>
+                        {b.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button
                   variant="outline"
                   size="xs"
@@ -672,7 +725,17 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
                                 variant="ghost"
                                 size="icon"
                                 className={cn("h-7 w-7", BUTTON_PRESS)}
+                                onClick={() => setQuickViewEmployee(e)}
+                                aria-label={`Quick view ${e.fullName}`}
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className={cn("h-7 w-7", BUTTON_PRESS)}
                                 onClick={() => navigate(`/hrms/employees/${e.id}`)}
+                                aria-label={`Edit ${e.fullName}`}
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
@@ -693,6 +756,18 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
                                       ))}
                                     </DropdownMenuSubContent>
                                   </DropdownMenuSub>
+                                  {branches.length > 0 && (
+                                    <DropdownMenuSub>
+                                      <DropdownMenuSubTrigger>Assign branch</DropdownMenuSubTrigger>
+                                      <DropdownMenuSubContent>
+                                        {branches.map((b) => (
+                                          <DropdownMenuItem key={b.id} onSelect={() => handleAssignBranch([e.id], b.id)}>
+                                            {b.name}
+                                          </DropdownMenuItem>
+                                        ))}
+                                      </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
+                                  )}
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem
                                     onSelect={() => setDeleteTargetIds([e.id])}
@@ -795,6 +870,75 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
               {actionBusy ? "Deleting…" : "Delete"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={quickViewEmployee !== null} onOpenChange={(o) => !o && setQuickViewEmployee(null)}>
+        <DialogContent>
+          {quickViewEmployee && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-3">
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback className={cn("text-xs font-semibold", avatarTone(quickViewEmployee.fullName).bg, avatarTone(quickViewEmployee.fullName).text)}>
+                      {initialsOf(quickViewEmployee.fullName)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span>
+                    <span className="block text-sm font-semibold">{quickViewEmployee.fullName}</span>
+                    <span className="block font-mono text-xs font-normal text-muted-foreground">{quickViewEmployee.employeeCode}</span>
+                  </span>
+                </DialogTitle>
+              </DialogHeader>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
+                <div>
+                  <p className="text-[10px] font-medium uppercase text-muted-foreground">Status</p>
+                  <StatusDot status={quickViewEmployee.status} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-medium uppercase text-muted-foreground">Employment Type</p>
+                  <p className="text-foreground">{titleCase(quickViewEmployee.employmentType)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-medium uppercase text-muted-foreground">Department</p>
+                  <p className="text-foreground">{quickViewEmployee.department}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-medium uppercase text-muted-foreground">Designation</p>
+                  <p className="text-foreground">{quickViewEmployee.designation}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-medium uppercase text-muted-foreground">Branch</p>
+                  <p className="text-foreground">{quickViewEmployee.branchName ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-medium uppercase text-muted-foreground">Joined</p>
+                  <p className="text-foreground">{fmtDate(quickViewEmployee.dateOfJoining)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-medium uppercase text-muted-foreground">Email</p>
+                  <p className="truncate text-foreground">{quickViewEmployee.email}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-medium uppercase text-muted-foreground">Phone</p>
+                  <p className="text-foreground">{quickViewEmployee.phone ?? "—"}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-[10px] font-medium uppercase text-muted-foreground">Monthly Gross Salary</p>
+                  <p className="font-semibold text-foreground">{inr(quickViewEmployee.monthlyGrossSalary)}</p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setQuickViewEmployee(null)} className={BUTTON_PRESS}>
+                  Close
+                </Button>
+                <Button onClick={() => navigate(`/hrms/employees/${quickViewEmployee.id}`)} className={cn("gap-1.5", BUTTON_PRESS)}>
+                  <Pencil className="h-3.5 w-3.5" />
+                  Edit full profile
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

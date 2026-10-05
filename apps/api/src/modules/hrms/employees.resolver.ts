@@ -53,6 +53,14 @@ export class EmployeesResolver {
     return employee;
   }
 
+  @Mutation(() => EmployeeModel)
+  async updateEmployeeBranch(@Args("id") id: string, @Args("branchId") branchId: string, @CurrentUser() actor: User) {
+    const before = await this.employeesService.findById(id);
+    const employee = await this.employeesService.updateBranch(id, branchId);
+    await this.audit.logUpdate(actor, "Employee", id, before, employee);
+    return employee;
+  }
+
   @Mutation(() => Boolean)
   async deleteEmployee(@Args("id") id: string, @CurrentUser() actor: User) {
     const deleted = await this.employeesService.delete(id);

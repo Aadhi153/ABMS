@@ -262,6 +262,17 @@ export class EmployeesService {
     return toModel(row);
   }
 
+  async updateBranch(id: string, branchId: string) {
+    const existing = await this.prisma.employee.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException("Employee not found");
+    const row = await this.prisma.employee.update({
+      where: { id },
+      data: { branchId },
+      include: EMPLOYEE_INCLUDE,
+    });
+    return toModel(row);
+  }
+
   async delete(id: string) {
     const existing = await this.prisma.employee.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException("Employee not found");
