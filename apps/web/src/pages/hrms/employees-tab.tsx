@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { gql, useMutation, useQuery } from "@apollo/client";
-import type { StatusTone } from "@abms/shared";
-import { STATUS_TONE } from "@abms/shared";
 import {
   Check,
   ChevronDown,
@@ -52,6 +50,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  StatusBadge,
   cn,
   toast,
 } from "@abms/ui";
@@ -131,21 +130,6 @@ const AVATAR_TONES = [
   { bg: "bg-warning-bg", text: "text-warning" },
   { bg: "bg-danger-bg", text: "text-danger" },
 ];
-const TONE_DOT: Record<StatusTone, string> = {
-  success: "bg-success",
-  warning: "bg-warning",
-  danger: "bg-danger",
-  info: "bg-info",
-  muted: "bg-muted-foreground",
-};
-const TONE_TEXT: Record<StatusTone, string> = {
-  success: "text-success",
-  warning: "text-warning",
-  danger: "text-danger",
-  info: "text-info",
-  muted: "text-muted-foreground",
-};
-
 function initialsOf(name: string) {
   const parts = name.trim().split(/\s+/);
   return parts
@@ -157,16 +141,6 @@ function initialsOf(name: string) {
 function avatarTone(name: string) {
   const sum = name.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
   return AVATAR_TONES[sum % AVATAR_TONES.length];
-}
-
-function StatusDot({ status }: { status: string }) {
-  const tone: StatusTone = STATUS_TONE[status] ?? "muted";
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", TONE_DOT[tone])} />
-      <span className={cn("text-xs font-medium", TONE_TEXT[tone])}>{status.replaceAll("_", " ")}</span>
-    </span>
-  );
 }
 
 function csvEscape(value: string) {
@@ -393,7 +367,7 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
       value: employees.length,
       caption: "all-time employee records",
       icon: Users,
-      tone: AVATAR_TONES[0],
+      tone: AVATAR_TONES[2],
       delta: employees.length > 0 ? `+${growthPct.toFixed(1)}% this mo` : null,
       deltaTone: "success" as const,
     },
@@ -411,7 +385,7 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
       value: newJoineesCount,
       caption: "onboarded this month",
       icon: UserPlus,
-      tone: AVATAR_TONES[2],
+      tone: AVATAR_TONES[0],
       delta: null,
       deltaTone: "info" as const,
     },
@@ -420,7 +394,7 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
       value: inr(totalSalaryBase),
       caption: "estimated basic payroll",
       icon: Wallet,
-      tone: AVATAR_TONES[0],
+      tone: AVATAR_TONES[3],
       delta: null,
       deltaTone: "warning" as const,
     },
@@ -430,49 +404,58 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
     <div className="-m-3 min-h-full space-y-3 bg-background p-3 sm:-m-5 sm:p-5">
       <FormBreadcrumb items={[{ label: "HRMS", to: "/hrms/overview" }, { label: "Employee Management" }]} />
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <h1 className="text-lg font-bold tracking-tight text-foreground">Employee Management</h1>
-          {subTab === "employees" && (
-            <span className="rounded-full border border-primary/30 bg-primary-bg px-2 py-0.5 text-[11px] font-semibold text-primary">
-              {employees.length} Team Members
-            </span>
-          )}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-info-bg text-info">
+            <Users className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold tracking-tight text-foreground">Employee Management</h1>
+            <p className="text-xs text-muted-foreground">
+              Centralized workforce directory, access control and organization roster
+            </p>
+            {subTab === "employees" && (
+              <span className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-info/30 bg-info-bg px-2 py-0.5 text-[11px] font-semibold text-info">
+                <span className="h-1.5 w-1.5 rounded-full bg-info" />
+                {employees.length} Total Members
+              </span>
+            )}
+          </div>
         </div>
         {subTab === "employees" && (
           <div className="flex items-center gap-1.5">
             <Button variant="outline" size="sm" onClick={() => setSummaryVisible((v) => !v)} className={cn("gap-1.5", BUTTON_PRESS)}>
               {summaryVisible ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-              {summaryVisible ? "Hide Summary" : "Show Summary"}
+              {summaryVisible ? "Collapse Metrics" : "Show Metrics"}
             </Button>
             <Button variant="outline" size="sm" onClick={handleExportCsv} className={cn("gap-1.5", BUTTON_PRESS)}>
               <Download className="h-3.5 w-3.5" />
-              Export CSV
+              Export
             </Button>
             <Button size="sm" onClick={() => navigate("/hrms/employees/new")} className={cn("gap-1.5", BUTTON_PRESS)}>
               <Plus className="h-3.5 w-3.5" />
-              New Employee
+              Add New Employee
             </Button>
           </div>
         )}
       </div>
 
-      <div className="flex items-center gap-3 border-b border-border">
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-border pb-2">
         {SUB_TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setSubTab(t.key)}
             className={cn(
-              "flex items-center gap-1 border-b-2 pb-1 text-xs font-medium transition-colors",
-              subTab === t.key ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+              "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+              subTab === t.key ? "bg-primary-bg text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
             {t.label}
             {t.key === "employees" && (
               <span
                 className={cn(
-                  "rounded-full px-1 py-0.5 text-[10px] font-semibold",
-                  subTab === t.key ? "bg-primary-bg text-primary" : "bg-muted text-muted-foreground",
+                  "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                  subTab === t.key ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground",
                 )}
               >
                 {employees.length}
@@ -716,7 +699,7 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
                           <td className="px-3 py-2.5">{e.designation}</td>
                           {visibleCols.type && <td className="px-3 py-2.5 text-muted-foreground">{titleCase(e.employmentType)}</td>}
                           <td className="px-3 py-2.5">
-                            <StatusDot status={e.status} />
+                            <StatusBadge status={e.status} />
                           </td>
                           <td className="px-3 py-2.5 text-muted-foreground">{fmtDate(e.dateOfJoining)}</td>
                           <td className="px-3 py-2.5">
@@ -893,7 +876,7 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
               <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
                 <div>
                   <p className="text-[10px] font-medium uppercase text-muted-foreground">Status</p>
-                  <StatusDot status={quickViewEmployee.status} />
+                  <StatusBadge status={quickViewEmployee.status} />
                 </div>
                 <div>
                   <p className="text-[10px] font-medium uppercase text-muted-foreground">Employment Type</p>
