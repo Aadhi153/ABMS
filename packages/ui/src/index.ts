@@ -6,6 +6,7 @@ export * from "./components/card";
 export * from "./components/badge";
 export * from "./components/avatar";
 export * from "./components/dialog";
+export * from "./components/sheet";
 export * from "./components/dropdown-menu";
 export * from "./components/select";
 export * from "./components/separator";

@@ -50,6 +50,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Sheet,
+  SheetContent,
   StatusBadge,
   cn,
   toast,
@@ -62,6 +64,7 @@ import DepartmentsTab from "./departments-tab";
 import DesignationsTab from "./designations-tab";
 import GradesTab from "./grades-tab";
 import BranchesTab from "./branches-tab";
+import { EmployeeEditPanel } from "./employee-edit-panel";
 
 const EMPLOYEES_QUERY = gql`
   query EmployeesTabData {
@@ -176,6 +179,7 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
   const employees = data?.employees ?? [];
   const branches = data?.branches ?? [];
   const [quickViewEmployee, setQuickViewEmployee] = useState<Employee | null>(null);
+  const [editEmployeeId, setEditEmployeeId] = useState<string | null>(null);
 
   const [summaryVisible, setSummaryVisible] = useState(true);
   const [search, setSearch] = useState("");
@@ -676,14 +680,14 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
                           </td>
                           <td className="px-3 py-2.5">
                             <button
-                              onClick={() => navigate(`/hrms/employees/${e.id}`)}
+                              onClick={() => setEditEmployeeId(e.id)}
                               className="font-mono text-xs font-semibold text-primary transition-colors hover:underline"
                             >
                               {e.employeeCode}
                             </button>
                           </td>
                           <td className="px-3 py-2.5">
-                            <button onClick={() => navigate(`/hrms/employees/${e.id}`)} className="flex items-center gap-2.5 text-left">
+                            <button onClick={() => setEditEmployeeId(e.id)} className="flex items-center gap-2.5 text-left">
                               <Avatar className="h-8 w-8">
                                 <AvatarFallback className={cn("text-[10px] font-semibold", tone.bg, tone.text)}>
                                   {initialsOf(e.fullName)}
@@ -717,7 +721,7 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
                                 variant="ghost"
                                 size="icon"
                                 className={cn("h-7 w-7", BUTTON_PRESS)}
-                                onClick={() => navigate(`/hrms/employees/${e.id}`)}
+                                onClick={() => setEditEmployeeId(e.id)}
                                 aria-label={`Edit ${e.fullName}`}
                               >
                                 <Pencil className="h-3.5 w-3.5" />
@@ -915,7 +919,13 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
                 <Button variant="outline" onClick={() => setQuickViewEmployee(null)} className={BUTTON_PRESS}>
                   Close
                 </Button>
-                <Button onClick={() => navigate(`/hrms/employees/${quickViewEmployee.id}`)} className={cn("gap-1.5", BUTTON_PRESS)}>
+                <Button
+                  onClick={() => {
+                    setEditEmployeeId(quickViewEmployee.id);
+                    setQuickViewEmployee(null);
+                  }}
+                  className={cn("gap-1.5", BUTTON_PRESS)}
+                >
                   <Pencil className="h-3.5 w-3.5" />
                   Edit full profile
                 </Button>
@@ -924,6 +934,14 @@ export default function EmployeesTab(_props: { employees: EmployeeLite[]; loadin
           )}
         </DialogContent>
       </Dialog>
+
+      <Sheet open={editEmployeeId !== null} onOpenChange={(o) => !o && setEditEmployeeId(null)}>
+        <SheetContent className="p-0">
+          {editEmployeeId && (
+            <EmployeeEditPanel id={editEmployeeId} onClose={() => setEditEmployeeId(null)} onSaved={refetch} />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
