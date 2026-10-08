@@ -100,12 +100,13 @@ const MARK_ATTENDANCE = gql`
 
 const WEEKDAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 const DOW_CODE = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-const STATUS_OPTIONS = ["PRESENT", "LATE", "HALF_DAY", "ON_LEAVE", "ABSENT", "HOLIDAY", "WEEK_OFF"];
+const STATUS_OPTIONS = ["PRESENT", "LATE", "HALF_DAY", "PAID_LEAVE", "LOP", "ABSENT", "HOLIDAY", "WEEK_OFF"];
 
 const STATUS_CODE: Record<string, string> = {
   ABSENT: "AB",
   HALF_DAY: "HD",
-  ON_LEAVE: "L",
+  PAID_LEAVE: "PL",
+  LOP: "LOP",
   HOLIDAY: "H",
   WEEK_OFF: "W",
 };

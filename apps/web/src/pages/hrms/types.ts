@@ -157,6 +157,30 @@ export interface Shift {
   employeeCount: number;
 }
 
+export interface AttendanceSession {
+  id: string;
+  attendanceLogId: string;
+  sessionIndex: number;
+  checkIn: string | null;
+  checkOut: string | null;
+  terminalId: string | null;
+  terminalName: string | null;
+  verifyMethod: string | null;
+}
+
+export interface BiometricTerminal {
+  id: string;
+  name: string;
+  code: string | null;
+  branchId: string | null;
+  branchName: string | null;
+  capabilities: string[];
+  status: string;
+  lastSeenAt: string | null;
+  active: boolean;
+  createdAt: string;
+}
+
 export interface AttendanceLog {
   id: string;
   employeeId: string;
@@ -169,6 +193,11 @@ export interface AttendanceLog {
   date: string;
   checkIn: string | null;
   checkOut: string | null;
+  checkInTerminalName: string | null;
+  checkInVerifyMethod: string | null;
+  checkOutTerminalName: string | null;
+  checkOutVerifyMethod: string | null;
+  sessions: AttendanceSession[];
   status: string;
   workedHours: number | null;
   shiftId: string | null;
