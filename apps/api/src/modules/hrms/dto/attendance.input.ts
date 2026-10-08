@@ -1,7 +1,7 @@
 import { Field, InputType } from "@nestjs/graphql";
-import { ArrayMinSize, IsArray, IsDate, IsEnum, IsOptional, IsString, ValidateNested } from "class-validator";
+import { ArrayMinSize, IsArray, IsBoolean, IsDate, IsEnum, IsOptional, IsString, ValidateNested } from "class-validator";
 import { Type } from "class-transformer";
-import { AttendanceStatus } from "@abms/database";
+import { AttendanceStatus, BiometricTerminalStatus, VerifyMethod } from "@abms/database";
 
 @InputType()
 export class MarkAttendanceInput {
@@ -128,4 +128,64 @@ export class SyncBiometricLogsInput {
   @IsOptional()
   @IsString()
   deviceId?: string;
+}
+
+@InputType()
+export class CreateBiometricTerminalInput {
+  @Field(() => String)
+  @IsString()
+  name!: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  code?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  branchId?: string;
+
+  @Field(() => [String])
+  @IsArray()
+  @IsEnum(VerifyMethod, { each: true })
+  capabilities!: VerifyMethod[];
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsEnum(BiometricTerminalStatus)
+  status?: BiometricTerminalStatus;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
+}
+
+@InputType()
+export class UpdateBiometricTerminalInput extends CreateBiometricTerminalInput {}
+
+@InputType()
+export class AddAttendanceSessionInput {
+  @Field(() => String)
+  @IsString()
+  attendanceLogId!: string;
+
+  @Field(() => Date, { nullable: true })
+  @IsOptional()
+  checkIn?: Date;
+
+  @Field(() => Date, { nullable: true })
+  @IsOptional()
+  checkOut?: Date;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  terminalId?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsEnum(VerifyMethod)
+  verifyMethod?: VerifyMethod;
 }

@@ -3,15 +3,21 @@ import { gql, useMutation, useQuery } from "@apollo/client";
 import {
   Calendar,
   CalendarClock,
+  CalendarRange,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  ClipboardList,
+  Download,
+  Eye,
+  EyeOff,
+  Fingerprint,
   LogIn,
   LogOut,
   Plus,
   RefreshCw,
   Save,
+  ScanFace,
+  Signal,
   UserX,
   Users,
 } from "lucide-react";
@@ -41,8 +47,8 @@ import {
 import { STATUS_TONE } from "@abms/shared";
 import { FormBreadcrumb } from "../products/form-page";
 import { BUTTON_PRESS, CARD_HOVER } from "../products/form-motion";
-import type { AttendanceLog, Branch, EmployeeLite } from "./types";
-import { fmtDateLong } from "./hrms-helpers";
+import type { AttendanceLog, Branch, BiometricTerminal, EmployeeLite } from "./types";
+import { fmtDate, fmtDateLong } from "./hrms-helpers";
 import BiometricSyncTab from "./biometric-sync-tab";
 
 const REGISTER_QUERY = gql`
@@ -59,6 +65,18 @@ const REGISTER_QUERY = gql`
       date
       checkIn
       checkOut
+      checkInTerminalName
+      checkInVerifyMethod
+      checkOutTerminalName
+      checkOutVerifyMethod
+      sessions {
+        id
+        sessionIndex
+        checkIn
+        checkOut
+        terminalName
+        verifyMethod
+      }
       status
       workedHours
       shiftId
@@ -69,6 +87,20 @@ const REGISTER_QUERY = gql`
     branches {
       id
       name
+    }
+  }
+`;
+const TERMINALS_QUERY = gql`
+  query AttendanceTerminalsTab {
+    biometricTerminals {
+      id
+      name
+      code
+      branchId
+      capabilities
+      status
+      lastSeenAt
+      active
     }
   }
 `;
@@ -100,18 +132,36 @@ const BULK_MARK_ATTENDANCE = gql`
     }
   }
 `;
+const ADD_SESSION = gql`
+  mutation AddAttendanceSessionTab($input: AddAttendanceSessionInput!) {
+    addAttendanceSession(input: $input) {
+      id
+    }
+  }
+`;
+const SYNC_BIOMETRIC_LOGS = gql`
+  mutation SyncBiometricLogsRegisterTab($input: SyncBiometricLogsInput!) {
+    syncBiometricLogs(input: $input) {
+      success
+      syncedCount
+      message
+    }
+  }
+`;
 
-const STATUS_OPTIONS = ["PRESENT", "ABSENT", "HALF_DAY", "LATE", "ON_LEAVE", "HOLIDAY", "WEEK_OFF", "ON_TOUR"];
+const STATUS_OPTIONS = ["PRESENT", "ABSENT", "HALF_DAY", "LATE", "PAID_LEAVE", "LOP", "HOLIDAY", "WEEK_OFF", "ON_TOUR"];
 const STATUS_CHIPS = [
   { code: "PR", status: "PRESENT" },
   { code: "LC", status: "LATE" },
   { code: "AB", status: "ABSENT" },
+  { code: "LOP", status: "LOP" },
   { code: "HD", status: "HALF_DAY" },
-  { code: "AL", status: "ON_LEAVE" },
-  { code: "WO", status: "WEEK_OFF" },
-  { code: "PH", status: "HOLIDAY" },
+  { code: "PL", status: "PAID_LEAVE" },
+  { code: "W", status: "WEEK_OFF" },
+  { code: "H", status: "HOLIDAY" },
   { code: "OT", status: "ON_TOUR" },
 ];
+const VERIFY_METHOD_LABEL: Record<string, string> = { FACE_ID: "FaceID", FINGERPRINT: "Fingerprint", MANUAL: "Manual" };
 type SubTab = "register" | "biometric";
 
 const SUB_TABS: { key: SubTab; label: string }[] = [
@@ -121,6 +171,14 @@ const SUB_TABS: { key: SubTab; label: string }[] = [
 
 function toDateInputValue(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function firstOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function lastOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
 }
 
 function initials(name: string) {
@@ -147,6 +205,17 @@ function computeHrs(inTime: string, outTime: string) {
   return hrs > 0 ? Math.round(hrs * 100) / 100 : null;
 }
 
+function relativeTime(iso: string | null) {
+  if (!iso) return null;
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.max(0, Math.round(diffMs / 60_000));
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.round(hrs / 24)}d ago`;
+}
+
 interface RowEdit {
   checkIn: string;
   checkOut: string;
@@ -154,27 +223,46 @@ interface RowEdit {
   notes: string;
 }
 
+interface SessionForm {
+  checkIn: string;
+  checkOut: string;
+  terminalId: string;
+  verifyMethod: string;
+}
+
+const EMPTY_SESSION_FORM: SessionForm = { checkIn: "", checkOut: "", terminalId: "", verifyMethod: "" };
+
 export default function AttendanceTab({ employees, loading: employeesLoading }: { employees: EmployeeLite[]; loading: boolean }) {
   const [subTab, setSubTab] = useState<SubTab>("register");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [branchFilter, setBranchFilter] = useState("ALL");
   const [deptFilter, setDeptFilter] = useState("ALL");
   const [shiftFilter, setShiftFilter] = useState("ALL");
+  const [summaryOpen, setSummaryOpen] = useState(true);
+  const [showAllDates, setShowAllDates] = useState(false);
 
   const dateStr = toDateInputValue(selectedDate);
   const isToday = dateStr === toDateInputValue(new Date());
+  const rangeFrom = showAllDates ? toDateInputValue(firstOfMonth(selectedDate)) : dateStr;
+  const rangeTo = showAllDates ? toDateInputValue(lastOfMonth(selectedDate)) : dateStr;
 
   const { data, loading, refetch } = useQuery<{ attendanceLogs: AttendanceLog[]; branches: Branch[] }>(REGISTER_QUERY, {
-    variables: { filter: { from: dateStr, to: dateStr } },
+    variables: { filter: { from: rangeFrom, to: rangeTo } },
+    fetchPolicy: "cache-and-network",
+  });
+  const { data: terminalsData, refetch: refetchTerminals } = useQuery<{ biometricTerminals: BiometricTerminal[] }>(TERMINALS_QUERY, {
     fetchPolicy: "cache-and-network",
   });
   const [checkIn] = useMutation(CHECK_IN);
   const [checkOut] = useMutation(CHECK_OUT);
   const [markAttendance] = useMutation(MARK_ATTENDANCE);
   const [bulkMarkAttendance] = useMutation(BULK_MARK_ATTENDANCE);
+  const [addSession] = useMutation(ADD_SESSION);
+  const [syncBiometricLogs] = useMutation(SYNC_BIOMETRIC_LOGS);
 
   const logs = data?.attendanceLogs ?? [];
   const branches = data?.branches ?? [];
+  const terminals = terminalsData?.biometricTerminals ?? [];
   const todayStr = toDateInputValue(new Date());
   const todaysLogs = logs.filter((l) => l.date.slice(0, 10) === todayStr);
 
@@ -182,10 +270,18 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
   const [edits, setEdits] = useState<Record<string, RowEdit>>({});
   const [marking, setMarking] = useState(false);
   const [form, setForm] = useState({ employeeId: "", date: todayStr, status: "PRESENT", notes: "" });
+  const [addSessionFor, setAddSessionFor] = useState<AttendanceLog | null>(null);
+  const [sessionForm, setSessionForm] = useState<SessionForm>(EMPTY_SESSION_FORM);
+  const [syncing, setSyncing] = useState(false);
 
   function openMark() {
     setForm({ employeeId: "", date: dateStr, status: "PRESENT", notes: "" });
     setMarking(true);
+  }
+
+  function openAddSession(log: AttendanceLog) {
+    setSessionForm(EMPTY_SESSION_FORM);
+    setAddSessionFor(log);
   }
 
   const departments = useMemo(() => Array.from(new Set(employees.map((e) => e.department).filter(Boolean))).sort(), [employees]);
@@ -281,14 +377,74 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
     }
   }
 
+  async function handleAddSession() {
+    if (!addSessionFor) return;
+    setSubmitting(true);
+    try {
+      const logDateStr = addSessionFor.date.slice(0, 10);
+      await addSession({
+        variables: {
+          input: {
+            attendanceLogId: addSessionFor.id,
+            checkIn: sessionForm.checkIn ? `${logDateStr}T${sessionForm.checkIn}:00` : undefined,
+            checkOut: sessionForm.checkOut ? `${logDateStr}T${sessionForm.checkOut}:00` : undefined,
+            terminalId: sessionForm.terminalId || undefined,
+            verifyMethod: sessionForm.verifyMethod || undefined,
+          },
+        },
+      });
+      toast.success("Session added");
+      setAddSessionFor(null);
+      await refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add session");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleSyncBiometricLogs() {
+    const targetBranchId = branchFilter !== "ALL" ? branchFilter : branches[0]?.id;
+    if (!targetBranchId) {
+      toast.error("No branch available to sync");
+      return;
+    }
+    setSyncing(true);
+    try {
+      const { data: res } = await syncBiometricLogs({ variables: { input: { branchId: targetBranchId, from: dateStr, to: dateStr } } });
+      toast.success(res?.syncBiometricLogs?.message ?? "Sync attempted");
+      await Promise.all([refetch(), refetchTerminals()]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to sync biometric logs");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  const totalEmployees = employees.length;
+  const leaveTodayCount = todaysLogs.filter((l) => l.status === "PAID_LEAVE" || l.status === "LOP").length;
   const stats = [
-    { label: "Present Today", value: todaysLogs.filter((l) => l.status === "PRESENT" || l.status === "LATE").length, icon: CheckCircle2, color: "text-success" },
-    { label: "Absent Today", value: todaysLogs.filter((l) => l.status === "ABSENT").length, icon: UserX, color: "text-danger" },
-    { label: "Late Today", value: todaysLogs.filter((l) => l.status === "LATE").length, icon: CalendarClock, color: "text-warning" },
-    { label: "On Leave Today", value: todaysLogs.filter((l) => l.status === "ON_LEAVE").length, icon: ClipboardList, color: "text-info" },
+    { label: "Present", value: todaysLogs.filter((l) => l.status === "PRESENT").length, icon: CheckCircle2, color: "text-success", dot: "bg-success" },
+    { label: "Late Come", value: todaysLogs.filter((l) => l.status === "LATE").length, icon: CalendarClock, color: "text-warning", dot: "bg-warning" },
+    { label: "Absent", value: todaysLogs.filter((l) => l.status === "ABSENT").length, icon: UserX, color: "text-danger", dot: "bg-danger" },
+    { label: "Half Day", value: todaysLogs.filter((l) => l.status === "HALF_DAY").length, icon: CalendarClock, color: "text-warning", dot: "bg-warning" },
+    { label: "Leave", value: leaveTodayCount, icon: CalendarClock, color: "text-info", dot: "bg-info" },
+    { label: "Week Off", value: todaysLogs.filter((l) => l.status === "WEEK_OFF").length, icon: Calendar, color: "text-muted-foreground", dot: "bg-muted-foreground" },
+    { label: "Holiday", value: todaysLogs.filter((l) => l.status === "HOLIDAY").length, icon: Calendar, color: "text-info", dot: "bg-info" },
+    { label: "On Tour", value: todaysLogs.filter((l) => l.status === "ON_TOUR").length, icon: Users, color: "text-info", dot: "bg-info" },
   ];
 
   const employeeTodayLog = (employeeId: string) => todaysLogs.find((l) => l.employeeId === employeeId);
+
+  const onlineTerminals = terminals.filter((t) => t.active && t.status === "ONLINE");
+  const capabilitiesLabel = Array.from(new Set(terminals.flatMap((t) => t.capabilities)))
+    .map((c) => VERIFY_METHOD_LABEL[c] ?? c)
+    .join(" & ");
+  const lastSynced = terminals
+    .map((t) => t.lastSeenAt)
+    .filter((v): v is string => !!v)
+    .sort()
+    .at(-1);
 
   return (
     <div className="space-y-6">
@@ -311,12 +467,30 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Attendance Management</h1>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Attendance Management</h1>
+            <p className="text-sm text-muted-foreground">Manage daily shifts, sessions, punching telemetry, and live status registers.</p>
+          </div>
           {subTab === "register" && (
-            <Button onClick={openMark} className={cn("gap-1.5", BUTTON_PRESS)}>
-              <Plus className="h-4 w-4" />
-              Mark Attendance
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className={cn("gap-1.5", BUTTON_PRESS)} onClick={() => setSummaryOpen((v) => !v)}>
+                {summaryOpen ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {summaryOpen ? "Hide Summary" : "Show Summary"}
+              </Button>
+              <Button
+                variant={showAllDates ? "default" : "outline"}
+                size="sm"
+                className={cn("gap-1.5", BUTTON_PRESS)}
+                onClick={() => setShowAllDates((v) => !v)}
+              >
+                <CalendarRange className="h-3.5 w-3.5" />
+                {showAllDates ? "This Date Only" : "Show All Dates"}
+              </Button>
+              <Button onClick={openMark} className={cn("gap-1.5", BUTTON_PRESS)}>
+                <Plus className="h-4 w-4" />
+                Mark Attendance
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -325,23 +499,49 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
 
       {subTab === "register" && (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {stats.map((w, idx) => (
-              <Card
-                key={w.label}
-                className={cn("animate-in fade-in slide-in-from-top-1 border-border duration-150 ease-out", CARD_HOVER)}
-                style={{ animationDelay: `${idx * 30}ms`, animationFillMode: "backwards" }}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{w.label}</p>
-                    <w.icon className={cn("h-4 w-4 shrink-0", w.color)} />
-                  </div>
-                  <p className="mt-1.5 text-2xl font-bold tracking-tight text-foreground">{w.value}</p>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-muted/20 px-4 py-2.5 text-sm">
+            <Badge tone={onlineTerminals.length > 0 ? "success" : "muted"} className="gap-1.5">
+              <Signal className="h-3 w-3" />
+              Biometric Sync: {onlineTerminals.length > 0 ? "Live" : "Offline"}
+              {lastSynced ? ` (Synced ${relativeTime(lastSynced)})` : ""}
+            </Badge>
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <Fingerprint className="h-3.5 w-3.5" />
+              {onlineTerminals.length}/{terminals.length} Terminals Online
+              {capabilitiesLabel ? ` • ${capabilitiesLabel}` : ""}
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <Button variant="outline" size="sm" disabled={syncing} className={cn("gap-1.5", BUTTON_PRESS)} onClick={handleSyncBiometricLogs}>
+                <Download className="h-3.5 w-3.5" />
+                {syncing ? "Syncing…" : "Sync Biometric Logs"}
+              </Button>
+              <Button size="sm" onClick={handleSaveChanges} disabled={submitting || dirtyCount === 0} className={cn("gap-1.5", BUTTON_PRESS)}>
+                <Save className="h-3.5 w-3.5" />
+                Save Changes{dirtyCount > 0 ? ` (${dirtyCount})` : ""}
+              </Button>
+            </div>
           </div>
+
+          {summaryOpen && (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {stats.map((w, idx) => (
+                <Card
+                  key={w.label}
+                  className={cn("animate-in fade-in slide-in-from-top-1 border-border duration-150 ease-out", CARD_HOVER)}
+                  style={{ animationDelay: `${idx * 30}ms`, animationFillMode: "backwards" }}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-1.5">
+                      <span className={cn("h-2 w-2 shrink-0 rounded-full", w.dot)} />
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{w.label}</p>
+                    </div>
+                    <p className="mt-1.5 text-2xl font-bold tracking-tight text-foreground">{w.value}</p>
+                    <p className="text-[11px] text-muted-foreground">of {totalEmployees} employees</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
 
           <Card>
             <CardContent className="p-4">
@@ -436,9 +636,11 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
                   <span className="text-sm font-medium text-foreground">{fmtDateLong(selectedDate)}</span>
-                  {!isToday && (
+                  {isToday ? (
+                    <Badge tone="info">Today</Badge>
+                  ) : (
                     <Badge tone="info" className={cn("cursor-pointer", BUTTON_PRESS)} onClick={() => setSelectedDate(new Date())}>
-                      Today
+                      Jump to Today
                     </Badge>
                   )}
                   <div className="relative">
@@ -457,10 +659,6 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
                   </Button>
                   <Button variant="outline" size="icon" className={BUTTON_PRESS} onClick={() => refetch()}>
                     <RefreshCw className="h-4 w-4" />
-                  </Button>
-                  <Button onClick={handleSaveChanges} disabled={submitting || dirtyCount === 0} className={cn("gap-1.5", BUTTON_PRESS)}>
-                    <Save className="h-4 w-4" />
-                    Save Changes{dirtyCount > 0 ? ` (${dirtyCount})` : ""}
                   </Button>
                 </div>
               </div>
@@ -484,6 +682,7 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
                       <th className="w-10 px-4 py-2.5 font-medium">#</th>
                       <th className="px-4 py-2.5 font-medium">Employee</th>
                       <th className="px-4 py-2.5 font-medium">Dept / Designation</th>
+                      {showAllDates && <th className="px-4 py-2.5 font-medium">Date</th>}
                       <th className="px-4 py-2.5 font-medium" colSpan={3}>
                         Session 1
                       </th>
@@ -496,14 +695,19 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
                   <tbody>
                     {!loading && filteredLogs.length === 0 && (
                       <tr>
-                        <td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">
+                        <td colSpan={showAllDates ? 10 : 9} className="px-4 py-10 text-center text-muted-foreground">
                           No attendance records for this date.
                         </td>
                       </tr>
                     )}
                     {filteredLogs.map((l, idx) => {
                       const edit = rowEdit(l);
-                      const hrs = computeHrs(edit.checkIn, edit.checkOut);
+                      const hrs = l.workedHours ?? computeHrs(edit.checkIn, edit.checkOut);
+                      const verifiedNote = l.checkInTerminalName
+                        ? `${l.checkInTerminalName} (${VERIFY_METHOD_LABEL[l.checkInVerifyMethod ?? ""] ?? l.checkInVerifyMethod ?? "verified"})`
+                        : l.checkOutTerminalName
+                          ? `${l.checkOutTerminalName} (${VERIFY_METHOD_LABEL[l.checkOutVerifyMethod ?? ""] ?? l.checkOutVerifyMethod ?? "verified"})`
+                          : null;
                       return (
                         <tr
                           key={l.id}
@@ -526,6 +730,7 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
                             <p className="text-foreground">{l.department || "—"}</p>
                             <p className="text-xs text-muted-foreground">{l.designation || "—"}</p>
                           </td>
+                          {showAllDates && <td className="px-4 py-2.5 text-muted-foreground">{fmtDate(l.date)}</td>}
                           <td className="px-4 py-2.5">
                             <Input
                               type="time"
@@ -533,6 +738,21 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
                               onChange={(e) => updateEdit(l.employeeId, l, { checkIn: e.target.value })}
                               className="w-28"
                             />
+                            {verifiedNote && (
+                              <p className="mt-1 flex items-center gap-1 text-[11px] text-success">
+                                <ScanFace className="h-3 w-3" />
+                                {verifiedNote} verified
+                              </p>
+                            )}
+                            {l.sessions.length > 0 && (
+                              <div className="mt-1 space-y-0.5">
+                                {l.sessions.map((s) => (
+                                  <p key={s.id} className="text-[11px] text-muted-foreground">
+                                    Session {s.sessionIndex}: {timeInputValue(s.checkIn) || "--:--"}–{timeInputValue(s.checkOut) || "--:--"}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-2.5">
                             <Input
@@ -546,9 +766,9 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
                             <Button
                               variant="ghost"
                               size="icon"
-                              disabled
-                              title="Multiple sessions per day aren't supported yet"
-                              className="h-7 w-7 shrink-0 opacity-40"
+                              title="Add punch session"
+                              className="h-7 w-7 shrink-0"
+                              onClick={() => openAddSession(l)}
                             >
                               <Plus className="h-3.5 w-3.5" />
                             </Button>
@@ -641,6 +861,62 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
             </Button>
             <Button onClick={handleMark} disabled={submitting} className={BUTTON_PRESS}>
               {submitting ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!addSessionFor} onOpenChange={(open) => !open && setAddSessionFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add punch session{addSessionFor ? ` — ${addSessionFor.employeeName}` : ""}</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Check in</Label>
+              <Input type="time" value={sessionForm.checkIn} onChange={(e) => setSessionForm((f) => ({ ...f, checkIn: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Check out</Label>
+              <Input type="time" value={sessionForm.checkOut} onChange={(e) => setSessionForm((f) => ({ ...f, checkOut: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Terminal</Label>
+              <Select value={sessionForm.terminalId} onValueChange={(v) => setSessionForm((f) => ({ ...f, terminalId: v }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Manual entry" />
+                </SelectTrigger>
+                <SelectContent>
+                  {terminals.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Verify method</Label>
+              <Select value={sessionForm.verifyMethod} onValueChange={(v) => setSessionForm((f) => ({ ...f, verifyMethod: v }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select method" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(VERIFY_METHOD_LABEL).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddSessionFor(null)} className={BUTTON_PRESS}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddSession} disabled={submitting} className={BUTTON_PRESS}>
+              {submitting ? "Saving…" : "Add session"}
             </Button>
           </DialogFooter>
         </DialogContent>
