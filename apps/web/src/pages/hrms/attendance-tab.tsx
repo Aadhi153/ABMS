@@ -463,7 +463,6 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
     }
   }
 
-  const totalEmployees = employees.length;
   const leaveTodayCount = todaysLogs.filter((l) => l.status === "PAID_LEAVE" || l.status === "LOP").length;
   const stats = [
     { label: "Present", value: todaysLogs.filter((l) => l.status === "PRESENT").length, icon: CheckCircle2, tone: "success" },
@@ -565,7 +564,7 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
           </div>
 
           {summaryOpen && (
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-8">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-8">
               {stats.map((w, idx) => {
                 const tone = TONE_CARD_CLASSES[w.tone];
                 return (
@@ -574,7 +573,7 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
                     className={cn(
                       "group relative overflow-hidden border-border/60 bg-gradient-to-br duration-300 ease-out",
                       "animate-in fade-in slide-in-from-top-1 motion-reduce:animate-none",
-                      "hover:-translate-y-1 hover:scale-[1.03] hover:shadow-lg",
+                      "hover:-translate-y-0.5 hover:scale-[1.03] hover:shadow-md",
                       tone.gradient,
                       tone.ring,
                     )}
@@ -582,22 +581,21 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
                   >
                     <span
                       className={cn(
-                        "pointer-events-none absolute -right-3 -top-3 h-14 w-14 rounded-full opacity-20 blur-xl transition-opacity duration-300 group-hover:opacity-40",
+                        "pointer-events-none absolute -right-2 -top-2 h-9 w-9 rounded-full opacity-20 blur-lg transition-opacity duration-300 group-hover:opacity-40",
                         tone.glow,
                       )}
                     />
-                    <CardContent className="relative p-2.5">
+                    <CardContent className="relative p-1.5">
                       <div className="flex items-center justify-between">
-                        <span className={cn("flex h-6 w-6 items-center justify-center rounded-md transition-transform duration-300 group-hover:scale-110", tone.chip)}>
-                          <w.icon className={cn("h-3.5 w-3.5", tone.text)} />
+                        <span className={cn("flex h-5 w-5 items-center justify-center rounded transition-transform duration-300 group-hover:scale-110", tone.chip)}>
+                          <w.icon className={cn("h-3 w-3", tone.text)} />
                         </span>
-                        <span className={cn("h-1.5 w-1.5 rounded-full animate-pulse", tone.dot)} />
+                        <span className={cn("h-1 w-1 rounded-full animate-pulse", tone.dot)} />
                       </div>
-                      <p className="mt-1.5 text-lg font-bold leading-none tracking-tight text-foreground transition-transform duration-300 group-hover:scale-110">
+                      <p className="mt-1 text-xs font-bold leading-none tracking-tight text-foreground transition-transform duration-300 group-hover:scale-110">
                         {w.value}
                       </p>
-                      <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{w.label}</p>
-                      <p className="text-[10px] text-muted-foreground/70">of {totalEmployees}</p>
+                      <p className="mt-0.5 truncate text-[8px] font-semibold uppercase tracking-wide text-muted-foreground">{w.label}</p>
                     </CardContent>
                   </Card>
                 );
@@ -644,15 +642,15 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="space-y-1">
-                    <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Branch</Label>
+                    <Label className="text-[9px] uppercase tracking-wide text-muted-foreground">Branch</Label>
                     <Select value={branchFilter} onValueChange={setBranchFilter}>
-                      <SelectTrigger className="w-36">
+                      <SelectTrigger className="h-8 w-32 text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="ALL">All</SelectItem>
+                        <SelectItem value="ALL" className="text-xs">All</SelectItem>
                         {branches.map((b) => (
-                          <SelectItem key={b.id} value={b.id}>
+                          <SelectItem key={b.id} value={b.id} className="text-xs">
                             {b.name}
                           </SelectItem>
                         ))}
@@ -660,15 +658,15 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Dept</Label>
+                    <Label className="text-[9px] uppercase tracking-wide text-muted-foreground">Dept</Label>
                     <Select value={deptFilter} onValueChange={setDeptFilter}>
-                      <SelectTrigger className="w-36">
+                      <SelectTrigger className="h-8 w-32 text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="ALL">All</SelectItem>
+                        <SelectItem value="ALL" className="text-xs">All</SelectItem>
                         {departments.map((d) => (
-                          <SelectItem key={d} value={d}>
+                          <SelectItem key={d} value={d} className="text-xs">
                             {d}
                           </SelectItem>
                         ))}
@@ -676,15 +674,15 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Shift</Label>
+                    <Label className="text-[9px] uppercase tracking-wide text-muted-foreground">Shift</Label>
                     <Select value={shiftFilter} onValueChange={setShiftFilter}>
-                      <SelectTrigger className="w-36">
+                      <SelectTrigger className="h-8 w-32 text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="ALL">All</SelectItem>
+                        <SelectItem value="ALL" className="text-xs">All</SelectItem>
                         {shifts.map((s) => (
-                          <SelectItem key={s} value={s}>
+                          <SelectItem key={s} value={s} className="text-xs">
                             {s}
                           </SelectItem>
                         ))}
@@ -697,11 +695,11 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
                   <Button variant="ghost" size="icon" className={BUTTON_PRESS} onClick={() => setSelectedDate((d) => new Date(d.getTime() - 86_400_000))}>
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <span className="text-sm font-medium text-foreground">{fmtDateLong(selectedDate)}</span>
+                  <span className="text-xs font-medium text-foreground">{fmtDateLong(selectedDate)}</span>
                   {isToday ? (
-                    <Badge tone="info">Today</Badge>
+                    <Badge tone="info" className="text-[10px] px-2 py-0.5">Today</Badge>
                   ) : (
-                    <Badge tone="info" className={cn("cursor-pointer", BUTTON_PRESS)} onClick={() => setSelectedDate(new Date())}>
+                    <Badge tone="info" className={cn("cursor-pointer text-[10px] px-2 py-0.5", BUTTON_PRESS)} onClick={() => setSelectedDate(new Date())}>
                       Jump to Today
                     </Badge>
                   )}
@@ -725,39 +723,39 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge tone="info" className="gap-1">
-                  <Users className="h-3 w-3" />
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge tone="info" className="gap-1 text-[10px] px-2 py-0.5">
+                  <Users className="h-2.5 w-2.5" />
                   Employees: {filteredLogs.length}
                 </Badge>
                 {STATUS_CHIPS.map((c) => (
-                  <Badge key={c.code} tone={STATUS_TONE[c.status] ?? "muted"}>
+                  <Badge key={c.code} tone={STATUS_TONE[c.status] ?? "muted"} className="text-[10px] px-2 py-0.5">
                     {c.code}: {filteredLogs.filter((l) => l.status === c.status).length}
                   </Badge>
                 ))}
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-border bg-muted/30 text-left text-muted-foreground">
-                      <th className="w-10 px-4 py-2.5 font-medium">#</th>
-                      <th className="px-4 py-2.5 font-medium">Employee</th>
-                      <th className="px-4 py-2.5 font-medium">Dept / Designation</th>
-                      {showAllDates && <th className="px-4 py-2.5 font-medium">Date</th>}
-                      <th className="px-4 py-2.5 font-medium" colSpan={3}>
+                      <th className="w-10 px-3 py-2 text-[10px] font-medium">#</th>
+                      <th className="px-3 py-2 text-[10px] font-medium">Employee</th>
+                      <th className="px-3 py-2 text-[10px] font-medium">Dept / Designation</th>
+                      {showAllDates && <th className="px-3 py-2 text-[10px] font-medium">Date</th>}
+                      <th className="px-3 py-2 text-[10px] font-medium" colSpan={3}>
                         Session 1
                       </th>
-                      <th className="px-4 py-2.5 font-medium">Hrs</th>
-                      <th className="px-4 py-2.5 font-medium">Shift</th>
-                      <th className="px-4 py-2.5 font-medium">Status</th>
-                      <th className="px-4 py-2.5 font-medium">Remarks</th>
+                      <th className="px-3 py-2 text-[10px] font-medium">Hrs</th>
+                      <th className="px-3 py-2 text-[10px] font-medium">Shift</th>
+                      <th className="px-3 py-2 text-[10px] font-medium">Status</th>
+                      <th className="px-3 py-2 text-[10px] font-medium">Remarks</th>
                     </tr>
                   </thead>
                   <tbody>
                     {!loading && filteredLogs.length === 0 && (
                       <tr>
-                        <td colSpan={showAllDates ? 10 : 9} className="px-4 py-10 text-center text-muted-foreground">
+                        <td colSpan={showAllDates ? 10 : 9} className="px-3 py-8 text-center text-xs text-muted-foreground">
                           No attendance records for this date.
                         </td>
                       </tr>
@@ -776,89 +774,89 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
                           className="animate-in fade-in slide-in-from-top-1 border-b border-border duration-150 ease-out last:border-0 hover:bg-muted/40"
                           style={{ animationDelay: `${idx * 20}ms`, animationFillMode: "backwards" }}
                         >
-                          <td className="px-4 py-2.5 text-muted-foreground">{idx + 1}</td>
-                          <td className="px-4 py-2.5">
+                          <td className="px-3 py-2 text-muted-foreground">{idx + 1}</td>
+                          <td className="px-3 py-2">
                             <div className="flex items-center gap-2">
-                              <Avatar className="h-8 w-8">
-                                <AvatarFallback className="bg-primary/10 text-xs text-primary">{initials(l.employeeName)}</AvatarFallback>
+                              <Avatar className="h-7 w-7">
+                                <AvatarFallback className="bg-primary/10 text-[10px] text-primary">{initials(l.employeeName)}</AvatarFallback>
                               </Avatar>
                               <div>
                                 <p className="font-medium text-foreground">{l.employeeName}</p>
-                                <p className="text-xs text-muted-foreground">{l.employeeCode}</p>
+                                <p className="text-[10px] text-muted-foreground">{l.employeeCode}</p>
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 py-2.5">
+                          <td className="px-3 py-2">
                             <p className="text-foreground">{l.department || "—"}</p>
-                            <p className="text-xs text-muted-foreground">{l.designation || "—"}</p>
+                            <p className="text-[10px] text-muted-foreground">{l.designation || "—"}</p>
                           </td>
-                          {showAllDates && <td className="px-4 py-2.5 text-muted-foreground">{fmtDate(l.date)}</td>}
-                          <td className="px-4 py-2.5">
+                          {showAllDates && <td className="px-3 py-2 text-muted-foreground">{fmtDate(l.date)}</td>}
+                          <td className="px-3 py-2">
                             <Input
                               type="time"
                               value={edit.checkIn}
                               onChange={(e) => updateEdit(l.employeeId, l, { checkIn: e.target.value })}
-                              className="w-28"
+                              className="h-7 w-24 text-xs"
                             />
                             {verifiedNote && (
-                              <p className="mt-1 flex items-center gap-1 text-[11px] text-success">
-                                <ScanFace className="h-3 w-3" />
+                              <p className="mt-1 flex items-center gap-1 text-[9px] text-success">
+                                <ScanFace className="h-2.5 w-2.5" />
                                 {verifiedNote} verified
                               </p>
                             )}
                             {l.sessions.length > 0 && (
                               <div className="mt-1 space-y-0.5">
                                 {l.sessions.map((s) => (
-                                  <p key={s.id} className="text-[11px] text-muted-foreground">
+                                  <p key={s.id} className="text-[9px] text-muted-foreground">
                                     Session {s.sessionIndex}: {timeInputValue(s.checkIn) || "--:--"}–{timeInputValue(s.checkOut) || "--:--"}
                                   </p>
                                 ))}
                               </div>
                             )}
                           </td>
-                          <td className="px-4 py-2.5">
+                          <td className="px-3 py-2">
                             <Input
                               type="time"
                               value={edit.checkOut}
                               onChange={(e) => updateEdit(l.employeeId, l, { checkOut: e.target.value })}
-                              className="w-28"
+                              className="h-7 w-24 text-xs"
                             />
                           </td>
-                          <td className="px-2 py-2.5">
+                          <td className="px-1.5 py-2">
                             <Button
                               variant="ghost"
                               size="icon"
                               title="Add punch session"
-                              className="h-7 w-7 shrink-0"
+                              className="h-6 w-6 shrink-0"
                               onClick={() => openAddSession(l)}
                             >
-                              <Plus className="h-3.5 w-3.5" />
+                              <Plus className="h-3 w-3" />
                             </Button>
                           </td>
-                          <td className="px-4 py-2.5 text-muted-foreground">{hrs ?? "—"}</td>
-                          <td className="px-4 py-2.5">
-                            <Badge tone="muted">{l.shiftCode ?? l.shiftName ?? "—"}</Badge>
+                          <td className="px-3 py-2 text-muted-foreground">{hrs ?? "—"}</td>
+                          <td className="px-3 py-2">
+                            <Badge tone="muted" className="text-[10px] px-2 py-0.5">{l.shiftCode ?? l.shiftName ?? "—"}</Badge>
                           </td>
-                          <td className="px-4 py-2.5">
+                          <td className="px-3 py-2">
                             <Select value={edit.status} onValueChange={(v) => updateEdit(l.employeeId, l, { status: v })}>
-                              <SelectTrigger className="h-8 w-32 border-0 bg-transparent p-0 shadow-none">
-                                <StatusBadge status={edit.status} />
+                              <SelectTrigger className="h-7 w-28 border-0 bg-transparent p-0 shadow-none">
+                                <StatusBadge status={edit.status} className="text-[10px] px-2 py-0.5" />
                               </SelectTrigger>
                               <SelectContent>
                                 {STATUS_OPTIONS.map((s) => (
-                                  <SelectItem key={s} value={s}>
+                                  <SelectItem key={s} value={s} className="text-xs">
                                     {s.replaceAll("_", " ")}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
                           </td>
-                          <td className="px-4 py-2.5">
+                          <td className="px-3 py-2">
                             <Input
                               placeholder="Add memo…"
                               value={edit.notes}
                               onChange={(e) => updateEdit(l.employeeId, l, { notes: e.target.value })}
-                              className="w-36"
+                              className="h-7 w-32 text-xs"
                             />
                           </td>
                         </tr>
