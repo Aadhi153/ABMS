@@ -162,6 +162,48 @@ const STATUS_CHIPS = [
   { code: "OT", status: "ON_TOUR" },
 ];
 const VERIFY_METHOD_LABEL: Record<string, string> = { FACE_ID: "FaceID", FINGERPRINT: "Fingerprint", MANUAL: "Manual" };
+const TONE_CARD_CLASSES: Record<string, { dot: string; chip: string; text: string; gradient: string; ring: string; glow: string }> = {
+  success: {
+    dot: "bg-success",
+    chip: "bg-success/15",
+    text: "text-success",
+    gradient: "from-success/15 via-success/5 to-transparent",
+    ring: "hover:border-success/40",
+    glow: "bg-success",
+  },
+  warning: {
+    dot: "bg-warning",
+    chip: "bg-warning/15",
+    text: "text-warning",
+    gradient: "from-warning/15 via-warning/5 to-transparent",
+    ring: "hover:border-warning/40",
+    glow: "bg-warning",
+  },
+  danger: {
+    dot: "bg-danger",
+    chip: "bg-danger/15",
+    text: "text-danger",
+    gradient: "from-danger/15 via-danger/5 to-transparent",
+    ring: "hover:border-danger/40",
+    glow: "bg-danger",
+  },
+  info: {
+    dot: "bg-info",
+    chip: "bg-info/15",
+    text: "text-info",
+    gradient: "from-info/15 via-info/5 to-transparent",
+    ring: "hover:border-info/40",
+    glow: "bg-info",
+  },
+  muted: {
+    dot: "bg-muted-foreground",
+    chip: "bg-muted",
+    text: "text-muted-foreground",
+    gradient: "from-muted/80 via-muted/30 to-transparent",
+    ring: "hover:border-muted-foreground/30",
+    glow: "bg-muted-foreground",
+  },
+};
 type SubTab = "register" | "biometric";
 
 const SUB_TABS: { key: SubTab; label: string }[] = [
@@ -424,14 +466,14 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
   const totalEmployees = employees.length;
   const leaveTodayCount = todaysLogs.filter((l) => l.status === "PAID_LEAVE" || l.status === "LOP").length;
   const stats = [
-    { label: "Present", value: todaysLogs.filter((l) => l.status === "PRESENT").length, icon: CheckCircle2, color: "text-success", dot: "bg-success" },
-    { label: "Late Come", value: todaysLogs.filter((l) => l.status === "LATE").length, icon: CalendarClock, color: "text-warning", dot: "bg-warning" },
-    { label: "Absent", value: todaysLogs.filter((l) => l.status === "ABSENT").length, icon: UserX, color: "text-danger", dot: "bg-danger" },
-    { label: "Half Day", value: todaysLogs.filter((l) => l.status === "HALF_DAY").length, icon: CalendarClock, color: "text-warning", dot: "bg-warning" },
-    { label: "Leave", value: leaveTodayCount, icon: CalendarClock, color: "text-info", dot: "bg-info" },
-    { label: "Week Off", value: todaysLogs.filter((l) => l.status === "WEEK_OFF").length, icon: Calendar, color: "text-muted-foreground", dot: "bg-muted-foreground" },
-    { label: "Holiday", value: todaysLogs.filter((l) => l.status === "HOLIDAY").length, icon: Calendar, color: "text-info", dot: "bg-info" },
-    { label: "On Tour", value: todaysLogs.filter((l) => l.status === "ON_TOUR").length, icon: Users, color: "text-info", dot: "bg-info" },
+    { label: "Present", value: todaysLogs.filter((l) => l.status === "PRESENT").length, icon: CheckCircle2, tone: "success" },
+    { label: "Late Come", value: todaysLogs.filter((l) => l.status === "LATE").length, icon: CalendarClock, tone: "warning" },
+    { label: "Absent", value: todaysLogs.filter((l) => l.status === "ABSENT").length, icon: UserX, tone: "danger" },
+    { label: "Half Day", value: todaysLogs.filter((l) => l.status === "HALF_DAY").length, icon: CalendarClock, tone: "warning" },
+    { label: "Leave", value: leaveTodayCount, icon: CalendarClock, tone: "info" },
+    { label: "Week Off", value: todaysLogs.filter((l) => l.status === "WEEK_OFF").length, icon: Calendar, tone: "muted" },
+    { label: "Holiday", value: todaysLogs.filter((l) => l.status === "HOLIDAY").length, icon: Calendar, tone: "info" },
+    { label: "On Tour", value: todaysLogs.filter((l) => l.status === "ON_TOUR").length, icon: Users, tone: "info" },
   ];
 
   const employeeTodayLog = (employeeId: string) => todaysLogs.find((l) => l.employeeId === employeeId);
@@ -523,23 +565,43 @@ export default function AttendanceTab({ employees, loading: employeesLoading }: 
           </div>
 
           {summaryOpen && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {stats.map((w, idx) => (
-                <Card
-                  key={w.label}
-                  className={cn("animate-in fade-in slide-in-from-top-1 border-border duration-150 ease-out", CARD_HOVER)}
-                  style={{ animationDelay: `${idx * 30}ms`, animationFillMode: "backwards" }}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-1.5">
-                      <span className={cn("h-2 w-2 shrink-0 rounded-full", w.dot)} />
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{w.label}</p>
-                    </div>
-                    <p className="mt-1.5 text-2xl font-bold tracking-tight text-foreground">{w.value}</p>
-                    <p className="text-[11px] text-muted-foreground">of {totalEmployees} employees</p>
-                  </CardContent>
-                </Card>
-              ))}
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-8">
+              {stats.map((w, idx) => {
+                const tone = TONE_CARD_CLASSES[w.tone];
+                return (
+                  <Card
+                    key={w.label}
+                    className={cn(
+                      "group relative overflow-hidden border-border/60 bg-gradient-to-br duration-300 ease-out",
+                      "animate-in fade-in slide-in-from-top-1 motion-reduce:animate-none",
+                      "hover:-translate-y-1 hover:scale-[1.03] hover:shadow-lg",
+                      tone.gradient,
+                      tone.ring,
+                    )}
+                    style={{ animationDelay: `${idx * 40}ms`, animationFillMode: "backwards" }}
+                  >
+                    <span
+                      className={cn(
+                        "pointer-events-none absolute -right-3 -top-3 h-14 w-14 rounded-full opacity-20 blur-xl transition-opacity duration-300 group-hover:opacity-40",
+                        tone.glow,
+                      )}
+                    />
+                    <CardContent className="relative p-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className={cn("flex h-6 w-6 items-center justify-center rounded-md transition-transform duration-300 group-hover:scale-110", tone.chip)}>
+                          <w.icon className={cn("h-3.5 w-3.5", tone.text)} />
+                        </span>
+                        <span className={cn("h-1.5 w-1.5 rounded-full animate-pulse", tone.dot)} />
+                      </div>
+                      <p className="mt-1.5 text-lg font-bold leading-none tracking-tight text-foreground transition-transform duration-300 group-hover:scale-110">
+                        {w.value}
+                      </p>
+                      <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{w.label}</p>
+                      <p className="text-[10px] text-muted-foreground/70">of {totalEmployees}</p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
 
