@@ -1,12 +1,23 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { AttendanceStatus } from "@abms/database";
+import { AttendanceStatus, BiometricTerminalStatus } from "@abms/database";
 import { SCOPED_PRISMA, type ScopedPrismaClient } from "../../common/tenancy/scoped-prisma.service";
-import type { AttendanceFilterInput, BulkMarkAttendanceInput, MarkAttendanceInput, SyncBiometricLogsInput } from "./dto/attendance.input";
+import type {
+  AddAttendanceSessionInput,
+  AttendanceFilterInput,
+  BulkMarkAttendanceInput,
+  CreateBiometricTerminalInput,
+  MarkAttendanceInput,
+  SyncBiometricLogsInput,
+  UpdateBiometricTerminalInput,
+} from "./dto/attendance.input";
 
 const ATTENDANCE_INCLUDE = {
   employee: { include: { branch: true } },
   shift: true,
   markedBy: true,
+  checkInTerminal: true,
+  checkOutTerminal: true,
+  sessions: { include: { terminal: true }, orderBy: { sessionIndex: "asc" as const } },
 } as const;
 
 function toModel<
@@ -14,6 +25,9 @@ function toModel<
     employee: { firstName: string; lastName: string; employeeCode: string; department: string; designation: string; branchId: string | null; branch: { name: string } | null };
     shift: { name: string; code: string | null } | null;
     markedBy: { name: string } | null;
+    checkInTerminal: { name: string } | null;
+    checkOutTerminal: { name: string } | null;
+    sessions: { id: string; attendanceLogId: string; sessionIndex: number; checkIn: Date | null; checkOut: Date | null; terminalId: string | null; terminal: { name: string } | null; verifyMethod: string | null }[];
     workedHours: unknown;
   },
 >(row: T) {
@@ -28,8 +42,15 @@ function toModel<
     shiftName: row.shift?.name ?? null,
     shiftCode: row.shift?.code ?? null,
     markedByName: row.markedBy?.name ?? null,
+    checkInTerminalName: row.checkInTerminal?.name ?? null,
+    checkOutTerminalName: row.checkOutTerminal?.name ?? null,
+    sessions: row.sessions.map((s) => ({ ...s, terminalName: s.terminal?.name ?? null })),
     workedHours: row.workedHours === null || row.workedHours === undefined ? null : Number(row.workedHours),
   };
+}
+
+function toTerminalModel<T extends { branch: { name: string } | null }>(row: T) {
+  return { ...row, branchName: row.branch?.name ?? null };
 }
 
 function toDateOnly(date: Date) {
@@ -89,7 +110,17 @@ export class AttendanceService {
     });
     const map = new Map<
       string,
-      { employeeId: string; employeeName: string; presentDays: number; absentDays: number; lateDays: number; halfDays: number; onLeaveDays: number; totalWorkedHours: number }
+      {
+        employeeId: string;
+        employeeName: string;
+        presentDays: number;
+        absentDays: number;
+        lateDays: number;
+        halfDays: number;
+        paidLeaveDays: number;
+        lopDays: number;
+        totalWorkedHours: number;
+      }
     >();
     for (const log of logs) {
       if (!map.has(log.employeeId)) {
@@ -100,7 +131,8 @@ export class AttendanceService {
           absentDays: 0,
           lateDays: 0,
           halfDays: 0,
-          onLeaveDays: 0,
+          paidLeaveDays: 0,
+          lopDays: 0,
           totalWorkedHours: 0,
         });
       }
@@ -109,7 +141,8 @@ export class AttendanceService {
       else if (log.status === AttendanceStatus.ABSENT) acc.absentDays += 1;
       else if (log.status === AttendanceStatus.LATE) acc.lateDays += 1;
       else if (log.status === AttendanceStatus.HALF_DAY) acc.halfDays += 0.5;
-      else if (log.status === AttendanceStatus.ON_LEAVE) acc.onLeaveDays += 1;
+      else if (log.status === AttendanceStatus.PAID_LEAVE) acc.paidLeaveDays += 1;
+      else if (log.status === AttendanceStatus.LOP) acc.lopDays += 1;
       if (log.workedHours) acc.totalWorkedHours += Number(log.workedHours);
     }
     return Array.from(map.values());
@@ -226,5 +259,88 @@ export class AttendanceService {
       syncedCount: 0,
       message: "No biometric device connected in this environment.",
     };
+  }
+
+  async findTerminals() {
+    const rows = await this.prisma.biometricTerminal.findMany({ include: { branch: true }, orderBy: { name: "asc" } });
+    return rows.map(toTerminalModel);
+  }
+
+  async createTerminal(input: CreateBiometricTerminalInput, organizationId: string) {
+    const row = await this.prisma.biometricTerminal.create({
+      data: {
+        organizationId,
+        name: input.name,
+        code: input.code,
+        branchId: input.branchId,
+        capabilities: input.capabilities,
+        status: input.status ?? BiometricTerminalStatus.OFFLINE,
+        active: input.active ?? true,
+      },
+      include: { branch: true },
+    });
+    return toTerminalModel(row);
+  }
+
+  async updateTerminal(id: string, input: UpdateBiometricTerminalInput) {
+    const existing = await this.prisma.biometricTerminal.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException("Biometric terminal not found");
+    const row = await this.prisma.biometricTerminal.update({
+      where: { id },
+      data: {
+        name: input.name,
+        code: input.code,
+        branchId: input.branchId,
+        capabilities: input.capabilities,
+        status: input.status,
+        active: input.active,
+      },
+      include: { branch: true },
+    });
+    return toTerminalModel(row);
+  }
+
+  async deleteTerminal(id: string) {
+    const existing = await this.prisma.biometricTerminal.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException("Biometric terminal not found");
+    await this.prisma.biometricTerminal.delete({ where: { id } });
+    return existing;
+  }
+
+  async addAttendanceSession(input: AddAttendanceSessionInput) {
+    const log = await this.prisma.attendanceLog.findUnique({ where: { id: input.attendanceLogId }, include: { sessions: true } });
+    if (!log) throw new NotFoundException("Attendance log not found");
+    const nextIndex = log.sessions.reduce((max, s) => Math.max(max, s.sessionIndex), 1) + 1;
+
+    await this.prisma.attendanceSession.create({
+      data: {
+        attendanceLogId: log.id,
+        sessionIndex: nextIndex,
+        checkIn: input.checkIn,
+        checkOut: input.checkOut,
+        terminalId: input.terminalId,
+        verifyMethod: input.verifyMethod,
+      },
+    });
+
+    if (input.terminalId) {
+      await this.prisma.biometricTerminal.update({
+        where: { id: input.terminalId },
+        data: { status: BiometricTerminalStatus.ONLINE, lastSeenAt: new Date() },
+      });
+    }
+
+    const session1Hours =
+      log.checkIn && log.checkOut ? Math.max(0, (log.checkOut.getTime() - log.checkIn.getTime()) / 3_600_000) : 0;
+    const allSessions = await this.prisma.attendanceSession.findMany({ where: { attendanceLogId: log.id } });
+    const extraHours = allSessions.reduce((sum, s) => (s.checkIn && s.checkOut ? sum + Math.max(0, (s.checkOut.getTime() - s.checkIn.getTime()) / 3_600_000) : sum), 0);
+    const workedHours = Math.round((session1Hours + extraHours) * 100) / 100;
+
+    const row = await this.prisma.attendanceLog.update({
+      where: { id: log.id },
+      data: { workedHours },
+      include: ATTENDANCE_INCLUDE,
+    });
+    return toModel(row);
   }
 }

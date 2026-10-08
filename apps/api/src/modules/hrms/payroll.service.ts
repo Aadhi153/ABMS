@@ -210,7 +210,7 @@ export class PayrollService {
       });
       const daysPresent = attendanceLogs.filter((l) => l.status === AttendanceStatus.PRESENT || l.status === AttendanceStatus.LATE).length;
       const halfDays = attendanceLogs.filter((l) => l.status === AttendanceStatus.HALF_DAY).length * 0.5;
-      const daysOnLeave = attendanceLogs.filter((l) => l.status === AttendanceStatus.ON_LEAVE).length;
+      const daysOnLeave = attendanceLogs.filter((l) => l.status === AttendanceStatus.PAID_LEAVE || l.status === AttendanceStatus.LOP).length;
 
       const payslipNumber = await this.nextPayslipNumber();
       const payslip = await this.prisma.payslip.create({

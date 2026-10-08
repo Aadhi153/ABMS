@@ -8,8 +8,16 @@ import { Roles } from "../../common/decorators/roles.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { AuditService } from "../../common/audit/audit.service";
 import { AttendanceService } from "./attendance.service";
-import { AttendanceLogModel, AttendanceSummaryModel, BiometricSyncResultModel } from "./models/attendance.model";
-import { AttendanceFilterInput, BulkMarkAttendanceInput, MarkAttendanceInput, SyncBiometricLogsInput } from "./dto/attendance.input";
+import { AttendanceLogModel, AttendanceSummaryModel, BiometricSyncResultModel, BiometricTerminalModel } from "./models/attendance.model";
+import {
+  AddAttendanceSessionInput,
+  AttendanceFilterInput,
+  BulkMarkAttendanceInput,
+  CreateBiometricTerminalInput,
+  MarkAttendanceInput,
+  SyncBiometricLogsInput,
+  UpdateBiometricTerminalInput,
+} from "./dto/attendance.input";
 
 @Resolver(() => AttendanceLogModel)
 @UseGuards(SessionAuthGuard, RolesGuard)
@@ -67,5 +75,36 @@ export class AttendanceResolver {
   @Mutation(() => BiometricSyncResultModel)
   async syncBiometricLogs(@Args("input") input: SyncBiometricLogsInput) {
     return this.attendanceService.syncBiometricLogs(input);
+  }
+
+  @Query(() => [BiometricTerminalModel])
+  biometricTerminals() {
+    return this.attendanceService.findTerminals();
+  }
+
+  @Mutation(() => BiometricTerminalModel)
+  async createBiometricTerminal(@Args("input") input: CreateBiometricTerminalInput, @CurrentUser() actor: User) {
+    const row = await this.attendanceService.createTerminal(input, actor.organizationId);
+    await this.audit.logCreate(actor, "BiometricTerminal", row.id, row);
+    return row;
+  }
+
+  @Mutation(() => BiometricTerminalModel)
+  async updateBiometricTerminal(@Args("id") id: string, @Args("input") input: UpdateBiometricTerminalInput, @CurrentUser() actor: User) {
+    const row = await this.attendanceService.updateTerminal(id, input);
+    await this.audit.logUpdate(actor, "BiometricTerminal", id, {}, row);
+    return row;
+  }
+
+  @Mutation(() => Boolean)
+  async deleteBiometricTerminal(@Args("id") id: string, @CurrentUser() actor: User) {
+    const deleted = await this.attendanceService.deleteTerminal(id);
+    await this.audit.logDelete(actor, "BiometricTerminal", id, deleted);
+    return true;
+  }
+
+  @Mutation(() => AttendanceLogModel)
+  async addAttendanceSession(@Args("input") input: AddAttendanceSessionInput) {
+    return this.attendanceService.addAttendanceSession(input);
   }
 }

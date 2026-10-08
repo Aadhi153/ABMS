@@ -57,7 +57,7 @@ export class OverviewService {
 
     const presentToday = todaysLogs.filter((l) => l.status === AttendanceStatus.PRESENT || l.status === AttendanceStatus.LATE).length;
     const absentToday = todaysLogs.filter((l) => l.status === AttendanceStatus.ABSENT).length;
-    const onLeaveToday = todaysLogs.filter((l) => l.status === AttendanceStatus.ON_LEAVE).length;
+    const onLeaveToday = todaysLogs.filter((l) => l.status === AttendanceStatus.PAID_LEAVE || l.status === AttendanceStatus.LOP).length;
 
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const recentJoiners = allEmployees
